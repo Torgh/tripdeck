@@ -1,0 +1,22 @@
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# secrets – never commit
+.env*
+!.env.example
+*.bak
+*.pem
+*.key
+.tripdeck/
+google-token.json
+config.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
