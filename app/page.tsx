@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { SyncBadge } from "@/components/SyncAgent";
+import { SOURCE_URL } from "@/lib/about";
 import { demoTrip } from "@/lib/demo";
 import { useHydrated } from "@/lib/hooks";
 import { createTrip, parseTripFile, useStore } from "@/lib/store";
@@ -177,6 +178,13 @@ export default function Home() {
           </div>
         </form>
       </section>
+
+      <footer className="small muted" style={{ marginTop: 24, textAlign: "center" }}>
+        TripDeck is free software (AGPL-3.0) ·{" "}
+        <a href={SOURCE_URL} target="_blank" rel="noreferrer">
+          Source code
+        </a>
+      </footer>
     </main>
   );
 }

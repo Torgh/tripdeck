@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { SyncBadge } from "@/components/SyncAgent";
+import { LICENSE_URL, SOURCE_URL } from "@/lib/about";
 import { reloadConfig, useConfig } from "@/lib/config";
 import type { ConfigKey, ConfigStatus } from "@/lib/configStatus";
 import { syncNow } from "@/lib/sync";
@@ -128,6 +129,23 @@ function Settings() {
           import directly in the app.
         </p>
         <KeyForm config={config} fields={[{ key: "anthropicApiKey", label: "Anthropic API key", secret: true }]} />
+      </section>
+
+      <section className="card stack">
+        <h2>ℹ️ About</h2>
+        <p className="small" style={{ margin: 0 }}>
+          TripDeck © 2026 Krzysztof Liszankowski. Free software under the{" "}
+          <a href={LICENSE_URL} target="_blank" rel="noreferrer">
+            GNU Affero General Public License v3
+          </a>{" "}
+          or later – you may use, study, share and modify it under its terms. It comes with ABSOLUTELY NO WARRANTY.
+        </p>
+        <p className="small" style={{ margin: 0 }}>
+          Source code:{" "}
+          <a href={SOURCE_URL} target="_blank" rel="noreferrer">
+            {SOURCE_URL.replace("https://", "")}
+          </a>
+        </p>
       </section>
     </main>
   );
