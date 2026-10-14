@@ -282,17 +282,22 @@ label {
 }
 
 .board {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
   padding: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  align-items: flex-start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  align-items: start;
+  align-content: start;
   min-height: 0;
 }
+.board > .btn {
+  justify-self: start;
+}
 .column {
-  flex: 0 0 290px;
-  max-height: 100%;
+  min-width: 0;
+  max-height: min(75vh, 720px);
   display: flex;
   flex-direction: column;
   background: var(--surface-2);
@@ -653,8 +658,8 @@ legend {
   .map-pane {
     border-left: none;
   }
-  .column {
-    flex-basis: min(290px, calc(100vw - 48px));
+  .board {
+    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   }
   .grid2 {
     grid-template-columns: 1fr;
