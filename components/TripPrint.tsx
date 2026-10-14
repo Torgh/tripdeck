@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo } from "react";
 import { computeDiveWarnings } from "@/lib/diveSafety";
+import { focusItems, mercatorAspect } from "@/lib/geo";
 import { useHydrated } from "@/lib/hooks";
 import { nightsOf, type Night } from "@/lib/stays";
 import { useTrip } from "@/lib/store";
 import { dayDate, formatDayLabel, formatDuration, formatHm } from "@/lib/time";
 import { computeTripTimeline, getLeg, type Issue } from "@/lib/timeline";
 import { itemIcon, MODE_LABEL, type Item } from "@/lib/types";
+import { dayColor } from "./Board";
+import { TripMap } from "./TripMap";
 
 /** Printable itinerary; the browser's print dialog saves it as a PDF. */
 export function TripPrint({ tripId }: { tripId: string | null }) {
@@ -17,6 +20,10 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
   const timelines = useMemo(() => (trip ? computeTripTimeline(trip) : []), [trip]);
   const warnings = useMemo(() => (trip ? computeDiveWarnings(trip, timelines) : new Map()), [trip, timelines]);
   const nights = useMemo(() => (trip ? nightsOf(trip) : []), [trip]);
+  const focus = useMemo(() => {
+    const items = trip ? focusItems(Object.values(trip.items)) : [];
+    return { ids: new Set(items.map((it) => it.id)), aspect: mercatorAspect(items.map((it) => it.location!)) };
+  }, [trip]);
 
   useEffect(() => {
     if (!trip) return;
@@ -64,6 +71,16 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
           </p>
         </header>
 
+        {focus.ids.size > 0 && (
+          <section className="print-section">
+            <h2>Map</h2>
+            {/* Tall trips get a tall map; the height stays within one page. */}
+            <div className="print-map" style={{ height: Math.round(Math.min(640, Math.max(320, 680 * focus.aspect))) }}>
+              <TripMap trip={trip} selectedDayId={null} onlyItemIds={focus.ids} staticView />
+            </div>
+          </section>
+        )}
+
         <section className="print-section">
           <h2>Overview</h2>
           <table>
@@ -78,7 +95,9 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
             <tbody>
               {trip.days.map((d, i) => (
                 <tr key={d.id}>
-                  <td>{i + 1}</td>
+                  <td className="nowrap">
+                    <span className="day-dot" style={{ background: dayColor(i) }} /> {i + 1}
+                  </td>
                   <td className="nowrap">{formatDayLabel(dayDate(trip.startDate, i))}</td>
                   <td>
                     {d.itemIds

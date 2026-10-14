@@ -809,6 +809,24 @@ legend {
   font-family: ui-monospace, Consolas, monospace;
   word-break: break-all;
 }
+/* Fixed size, the same on screen and paper, so the map is not resized when printing. */
+.print-map {
+  position: relative;
+  width: 680px;
+  max-width: 100%;
+  height: 440px; /* overridden inline from the trip's shape */
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.print-doc .day-dot {
+  display: inline-block;
+  vertical-align: middle;
+}
+.print-doc {
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
 .print-day {
   padding: 12px 0;
   border-bottom: 1px solid var(--border);

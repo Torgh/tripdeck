@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decodePolyline, haversineM, parseCoordinates } from "./geo";
+import { decodePolyline, focusItems, haversineM, mercatorAspect, parseCoordinates } from "./geo";
+import type { Item } from "./types";
 
 describe("decodePolyline", () => {
   it("decodes Google's reference example", () => {
@@ -35,4 +36,32 @@ describe("parseCoordinates", () => {
 it("haversine is about right", () => {
   // Valletta -> Mdina is roughly 10 km in a straight line
   expect(haversineM({ lat: 35.8989, lng: 14.5146 }, { lat: 35.8858, lng: 14.4031 }) / 1000).toBeCloseTo(10.1, 0);
+});
+
+describe("focusItems", () => {
+  const at = (id: string, lat: number, lng: number, flight = false): Item => ({
+    id,
+    type: flight ? "transport" : "stay",
+    title: id,
+    location: { lat, lng },
+    transport: flight ? { kind: "flight" } : undefined,
+  });
+  const warsaw = at("waw", 52.165, 20.969, true);
+  const doha = at("doh", 25.271, 51.601, true);
+  const donMueang = at("dmk", 13.915, 100.605, true);
+  const bangkokHotel = at("hotel", 13.718, 100.522);
+  const kohTao = at("kohtao", 10.065, 99.822);
+
+  it("leaves out far-away flights, keeps flights near the trip", () => {
+    expect(focusItems([warsaw, doha, donMueang, bangkokHotel, kohTao])).toEqual([donMueang, bangkokHotel, kohTao]);
+  });
+
+  it("keeps everything when the trip has only flights", () => {
+    expect(focusItems([warsaw, doha])).toHaveLength(2);
+  });
+
+  it("measures tall and wide areas", () => {
+    expect(mercatorAspect([bangkokHotel.location!, { lat: 18.76, lng: 99.0 }])).toBeGreaterThan(2);
+    expect(mercatorAspect([{ lat: 0, lng: 0 }, { lat: 1, lng: 10 }])).toBeLessThan(0.2);
+  });
 });

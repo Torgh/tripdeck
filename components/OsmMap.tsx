@@ -17,12 +17,15 @@ if (typeof window !== "undefined") maplibregl.setWorkerUrl("/vendor/maplibre-wor
 export function OsmMap({
   layers,
   fitKey,
+  staticView = false,
   highlight,
   highlightId,
   onMarkerClick,
 }: {
   layers: MapLayers;
   fitKey: string;
+  /** A still picture for printing: no controls, no gestures, no animation. */
+  staticView?: boolean;
   highlight?: LatLng;
   highlightId?: string;
   onMarkerClick: (itemId: string) => void;
@@ -41,9 +44,12 @@ export function OsmMap({
       style: STYLE,
       center: first ? toLngLat(first) : [10, 30],
       zoom: first ? 9 : 1.5,
-      attributionControl: { compact: true },
+      attributionControl: { compact: !staticView },
+      interactive: !staticView,
+      // Without it the WebGL canvas comes out blank when printed.
+      canvasContextAttributes: { preserveDrawingBuffer: staticView },
     });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    if (!staticView) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.on("load", () => {
       map.addSource("legs", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       const paint: maplibregl.LineLayerSpecification["paint"] = {
@@ -111,12 +117,12 @@ export function OsmMap({
     const pts = layers.markers.map((m) => m.item.location!);
     if (!map || !pts.length) return;
     if (pts.length === 1) {
-      map.easeTo({ center: toLngLat(pts[0]), zoom: 13 });
+      map.easeTo({ center: toLngLat(pts[0]), zoom: 13, duration: staticView ? 0 : undefined });
       return;
     }
     const bounds = new maplibregl.LngLatBounds(toLngLat(pts[0]), toLngLat(pts[0]));
     pts.forEach((p) => bounds.extend(toLngLat(p)));
-    map.fitBounds(bounds, { padding: 48, maxZoom: 14, duration: 500 });
+    map.fitBounds(bounds, { padding: 48, maxZoom: 14, duration: staticView ? 0 : 500 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitKey]);
 
