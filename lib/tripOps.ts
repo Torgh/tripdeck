@@ -32,6 +32,16 @@ export function createTrip(init: {
   };
 }
 
+/** Grow or shrink the trip to `count` days; cards from removed days move to Ideas. */
+export function setDayCount(trip: Trip, count: number): Trip {
+  const n = Math.max(1, Math.floor(count));
+  if (n >= trip.days.length) {
+    return { ...trip, days: [...trip.days, ...Array.from({ length: n - trip.days.length }, newDay)] };
+  }
+  const removed = trip.days.slice(n);
+  return { ...trip, days: trip.days.slice(0, n), ideas: [...trip.ideas, ...removed.flatMap((d) => d.itemIds)] };
+}
+
 export function touch(trip: Trip): Trip {
   return { ...trip, updatedAt: new Date().toISOString() };
 }
