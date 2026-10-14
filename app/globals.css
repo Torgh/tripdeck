@@ -271,8 +271,20 @@ label {
 }
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 38%);
+  grid-template-columns: minmax(0, 1fr) 6px clamp(280px, var(--map-w, 38%), 75%);
   min-height: 0;
+}
+.splitter {
+  cursor: col-resize;
+  touch-action: none;
+  background: var(--border);
+  transition: background 0.15s;
+}
+.splitter:hover,
+.splitter:focus-visible,
+.splitter.dragging {
+  background: var(--accent);
+  outline: none;
 }
 .workspace.map-hidden {
   grid-template-columns: minmax(0, 1fr);
@@ -474,7 +486,6 @@ label {
 
 .map-pane {
   position: relative;
-  border-left: 1px solid var(--border);
   min-height: 0;
 }
 .map-pane .map-filter {
@@ -659,6 +670,9 @@ legend {
   }
   .map-pane {
     border-left: none;
+  }
+  .splitter {
+    display: none;
   }
   .board {
     grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
