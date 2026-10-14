@@ -25,7 +25,9 @@ import type { PlaceResult } from "@/lib/server/google";
 import { Modal, Spinner } from "./Modal";
 import { PlaceSearch } from "./PlaceSearch";
 
-export type EditorTarget = { kind: "new"; container: ContainerId } | { kind: "edit"; itemId: string; tab?: "details" | "tips" };
+export type EditorTarget =
+  | { kind: "new"; container: ContainerId; type?: ItemType }
+  | { kind: "edit"; itemId: string; tab?: "details" | "tips" };
 
 const PROVIDERS = ["Booking.com", "GetYourGuide", "Viator", "Airbnb", "Klook", "Dive centre"];
 const TRANSPORT_KINDS: TransportKind[] = ["flight", "ferry", "train", "bus", "car_rental", "boat", "other"];
@@ -53,7 +55,10 @@ export function ItemEditor({
   const updateItem = useStore((s) => s.updateItem);
   const removeItem = useStore((s) => s.removeItem);
   const existing = target.kind === "edit" ? trip.items[target.itemId] : undefined;
-  const [draft, setDraft] = useState<Item>(existing ?? { id: newId(), type: "place", title: "" });
+  const preset = target.kind === "new" ? target.type : undefined;
+  const [draft, setDraft] = useState<Item>(
+    existing ?? { id: newId(), type: preset ?? "place", title: "", stay: preset === "stay" ? { nights: 1 } : undefined },
+  );
   const [container, setContainer] = useState<ContainerId>(target.kind === "new" ? target.container : IDEAS);
   const [tab, setTab] = useState<"details" | "tips">(target.kind === "edit" && ai ? (target.tab ?? "details") : "details");
   const [tipsState, setTipsState] = useState<{ loading: boolean; error?: string }>({ loading: false });
@@ -63,7 +68,7 @@ export function ItemEditor({
 
   const pickPlace = (p: PlaceResult) =>
     setDraft((d) => {
-      const type = d.title ? d.type : guessType(p);
+      const type = d.title || preset ? d.type : guessType(p);
       return {
         ...d,
         ...itemFieldsFromPlace(p),

@@ -26,8 +26,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { routeKey } from "@/lib/geo";
+import { nightsOf, stayColorIndex, type Night } from "@/lib/stays";
 import { containersOf, useStore } from "@/lib/store";
 import { formatDayLabel, formatDistance, formatDuration, formatHm } from "@/lib/time";
 import { getLeg, type DayTimeline, type Issue, type TimelineEntry } from "@/lib/timeline";
@@ -47,6 +48,8 @@ import {
 
 export const DAY_COLORS = ["#0e7490", "#c2410c", "#7c3aed", "#15803d", "#be185d", "#1d4ed8", "#a16207", "#475569"];
 export const dayColor = (index: number) => DAY_COLORS[index % DAY_COLORS.length];
+/** Hues kept apart from DAY_COLORS so a stay never looks like a day. */
+export const STAY_COLORS = ["#0d9488", "#d97706", "#db2777", "#4f46e5", "#65a30d", "#dc2626", "#0891b2", "#9333ea"];
 
 const COL = "col:";
 
@@ -54,7 +57,7 @@ export interface BoardHandlers {
   onSelectDay: (dayId: string | null) => void;
   onHighlight: (itemId: string) => void;
   onEdit: (itemId: string, tab?: "details" | "tips") => void;
-  onAdd: (container: ContainerId) => void;
+  onAdd: (container: ContainerId, type?: Item["type"]) => void;
   onSuggest: (container: ContainerId, anchorItemId?: string) => void;
   onOptimize: (dayId: string) => void;
 }
@@ -84,6 +87,8 @@ export function Board(props: BoardProps) {
   const dragRef = useRef<Containers | null>(null);
   const [active, setActive] = useState<{ type: "item" | "column"; id: string } | null>(null);
   const containers = drag ?? containersOf(trip);
+  const nights = useMemo(() => nightsOf(trip), [trip]);
+  const staySlots = useMemo(() => stayColorIndex(nights), [nights]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -183,7 +188,15 @@ export function Board(props: BoardProps) {
         <IdeasColumn {...props} itemIds={containers[IDEAS]} dragging={!!drag} />
         <SortableContext items={trip.days.map((d) => COL + d.id)} strategy={rectSortingStrategy}>
           {trip.days.map((day, i) => (
-            <DayColumn key={day.id} {...props} dayIndex={i} itemIds={containers[day.id] ?? []} dragging={!!drag} />
+            <DayColumn
+              key={day.id}
+              {...props}
+              dayIndex={i}
+              itemIds={containers[day.id] ?? []}
+              dragging={!!drag}
+              night={nights[i]}
+              nightColor={nights[i]?.kind === "stay" ? STAY_COLORS[staySlots.get(nights[i].colorKey)! % STAY_COLORS.length] : undefined}
+            />
           ))}
         </SortableContext>
         <AddDayButton tripId={trip.id} />
@@ -247,7 +260,9 @@ function IdeasColumn(props: BoardProps & { itemIds: string[]; dragging: boolean 
   );
 }
 
-function DayColumn(props: BoardProps & { dayIndex: number; itemIds: string[]; dragging: boolean }) {
+function DayColumn(
+  props: BoardProps & { dayIndex: number; itemIds: string[]; dragging: boolean; night?: Night; nightColor?: string },
+) {
   const { trip, dayIndex, timelines, selectedDayId } = props;
   const day = trip.days[dayIndex];
   const tl = timelines[dayIndex];
@@ -337,7 +352,60 @@ function DayColumn(props: BoardProps & { dayIndex: number; itemIds: string[]; dr
           ends ~{formatHm(tl.endMin)}
         </div>
       )}
+      {props.night && <NightStrip night={props.night} color={props.nightColor} dayId={day.id} {...props} />}
     </section>
+  );
+}
+
+/** Where the night after this day is spent: the stay (coloured per hotel), an overnight trip, or a gap. */
+function NightStrip({
+  night,
+  color,
+  dayId,
+  onHighlight,
+  onAdd,
+}: BoardHandlers & { night: Night; color?: string; dayId: string }) {
+  if (night.kind === "end") return null;
+  if (night.kind === "transport") {
+    return (
+      <div className="night-strip muted">
+        <span>{itemIcon(night.item)}</span>
+        <span className="grow">Overnight · {night.item.title}</span>
+      </div>
+    );
+  }
+  if (night.kind === "none") {
+    return (
+      <div className="night-strip gap">
+        <span>🌙</span>
+        <span className="grow">No accommodation</span>
+        <button className="btn small" onClick={() => onAdd(dayId, "stay")}>
+          + Add stay
+        </button>
+      </div>
+    );
+  }
+  const { stay, night: n, nights } = night;
+  const detail =
+    nights === 1
+      ? "1 night · check-in"
+      : `Night ${n} of ${nights}${n === 1 ? " · check-in" : n === nights ? " · check-out tomorrow" : ""}`;
+  return (
+    <button
+      className="night-strip stay"
+      style={{ "--stay-color": color } as CSSProperties}
+      title="Show this stay"
+      onClick={() => {
+        onHighlight(stay.id);
+        document.getElementById(`item-${stay.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }}
+    >
+      <span>{itemIcon(stay)}</span>
+      <span className="grow">
+        <strong>{stay.title}</strong>
+        <small>{detail}</small>
+      </span>
+    </button>
   );
 }
 

@@ -370,6 +370,50 @@ label {
   font-size: 12px;
   color: var(--muted);
 }
+/* Where the night after the day is spent; a stay keeps its colour on every night. */
+.night-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+.night-strip .grow {
+  min-width: 0;
+}
+.night-strip.stay {
+  cursor: pointer;
+  box-shadow: inset 4px 0 0 var(--stay-color);
+  background: color-mix(in srgb, var(--stay-color) 12%, var(--surface-2));
+}
+.night-strip.stay:hover {
+  background: color-mix(in srgb, var(--stay-color) 22%, var(--surface-2));
+}
+.night-strip.stay strong,
+.night-strip.stay small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.night-strip.stay small {
+  color: var(--muted);
+}
+.night-strip.muted {
+  color: var(--muted);
+}
+.night-strip.gap {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
 .empty-drop {
   border: 1.5px dashed var(--border);
   border-radius: 8px;

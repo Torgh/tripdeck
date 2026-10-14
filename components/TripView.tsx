@@ -114,7 +114,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
           onSelectDay={setSelectedDayId}
           onHighlight={setHighlightId}
           onEdit={(itemId, t) => setDialog({ kind: "editor", target: { kind: "edit", itemId, tab: t } })}
-          onAdd={(container) => setDialog({ kind: "editor", target: { kind: "new", container } })}
+          onAdd={(container, type) => setDialog({ kind: "editor", target: { kind: "new", container, type } })}
           onSuggest={(container, anchorItemId) => setDialog({ kind: "suggest", container, anchorItemId })}
           onOptimize={(dayId) => setDialog({ kind: "optimize", dayId })}
         />
