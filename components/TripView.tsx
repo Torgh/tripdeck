@@ -10,6 +10,7 @@ import { dayDate, formatDayLabel } from "@/lib/time";
 import { computeTripTimeline } from "@/lib/timeline";
 import type { ContainerId } from "@/lib/types";
 import { Board } from "./Board";
+import { ExportMenu } from "./ExportMenu";
 import { ImportDialog } from "./ImportDialog";
 import { ItemEditor, type EditorTarget } from "./ItemEditor";
 import { OptimizeDialog } from "./OptimizeDialog";
@@ -91,9 +92,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
           <button className="btn" onClick={() => setDialog({ kind: "import" })}>
             📥 <span className="label">Import booking</span>
           </button>
-          <button className="btn" onClick={exportTrip} title="Download a backup of this trip">
-            ⬇ <span className="label">Export</span>
-          </button>
+          <ExportMenu tripId={trip.id} onJson={exportTrip} />
           <button className="btn" onClick={() => setDialog({ kind: "settings" })}>
             ✏️ <span className="label">Trip</span>
           </button>
