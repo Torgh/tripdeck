@@ -140,7 +140,11 @@ function itemLine(item: Item): string {
       `${item.transport.kind}${item.transport.number ? ` ${item.transport.number}` : ""}${item.transport.from || item.transport.to ? ` ${item.transport.from ?? "?"} → ${item.transport.to ?? "?"}` : ""}`,
     );
   }
-  if (item.stay) bits.push(`${item.stay.nights} night(s)`);
+  if (item.stay) {
+    bits.push(`${item.stay.nights} night(s)`);
+    if (item.stay.checkIn) bits.push(`check-in from ${item.stay.checkIn}`);
+    if (item.stay.checkOut) bits.push(`check-out by ${item.stay.checkOut}`);
+  }
   if (item.booking?.provider || item.booking?.reference) {
     bits.push(
       `booked: ${[item.booking.provider, item.booking.reference, item.booking.price].filter(Boolean).join(" ")}`,
@@ -252,6 +256,8 @@ const cardFields = {
     })
     .optional(),
   stay_nights: z.number().int().min(1).max(60).optional(),
+  stay_check_in: hhmm.optional().describe("Stays: earliest check-in time"),
+  stay_check_out: hhmm.optional().describe("Stays: latest check-out time"),
   booking: z
     .object({
       provider: z.string().max(60).optional(),
@@ -296,8 +302,14 @@ async function applyCard(trip: Trip, base: Item, a: CardArgs): Promise<{ item: I
   } else if (item.type === "dive" && !item.dive) item.dive = { dives: 2, gas: "air" };
   if (a.transport) item.transport = { ...a.transport };
   else if (item.type === "transport" && !item.transport) item.transport = { kind: "other" };
-  if (a.stay_nights) item.stay = { nights: a.stay_nights };
-  else if (item.type === "stay" && !item.stay) item.stay = { nights: 1 };
+  if (a.stay_nights || a.stay_check_in || a.stay_check_out) {
+    item.stay = {
+      ...item.stay,
+      nights: a.stay_nights ?? item.stay?.nights ?? 1,
+      checkIn: a.stay_check_in ?? item.stay?.checkIn,
+      checkOut: a.stay_check_out ?? item.stay?.checkOut,
+    };
+  } else if (item.type === "stay" && !item.stay) item.stay = { nights: 1 };
   if (a.booking) item.booking = { ...item.booking, ...a.booking };
   if (!item.title) item.title = "Untitled";
 

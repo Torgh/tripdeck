@@ -1,4 +1,4 @@
-import type { LatLng, TravelMode } from "./types";
+import type { Item, LatLng, TravelMode } from "./types";
 
 export function haversineM(a: LatLng, b: LatLng): number {
   const R = 6_371_000;
@@ -78,6 +78,32 @@ export function parseCoordinates(input: string): LatLng | undefined {
     }
   }
   return undefined;
+}
+
+/** Flights more than this far from every other stop (e.g. the flight from home) are left out of the trip's area. */
+const FOCUS_MAX_KM = 1000;
+
+/**
+ * The cards that make up a trip's area on a map: every located card except flights that are far from
+ * all the places you stay or visit. Falls back to every card when the trip is only flights.
+ */
+export function focusItems(items: Item[]): Item[] {
+  const located = items.filter((it) => it.location);
+  const isFlight = (it: Item) => it.type === "transport" && it.transport?.kind === "flight";
+  const ground = located.filter((it) => !isFlight(it)).map((it) => it.location!);
+  if (!ground.length) return located;
+  return located.filter((it) => !isFlight(it) || ground.some((g) => haversineM(g, it.location!) <= FOCUS_MAX_KM * 1000));
+}
+
+/** Height / width of the Web Mercator box around `points` (tall trips > 1, wide trips < 1). */
+export function mercatorAspect(points: LatLng[]): number {
+  if (points.length < 2) return 0.65;
+  const y = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+  const lats = points.map((p) => p.lat);
+  const lngs = points.map((p) => p.lng);
+  const height = y(Math.max(...lats)) - y(Math.min(...lats));
+  const width = ((Math.max(...lngs) - Math.min(...lngs)) * Math.PI) / 180;
+  return width > 0 ? height / width : 1.5;
 }
 
 export function centroid(points: LatLng[]): LatLng | undefined {

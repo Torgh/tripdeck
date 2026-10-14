@@ -5,7 +5,7 @@ import { postJSON } from "@/lib/api";
 import { centroid } from "@/lib/geo";
 import { guessType, itemFieldsFromPlace } from "@/lib/places";
 import { newId, useStore } from "@/lib/store";
-import { dayDate, formatDuration, isoDate } from "@/lib/time";
+import { dayDate, formatDayLabel, formatDuration, isoDate } from "@/lib/time";
 import { durationOf } from "@/lib/timeline";
 import {
   DEFAULT_DURATION_MIN,
@@ -25,10 +25,18 @@ import type { PlaceResult } from "@/lib/server/google";
 import { Modal, Spinner } from "./Modal";
 import { PlaceSearch } from "./PlaceSearch";
 
-export type EditorTarget = { kind: "new"; container: ContainerId } | { kind: "edit"; itemId: string; tab?: "details" | "tips" };
+export type EditorTarget =
+  | { kind: "new"; container: ContainerId; type?: ItemType }
+  | { kind: "edit"; itemId: string; tab?: "details" | "tips" };
 
 const PROVIDERS = ["Booking.com", "GetYourGuide", "Viator", "Airbnb", "Klook", "Dive centre"];
 const TRANSPORT_KINDS: TransportKind[] = ["flight", "ferry", "train", "bus", "car_rental", "boat", "other"];
+
+/** "Mon 12 Jan → Thu 15 Jan. " for a stay checked in on day `dayIndex`; empty in Ideas. */
+function stayRange(trip: Trip, dayIndex: number, nights: number) {
+  if (dayIndex < 0) return "";
+  return `${formatDayLabel(dayDate(trip.startDate, dayIndex))} → ${formatDayLabel(dayDate(trip.startDate, dayIndex + nights))}. `;
+}
 
 export function tripCenter(trip: Trip) {
   return centroid(
@@ -53,7 +61,15 @@ export function ItemEditor({
   const updateItem = useStore((s) => s.updateItem);
   const removeItem = useStore((s) => s.removeItem);
   const existing = target.kind === "edit" ? trip.items[target.itemId] : undefined;
-  const [draft, setDraft] = useState<Item>(existing ?? { id: newId(), type: "place", title: "" });
+  const preset = target.kind === "new" ? target.type : undefined;
+  const [draft, setDraft] = useState<Item>(() => {
+    if (!existing) return { id: newId(), type: preset ?? "place", title: "", stay: preset === "stay" ? { nights: 1 } : undefined };
+    // Older stays kept the check-in as a fixed start time; it is now a stay field.
+    if (existing.type === "stay" && existing.startTime && !existing.stay?.checkIn) {
+      return { ...existing, startTime: undefined, stay: { nights: 1, ...existing.stay, checkIn: existing.startTime } };
+    }
+    return existing;
+  });
   const [container, setContainer] = useState<ContainerId>(target.kind === "new" ? target.container : IDEAS);
   const [tab, setTab] = useState<"details" | "tips">(target.kind === "edit" && ai ? (target.tab ?? "details") : "details");
   const [tipsState, setTipsState] = useState<{ loading: boolean; error?: string }>({ loading: false });
@@ -63,7 +79,7 @@ export function ItemEditor({
 
   const pickPlace = (p: PlaceResult) =>
     setDraft((d) => {
-      const type = d.title ? d.type : guessType(p);
+      const type = d.title || preset ? d.type : guessType(p);
       return {
         ...d,
         ...itemFieldsFromPlace(p),
@@ -219,7 +235,7 @@ export function ItemEditor({
             <input value={draft.title} onChange={(e) => set({ title: e.target.value })} placeholder="What is it?" />
           </label>
 
-          <div className="grid2">
+          {draft.type !== "stay" && <div className="grid2">
             <label>
               Fixed start time (optional)
               <input
@@ -239,7 +255,7 @@ export function ItemEditor({
                 onChange={(e) => set({ durationMin: e.target.value === "" ? undefined : Number(e.target.value) })}
               />
             </label>
-          </div>
+          </div>}
 
           {draft.type === "dive" && (
             <fieldset>
@@ -343,16 +359,41 @@ export function ItemEditor({
           )}
 
           {draft.type === "stay" && (
-            <label>
-              Nights (you start the following days from here)
-              <input
-                type="number"
-                min={1}
-                max={60}
-                value={draft.stay?.nights ?? 1}
-                onChange={(e) => set({ stay: { nights: Math.max(1, Number(e.target.value)) } })}
-              />
-            </label>
+            <fieldset>
+              <legend>🏨 Stay</legend>
+              <div className="grid3">
+                <label>
+                  Nights
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={draft.stay?.nights ?? 1}
+                    onChange={(e) => set({ stay: { ...draft.stay, nights: Math.max(1, Number(e.target.value)) } })}
+                  />
+                </label>
+                <label>
+                  Check-in from
+                  <input
+                    type="time"
+                    value={draft.stay?.checkIn ?? ""}
+                    onChange={(e) => set({ stay: { nights: 1, ...draft.stay, checkIn: e.target.value || undefined } })}
+                  />
+                </label>
+                <label>
+                  Check-out by
+                  <input
+                    type="time"
+                    value={draft.stay?.checkOut ?? ""}
+                    onChange={(e) => set({ stay: { nights: 1, ...draft.stay, checkOut: e.target.value || undefined } })}
+                  />
+                </label>
+              </div>
+              <div className="small muted">
+                {stayRange(trip, dayIndex >= 0 ? dayIndex : trip.days.findIndex((d) => d.id === container), draft.stay?.nights ?? 1)}
+                The following days start from here.
+              </div>
+            </fieldset>
           )}
 
           <fieldset>

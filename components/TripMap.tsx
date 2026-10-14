@@ -27,14 +27,20 @@ export function TripMap({
   selectedDayId,
   highlightId,
   onMarkerClick,
+  onlyItemIds,
+  staticView = false,
 }: {
   trip: Trip;
   selectedDayId: string | null;
   highlightId?: string;
-  onMarkerClick: (itemId: string) => void;
+  onMarkerClick?: (itemId: string) => void;
+  /** Show (and frame) only these cards and the legs between them. */
+  onlyItemIds?: Set<string>;
+  /** A still picture for printing: no controls, no gestures, no animation. */
+  staticView?: boolean;
 }) {
   const config = useConfig();
-  const layers = useMemo(() => buildLayers(trip, selectedDayId), [trip, selectedDayId]);
+  const layers = useMemo(() => buildLayers(trip, selectedDayId, onlyItemIds), [trip, selectedDayId, onlyItemIds]);
   const { markers, lines } = layers;
   const fitKey = `${selectedDayId}|${markers.length}`;
   const highlight = highlightId ? trip.items[highlightId]?.location : undefined;
@@ -44,7 +50,14 @@ export function TripMap({
   // Without a Google browser key, an OpenStreetMap-based map needs no setup at all.
   if (!config.googleMapsBrowserKey) {
     return (
-      <OsmMap layers={layers} fitKey={fitKey} highlight={highlight} highlightId={highlightId} onMarkerClick={onMarkerClick} />
+      <OsmMap
+        layers={layers}
+        fitKey={fitKey}
+        staticView={staticView}
+        highlight={highlight}
+        highlightId={highlightId}
+        onMarkerClick={onMarkerClick ?? (() => {})}
+      />
     );
   }
 
@@ -54,9 +67,10 @@ export function TripMap({
         mapId={config.googleMapId || "DEMO_MAP_ID"}
         defaultCenter={markers[0]?.item.location ?? { lat: 20, lng: 0 }}
         defaultZoom={markers.length ? 10 : 2}
-        gestureHandling="greedy"
-        colorScheme="FOLLOW_SYSTEM"
-        disableDefaultUI={false}
+        gestureHandling={staticView ? "none" : "greedy"}
+        keyboardShortcuts={!staticView}
+        colorScheme={staticView ? "LIGHT" : "FOLLOW_SYSTEM"}
+        disableDefaultUI={staticView}
         mapTypeControl={false}
         streetViewControl={false}
         style={{ width: "100%", height: "100%" }}
@@ -87,7 +101,7 @@ export function TripMap({
             position={m.item.location!}
             title={`${m.label}. ${m.item.title}`}
             zIndex={highlightId === m.item.id ? 1000 : undefined}
-            onClick={() => onMarkerClick(m.item.id)}
+            onClick={() => onMarkerClick?.(m.item.id)}
           >
             <div className={`pin${highlightId === m.item.id ? " active" : ""}`} style={{ background: m.color }}>
               <span>{m.label}</span>
@@ -103,7 +117,8 @@ export function TripMap({
 
 export type MapLayers = ReturnType<typeof buildLayers>;
 
-function buildLayers(trip: Trip, selectedDayId: string | null) {
+function buildLayers(trip: Trip, selectedDayId: string | null, onlyItemIds?: Set<string>) {
+  const visible = (id: string) => !onlyItemIds || onlyItemIds.has(id);
   const markers: Marker[] = [];
   const lines: Line[] = [];
   const shown = new Set<string>();
@@ -117,11 +132,15 @@ function buildLayers(trip: Trip, selectedDayId: string | null) {
       const item = trip.items[id];
       if (!item?.location) continue;
       n++;
+      if (!visible(id)) {
+        prev = item;
+        continue;
+      }
       if (!shown.has(id)) {
         markers.push({ item, label: item.type === "stay" ? "🏨" : String(n), color });
         shown.add(id);
       }
-      if (prev?.location && prev.id !== item.id) {
+      if (prev?.location && prev.id !== item.id && visible(prev.id)) {
         const leg = getLeg(trip, prev.id, item.id);
         const fresh =
           isRoutable(leg.mode) && leg.result?.key === routeKey(leg.mode, prev.location, item.location) && leg.result.polyline;
