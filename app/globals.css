@@ -179,6 +179,11 @@ label {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
 .stack {
   display: grid;
   gap: 12px;
@@ -721,7 +726,8 @@ legend {
   .board {
     grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   }
-  .grid2 {
+  .grid2,
+  .grid3 {
     grid-template-columns: 1fr;
   }
   .metrics {

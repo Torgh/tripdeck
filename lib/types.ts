@@ -69,6 +69,10 @@ export interface TransportDetails {
 
 export interface StayDetails {
   nights: number;
+  /** Earliest check-in "HH:MM" on the first day. */
+  checkIn?: string;
+  /** Latest check-out "HH:MM" on the morning after the last night. */
+  checkOut?: string;
 }
 
 export interface Booking {

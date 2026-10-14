@@ -386,10 +386,11 @@ function NightStrip({
     );
   }
   const { stay, night: n, nights } = night;
-  const detail =
-    nights === 1
-      ? "1 night · check-in"
-      : `Night ${n} of ${nights}${n === 1 ? " · check-in" : n === nights ? " · check-out tomorrow" : ""}`;
+  const checkIn = `check-in${stay.stay?.checkIn ? ` from ${stay.stay.checkIn}` : ""}`;
+  const checkOut = `check-out tomorrow${stay.stay?.checkOut ? ` by ${stay.stay.checkOut}` : ""}`;
+  const detail = [nights === 1 ? "1 night" : `Night ${n} of ${nights}`, n === 1 && checkIn, n === nights && checkOut]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <button
       className="night-strip stay"
@@ -504,6 +505,8 @@ function ItemCard({
           </span>
         )}
         {item.stay && <span>{item.stay.nights} night{item.stay.nights > 1 ? "s" : ""}</span>}
+        {item.stay?.checkIn && <span>in {item.stay.checkIn}</span>}
+        {item.stay?.checkOut && <span>out {item.stay.checkOut}</span>}
         {item.transport && (item.transport.from || item.transport.to) && (
           <span>
             {item.transport.from ?? "?"} → {item.transport.to ?? "?"}
