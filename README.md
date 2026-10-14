@@ -6,15 +6,18 @@
 
 ## Features
 
-- **Drag-and-drop planning.** Move cards between days and the *Ideas* column, reorder them, or drag whole days. Works with mouse, touch and keyboard.
+- **Drag-and-drop planning.** Move cards between days and the *Ideas* column, reorder them, or drag whole days. Works with mouse, touch and keyboard. Days wrap into rows that fit the window, and you can drag the divider between the board and the map to resize them (double-click resets it).
+- **Flexible trip dates.** Change the first or last day in *Trip settings* at any time. Moving the first day shifts the whole trip; a later last day adds empty days, an earlier one removes days from the end and moves their cards to *Ideas*.
 - **Routes between stops.** Each leg is calculated, starting from the hotel you woke up in. You choose the mode per leg: car, walk, bike, transit or scooter. Ferry, boat and flight legs take a manual duration. Every leg has a one-tap link to Google Maps directions.
 - **Day timeline.** Shows estimated arrival times, warns when you would be late for a fixed-time booking, and flags places that are closed that day.
+- **Stays and nights.** A stay has nights, a check-in time and a check-out time. The bottom of every day shows where you sleep that night (“Night 2 of 3”, check-in, check-out tomorrow), in the same colour on every night of that stay. Overnight flights and boats are recognised, and a night with no accommodation is flagged with a quick **+ Add stay**.
 - **Dive planning.** Dive cards hold site, centre, number of dives, depth and gas. TripDeck warns about flights less than 12 h after a single dive or 18 h after repetitive diving (DAN guidance), about going above 300 m altitude in that window, and suggests a rest day after long dive streaks.
 - **Plan with Claude or ChatGPT (MCP).** Ask in plain language, for example “plan day 3 around Gozo”, “what's worth seeing near my hotel?” or “find my Booking.com and GetYourGuide confirmations in Gmail and add them”. The cards appear on the board within seconds.
 - **No keys needed for maps.** OpenStreetMap powers the map (OpenFreeMap tiles), search (Photon), nearby places (Overpass, with a Wikipedia fallback), routing (OSRM) and elevation (Open-Meteo). If you add Google Maps keys, TripDeck uses Google's richer data and falls back to OSM if a Google API fails.
 - **Google Drive sync.** Connect your Google account once and your trips live in a hidden TripDeck folder on your Drive. TripDeck can't see your other files. Until you connect, trips are saved in `~/.tripdeck/trips`.
 - **Optional in-app AI.** With an Anthropic API key, the ✨ buttons give AI suggestions, an AI day optimizer, visiting tips and booking import (paste an email or upload a PDF or screenshot) directly in the app.
-- **PWA.** Installable, works offline, and lets you export and import trips as JSON.
+- **Export as PDF or JSON.** *Export → PDF* opens a printable itinerary to save as a PDF: a map zoomed on the trip's area (flights more than 1000 km from all your stops, such as the flights from home, are left out), an overview of days and nights, a table of every booking with references and prices, and a day-by-day plan. *Export → JSON* downloads a backup you can import again.
+- **PWA.** Installable and works offline.
 
 ## Quick start
 
@@ -48,8 +51,8 @@ For Claude Desktop, add the same command to `mcpServers` in its config. The MCP 
 | MCP tool | What it does |
 |---|---|
 | `list_trips`, `get_trip` | Trips, and the full plan with times, legs, bookings and warnings |
-| `create_trip`, `update_trip` | New trip; rename, change dates or interests, add days, set a day's start time |
-| `add_item`, `update_item` | Cards of any type; `place_query` finds the location |
+| `create_trip`, `update_trip` | New trip; rename, change the dates (`start_date`, `end_date`) or interests, add days, set a day's start time |
+| `add_item`, `update_item` | Cards of any type; `place_query` finds the location; stays take `stay_nights`, `stay_check_in`, `stay_check_out` |
 | `move_item`, `remove_item`, `move_day`, `reorder_day` | Rearrange the plan |
 | `set_leg` | Travel mode between two cards (incl. ferry/boat/flight minutes) |
 | `search_places`, `nearby_places` | Find places by name, or notable places around a card |
@@ -89,6 +92,7 @@ Do not expose this app to the internet as-is.
 ```
 app/
   page.tsx, trip/, settings/   UI (Next.js 16, React 19, dnd-kit, MapLibre / Google Maps)
+  trip/print/                  printable itinerary (Export → PDF)
   api/trips/                   trip storage (Drive or ~/.tripdeck/trips) used by the browser sync
   api/config, api/auth/google  settings + Google OAuth (PKCE)
   api/places|route|elevation   maps facade: Google when configured, OSM otherwise
@@ -97,6 +101,7 @@ mcp/server.ts                  MCP server (stdio) – same storage and maps faca
 lib/
   tripOps.ts                   pure trip operations (shared by browser and MCP)
   timeline.ts, diveSafety.ts   arrival times, opening hours, no-fly / altitude rules
+  stays.ts                     where each night is spent, stay colours
   optimize.ts                  exact (≤ 8 stops) or 2-opt day ordering
   sync.ts                      browser ⇄ server sync (newest updatedAt wins per trip, polls every 15 s)
   server/osm.ts, google.ts     map providers; server/tripStore.ts – local folder / Google Drive
