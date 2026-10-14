@@ -3,8 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
+import { dayDate, daysBetween, isoDate } from "@/lib/time";
+import * as ops from "@/lib/tripOps";
 import { MODE_LABEL, ROUTABLE_MODES, type TravelMode, type Trip } from "@/lib/types";
 import { Modal } from "./Modal";
+
+const MAX_DAYS = 60;
 
 export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => void }) {
   const updateTrip = useStore((s) => s.updateTrip);
@@ -17,6 +21,21 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
     interests: trip.interests,
     defaultMode: trip.defaultMode,
   });
+  const [endDate, setEndDate] = useState(isoDate(dayDate(trip.startDate, trip.days.length - 1)));
+  const dayCount = form.startDate && endDate ? daysBetween(form.startDate, endDate) + 1 : NaN;
+  const maxDays = Math.max(MAX_DAYS, trip.days.length);
+  const validRange = dayCount >= 1 && dayCount <= maxDays;
+  const movedCards = validRange
+    ? trip.days.slice(dayCount).reduce((n, d) => n + d.itemIds.length, 0)
+    : 0;
+
+  // Moving the first day keeps the trip length, so the last day moves with it.
+  const changeStart = (startDate: string) => {
+    if (startDate && form.startDate && endDate) {
+      setEndDate(isoDate(dayDate(endDate, daysBetween(form.startDate, startDate))));
+    }
+    setForm({ ...form, startDate });
+  };
 
   return (
     <Modal
@@ -41,8 +60,10 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
           </button>
           <button
             className="btn primary"
+            disabled={!validRange}
             onClick={() => {
-              updateTrip(trip.id, form);
+              const { days, ideas } = ops.setDayCount(trip, dayCount);
+              updateTrip(trip.id, { ...form, days, ideas });
               onClose();
             }}
           >
@@ -62,7 +83,11 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
         </label>
         <label>
           First day
-          <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
+          <input type="date" value={form.startDate} onChange={(e) => changeStart(e.target.value)} />
+        </label>
+        <label>
+          Last day
+          <input type="date" min={form.startDate} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </label>
         <label>
           Default way of getting around
@@ -78,6 +103,16 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
           </select>
         </label>
       </div>
+      <p className="muted" style={{ fontSize: 13 }}>
+        {!validRange
+          ? `The last day must be on or after the first day, and a trip can have at most ${maxDays} days.`
+          : `${dayCount} ${dayCount === 1 ? "day" : "days"}` +
+            (dayCount > trip.days.length ? ` · ${dayCount - trip.days.length} empty days added at the end` : "") +
+            (dayCount < trip.days.length
+              ? ` · the last ${trip.days.length - dayCount} days are removed` +
+                (movedCards ? `; their ${movedCards} ${movedCards === 1 ? "card moves" : "cards move"} to Ideas` : "")
+              : "")}
+      </p>
       <label>
         Interests (AI suggestions use these)
         <input value={form.interests} onChange={(e) => setForm({ ...form, interests: e.target.value })} />

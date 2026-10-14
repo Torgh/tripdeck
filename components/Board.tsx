@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/core";
 import {
   arrayMove,
-  horizontalListSortingStrategy,
+  rectSortingStrategy,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
@@ -181,7 +181,7 @@ export function Board(props: BoardProps) {
     >
       <div className="board">
         <IdeasColumn {...props} itemIds={containers[IDEAS]} dragging={!!drag} />
-        <SortableContext items={trip.days.map((d) => COL + d.id)} strategy={horizontalListSortingStrategy}>
+        <SortableContext items={trip.days.map((d) => COL + d.id)} strategy={rectSortingStrategy}>
           {trip.days.map((day, i) => (
             <DayColumn key={day.id} {...props} dayIndex={i} itemIds={containers[day.id] ?? []} dragging={!!drag} />
           ))}

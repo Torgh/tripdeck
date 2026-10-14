@@ -27,7 +27,7 @@ import {
   type PlaceResult,
 } from "../lib/server/maps";
 import { tripStore } from "../lib/server/tripStore";
-import { dayDate, formatDayLabel, formatDuration, formatHm, isoDate, parseHm } from "../lib/time";
+import { dayDate, daysBetween, formatDayLabel, formatDuration, formatHm, isoDate, parseHm } from "../lib/time";
 import { computeTripTimeline, durationOf, findBase, getLeg } from "../lib/timeline";
 import * as ops from "../lib/tripOps";
 import {
@@ -388,7 +388,7 @@ server.registerTool(
   "update_trip",
   {
     title: "Update trip",
-    description: "Changes trip details, adds days at the end, or sets the start time of a day.",
+    description: "Changes trip details, changes the date range (end_date adds or removes days at the end; cards from removed days move to Ideas), adds days at the end, or sets the start time of a day.",
     inputSchema: {
       trip_id: tripId,
       name: z.string().max(120).optional(),
@@ -397,6 +397,11 @@ server.registerTool(
         .string()
         .regex(/^\d{4}-\d{2}-\d{2}$/)
         .optional(),
+      end_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional()
+        .describe("Last day of the trip. Without it, changing start_date keeps the number of days"),
       interests: z.string().max(300).optional(),
       default_mode: z.enum(ROUTABLE_MODES).optional(),
       add_days: z.number().int().min(1).max(30).optional(),
@@ -417,6 +422,11 @@ server.registerTool(
         interests: a.interests ?? t.interests,
         defaultMode: a.default_mode ?? t.defaultMode,
       };
+      if (a.end_date) {
+        const count = daysBetween(next.startDate, a.end_date) + 1;
+        if (count < 1 || count > 60) throw new HttpError(400, "end_date must be on or after the first day, at most 60 days later");
+        next = ops.setDayCount(next, count);
+      }
       if (a.add_days) next = { ...next, days: [...next.days, ...Array.from({ length: a.add_days }, ops.newDay)] };
       if (a.day_start) {
         const id = containerFor(next, a.day_start.day);
