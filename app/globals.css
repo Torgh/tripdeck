@@ -271,8 +271,20 @@ label {
 }
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 38%);
+  grid-template-columns: minmax(0, 1fr) 6px clamp(280px, var(--map-w, 38%), 75%);
   min-height: 0;
+}
+.splitter {
+  cursor: col-resize;
+  touch-action: none;
+  background: var(--border);
+  transition: background 0.15s;
+}
+.splitter:hover,
+.splitter:focus-visible,
+.splitter.dragging {
+  background: var(--accent);
+  outline: none;
 }
 .workspace.map-hidden {
   grid-template-columns: minmax(0, 1fr);
@@ -284,6 +296,8 @@ label {
 .board {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  /* Rows take their full height and the board scrolls; plain auto rows get squeezed to fit the board's height. */
+  grid-auto-rows: max-content;
   gap: 12px;
   padding: 12px;
   overflow-x: hidden;
@@ -472,7 +486,6 @@ label {
 
 .map-pane {
   position: relative;
-  border-left: 1px solid var(--border);
   min-height: 0;
 }
 .map-pane .map-filter {
@@ -657,6 +670,9 @@ legend {
   }
   .map-pane {
     border-left: none;
+  }
+  .splitter {
+    display: none;
   }
   .board {
     grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));

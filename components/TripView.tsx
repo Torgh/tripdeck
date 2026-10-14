@@ -13,6 +13,7 @@ import { Board } from "./Board";
 import { ImportDialog } from "./ImportDialog";
 import { ItemEditor, type EditorTarget } from "./ItemEditor";
 import { OptimizeDialog } from "./OptimizeDialog";
+import { Splitter, useMapWidth } from "./Splitter";
 import { SuggestDialog } from "./SuggestDialog";
 import { SyncBadge } from "./SyncAgent";
 import { TripMap } from "./TripMap";
@@ -32,6 +33,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
   const [highlightId, setHighlightId] = useState<string>();
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [tab, setTab] = useState<"board" | "map">("board");
+  const mapWidth = useMapWidth();
   const ai = useConfig()?.ai ?? false;
 
   useRouteLegs(trip);
@@ -101,7 +103,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
         </div>
       </header>
 
-      <div className="workspace" data-tab={tab}>
+      <div className="workspace" data-tab={tab} style={mapWidth.style}>
         <Board
           trip={trip}
           timelines={timelines}
@@ -116,6 +118,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
           onSuggest={(container, anchorItemId) => setDialog({ kind: "suggest", container, anchorItemId })}
           onOptimize={(dayId) => setDialog({ kind: "optimize", dayId })}
         />
+        <Splitter pct={mapWidth.pct} setPct={mapWidth.setPct} save={mapWidth.save} />
         <div className="map-pane">
           <div className="map-filter">
             <select
