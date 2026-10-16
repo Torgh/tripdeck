@@ -11,6 +11,7 @@
 - **Routes between stops.** Each leg is calculated, starting from the hotel you woke up in. You choose the mode per leg: car, walk, bike, transit or scooter. Ferry, boat and flight legs take a manual duration. Every leg has a one-tap link to Google Maps directions.
 - **Day timeline.** Shows estimated arrival times, warns when you would be late for a fixed-time booking, and flags places that are closed that day.
 - **Stays and nights.** A stay has nights, a check-in time and a check-out time. The bottom of every day shows where you sleep that night (“Night 2 of 3”, check-in, check-out tomorrow), in the same colour on every night of that stay. Overnight flights and boats are recognised, and a night with no accommodation is flagged with a quick **+ Add stay**.
+- **Rentals: car, scooter, motorbike or bicycle.** A rental card sits on the pick-up day and holds the vehicle, the rental company, the order number and price, the pick-up place and time, the number of days, and the return time and place (when it goes back somewhere else). Like a stay, it then shows at the top of every day you have it, and the return day says, for example, “Return today by 17:00 at Gozo farmhouse”. Booking import recognises rental confirmations.
 - **Dive planning.** Dive cards hold site, centre, number of dives, depth and gas. TripDeck warns about flights less than 12 h after a single dive or 18 h after repetitive diving (DAN guidance), about going above 300 m altitude in that window, and suggests a rest day after long dive streaks.
 - **Plan with Claude or ChatGPT (MCP).** Ask in plain language, for example “plan day 3 around Gozo”, “what's worth seeing near my hotel?” or “find my Booking.com and GetYourGuide confirmations in Gmail and add them”. The cards appear on the board within seconds.
 - **No keys needed for maps.** OpenStreetMap powers the map (OpenFreeMap tiles), search (Photon), nearby places (Overpass, with a Wikipedia fallback), routing (OSRM) and elevation (Open-Meteo). If you add Google Maps keys, TripDeck uses Google's richer data and falls back to OSM if a Google API fails.
@@ -30,7 +31,7 @@ bun install
 bun run dev          # http://localhost:3000 (bound to 127.0.0.1)
 ```
 
-Click **Load demo trip** to explore a seven-day Malta & Gozo dive week. It uses every card type and travel mode, has three stays with check-in and check-out times, bookings with prices, opening hours, AI tips and an AI-suggested idea. It also contains three deliberate problems: a cathedral visit on a Sunday when it is closed, a late arrival for the noon gun, and a flight home less than 18 h after diving.
+Click **Load demo trip** to explore a seven-day Malta & Gozo dive week. It uses every card type and travel mode, has three stays with check-in and check-out times, a five-day rental car, a scooter picked up at the Gozo ferry and returned at the farmhouse, bookings with prices, opening hours, AI tips and an AI-suggested idea. It also contains three deliberate problems: a cathedral visit on a Sunday when it is closed, a late arrival for the noon gun, and a flight home less than 18 h after diving.
 
 Everything else is configured in the app under **⚙ Settings**, with no `.env` editing needed. Settings are stored in `~/.tripdeck/config.json` on your machine.
 
@@ -52,7 +53,7 @@ For Claude Desktop, add the same command to `mcpServers` in its config. The MCP 
 |---|---|
 | `list_trips`, `get_trip` | Trips, and the full plan with times, legs, bookings and warnings |
 | `create_trip`, `update_trip` | New trip; rename, change the dates (`start_date`, `end_date`) or interests, add days, set a day's start time |
-| `add_item`, `update_item` | Cards of any type; `place_query` finds the location; stays take `stay_nights`, `stay_check_in`, `stay_check_out` |
+| `add_item`, `update_item` | Cards of any type; `place_query` finds the location; stays take `stay_nights`, `stay_check_in`, `stay_check_out`; rentals take `rental` (vehicle, days, return time and place) |
 | `move_item`, `remove_item`, `move_day`, `reorder_day` | Rearrange the plan |
 | `set_leg` | Travel mode between two cards (incl. ferry/boat/flight minutes) |
 | `search_places`, `nearby_places` | Find places by name, or notable places around a card |

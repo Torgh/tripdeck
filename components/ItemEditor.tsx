@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { postJSON } from "@/lib/api";
 import { centroid } from "@/lib/geo";
+import { rentalSummary } from "@/lib/rentals";
 import { guessType, itemFieldsFromPlace } from "@/lib/places";
 import { newId, useStore } from "@/lib/store";
 import { dayDate, formatDayLabel, formatDuration, isoDate } from "@/lib/time";
@@ -18,6 +19,11 @@ import {
   type Gas,
   type Item,
   type ItemType,
+  RENTAL_VEHICLE_ICON,
+  RENTAL_VEHICLE_LABEL,
+  RENTAL_VEHICLES,
+  type RentalDetails,
+  type RentalVehicle,
   type TransportKind,
   type Trip,
 } from "@/lib/types";
@@ -29,7 +35,9 @@ export type EditorTarget =
   | { kind: "new"; container: ContainerId; type?: ItemType }
   | { kind: "edit"; itemId: string; tab?: "details" | "tips" };
 
+const RENTAL_COMPANIES = ["Rentalcars.com", "DiscoverCars", "Sixt", "Hertz", "Avis", "Europcar"];
 const PROVIDERS = ["Booking.com", "GetYourGuide", "Viator", "Airbnb", "Klook", "Dive centre"];
+const NEW_RENTAL: RentalDetails = { vehicle: "car", days: 1 };
 const TRANSPORT_KINDS: TransportKind[] = ["flight", "ferry", "train", "bus", "car_rental", "boat", "other"];
 
 /** "Mon 12 Jan → Thu 15 Jan. " for a stay checked in on day `dayIndex`; empty in Ideas. */
@@ -63,7 +71,15 @@ export function ItemEditor({
   const existing = target.kind === "edit" ? trip.items[target.itemId] : undefined;
   const preset = target.kind === "new" ? target.type : undefined;
   const [draft, setDraft] = useState<Item>(() => {
-    if (!existing) return { id: newId(), type: preset ?? "place", title: "", stay: preset === "stay" ? { nights: 1 } : undefined };
+    if (!existing) {
+      return {
+        id: newId(),
+        type: preset ?? "place",
+        title: "",
+        stay: preset === "stay" ? { nights: 1 } : undefined,
+        rental: preset === "rental" ? NEW_RENTAL : undefined,
+      };
+    }
     // Older stays kept the check-in as a fixed start time; it is now a stay field.
     if (existing.type === "stay" && existing.startTime && !existing.stay?.checkIn) {
       return { ...existing, startTime: undefined, stay: { nights: 1, ...existing.stay, checkIn: existing.startTime } };
@@ -79,11 +95,12 @@ export function ItemEditor({
 
   const pickPlace = (p: PlaceResult) =>
     setDraft((d) => {
-      const type = d.title || preset ? d.type : guessType(p);
+      const type = d.title || preset || d.type !== "place" ? d.type : guessType(p);
       return {
         ...d,
         ...itemFieldsFromPlace(p),
-        title: d.title || p.name,
+        // A rental is named after the vehicle, not the shop it is picked up from.
+        title: d.title || (type === "rental" ? "" : p.name),
         type,
         stay: type === "stay" ? (d.stay ?? { nights: 1 }) : d.stay,
         dive: type === "dive" ? (d.dive ?? { dives: 2, gas: "air" }) : d.dive,
@@ -97,7 +114,9 @@ export function ItemEditor({
       dive: type === "dive" ? (d.dive ?? { dives: 2, gas: "air" }) : d.dive,
       stay: type === "stay" ? (d.stay ?? { nights: 1 }) : d.stay,
       transport: type === "transport" ? (d.transport ?? { kind: "flight" }) : d.transport,
+      rental: type === "rental" ? (d.rental ?? NEW_RENTAL) : d.rental,
     }));
+  const setRental = (patch: Partial<RentalDetails>) => set({ rental: { ...NEW_RENTAL, ...draft.rental, ...patch } });
 
   const fetchTips = async () => {
     setTipsState({ loading: true });
@@ -122,7 +141,8 @@ export function ItemEditor({
   };
 
   const save = () => {
-    const item: Item = { ...draft, title: draft.title.trim() || "Untitled" };
+    const fallback = draft.type === "rental" ? `${RENTAL_VEHICLE_LABEL[draft.rental?.vehicle ?? "car"]} rental` : "Untitled";
+    const item: Item = { ...draft, title: draft.title.trim() || fallback };
     if (existing) updateItem(trip.id, item.id, item);
     else addItem(trip.id, item, container);
     onClose();
@@ -204,7 +224,7 @@ export function ItemEditor({
           </div>
 
           <fieldset>
-            <legend>Place</legend>
+            <legend>{draft.type === "rental" ? "Pick-up place" : "Place"}</legend>
             <PlaceSearch
               bias={draft.location ?? tripCenter(trip)}
               onPick={pickPlace}
@@ -230,6 +250,38 @@ export function ItemEditor({
             )}
           </fieldset>
 
+          {draft.type === "rental" && (
+            <fieldset>
+              <legend>Return place</legend>
+              <PlaceSearch
+                bias={draft.rental?.returnLocation ?? draft.location ?? tripCenter(trip)}
+                onPick={(p) =>
+                  setRental({
+                    returnPlace: p.name,
+                    returnLocation: { lat: p.lat, lng: p.lng, address: p.address, placeId: p.placeId },
+                  })
+                }
+                onCoordinates={(p) => setRental({ returnPlace: undefined, returnLocation: { lat: p.lat, lng: p.lng } })}
+              />
+              {draft.rental?.returnLocation || draft.rental?.returnPlace ? (
+                <div className="row small">
+                  <span className="grow">
+                    📍 {[draft.rental.returnPlace, draft.rental.returnLocation?.address].filter(Boolean).join(", ") ||
+                      `${draft.rental.returnLocation!.lat.toFixed(5)}, ${draft.rental.returnLocation!.lng.toFixed(5)}`}
+                  </span>
+                  <button
+                    className="btn small ghost"
+                    onClick={() => setRental({ returnPlace: undefined, returnLocation: undefined })}
+                  >
+                    Clear
+                  </button>
+                </div>
+              ) : (
+                <div className="small muted">Same as the pick-up place.</div>
+              )}
+            </fieldset>
+          )}
+
           <label>
             Title
             <input value={draft.title} onChange={(e) => set({ title: e.target.value })} placeholder="What is it?" />
@@ -237,7 +289,7 @@ export function ItemEditor({
 
           {draft.type !== "stay" && <div className="grid2">
             <label>
-              Fixed start time (optional)
+              {draft.type === "rental" ? "Pick-up time" : "Fixed start time (optional)"}
               <input
                 type="time"
                 value={draft.startTime ?? ""}
@@ -358,6 +410,73 @@ export function ItemEditor({
             </fieldset>
           )}
 
+          {draft.type === "rental" && (
+            <fieldset>
+              <legend>🔑 Rental</legend>
+              <div className="grid2">
+                <label>
+                  Vehicle
+                  <select value={draft.rental?.vehicle ?? "car"} onChange={(e) => setRental({ vehicle: e.target.value as RentalVehicle })}>
+                    {RENTAL_VEHICLES.map((v) => (
+                      <option key={v} value={v}>
+                        {RENTAL_VEHICLE_ICON[v]} {RENTAL_VEHICLE_LABEL[v]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Days
+                  <input
+                    type="number"
+                    min={1}
+                    max={90}
+                    value={draft.rental?.days ?? 1}
+                    onChange={(e) => setRental({ days: Math.max(1, Number(e.target.value)) })}
+                  />
+                </label>
+                <label>
+                  Return by
+                  <input
+                    type="time"
+                    value={draft.rental?.returnTime ?? ""}
+                    onChange={(e) => setRental({ returnTime: e.target.value || undefined })}
+                  />
+                </label>
+                <label>
+                  Rental company
+                  <input
+                    list="rental-companies"
+                    value={draft.booking?.provider ?? ""}
+                    onChange={(e) => set({ booking: { ...draft.booking, provider: e.target.value || undefined } })}
+                  />
+                  <datalist id="rental-companies">
+                    {RENTAL_COMPANIES.map((p) => (
+                      <option key={p} value={p} />
+                    ))}
+                  </datalist>
+                </label>
+                <label>
+                  Order / reference
+                  <input
+                    value={draft.booking?.reference ?? ""}
+                    onChange={(e) => set({ booking: { ...draft.booking, reference: e.target.value || undefined } })}
+                  />
+                </label>
+                <label>
+                  Price
+                  <input
+                    value={draft.booking?.price ?? ""}
+                    onChange={(e) => set({ booking: { ...draft.booking, price: e.target.value || undefined } })}
+                  />
+                </label>
+              </div>
+              <div className="small muted">
+                {rentalSummary(trip, draft, dayIndex >= 0 ? dayIndex : trip.days.findIndex((d) => d.id === container))}. Put the
+                card on the pick-up day; every day until the return shows it.
+              </div>
+            </fieldset>
+          )}
+
           {draft.type === "stay" && (
             <fieldset>
               <legend>🏨 Stay</legend>
@@ -396,7 +515,7 @@ export function ItemEditor({
             </fieldset>
           )}
 
-          <fieldset>
+          {draft.type !== "rental" && <fieldset>
             <legend>Booking</legend>
             <div className="grid2">
               <label>
@@ -435,7 +554,7 @@ export function ItemEditor({
                 />
               </label>
             </div>
-          </fieldset>
+          </fieldset>}
 
           <label>
             Notes

@@ -419,6 +419,42 @@ label {
   color: var(--warn);
   background: var(--warn-soft);
 }
+.rental-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  box-shadow: inset 4px 0 0 var(--rental-color);
+  background: color-mix(in srgb, var(--rental-color) 10%, var(--surface-2));
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.rental-strip:hover {
+  background: color-mix(in srgb, var(--rental-color) 20%, var(--surface-2));
+}
+.rental-strip .grow {
+  min-width: 0;
+}
+.rental-strip strong,
+.rental-strip small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rental-strip small {
+  color: var(--muted);
+}
+.rental-strip.return small {
+  color: var(--text);
+  font-weight: 600;
+}
 .empty-drop {
   border: 1.5px dashed var(--border);
   border-radius: 8px;

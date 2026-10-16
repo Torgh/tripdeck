@@ -15,6 +15,7 @@ import { computeDiveWarnings } from "../lib/diveSafety";
 import { centroid, estimateMinutes } from "../lib/geo";
 import { bestOrder, evaluate, type OptInput } from "../lib/optimize";
 import { guessType, itemFieldsFromPlace } from "../lib/places";
+import { rentalsOf } from "../lib/rentals";
 import { HttpError } from "../lib/server/errors";
 import {
   elevation,
@@ -37,21 +38,24 @@ import {
   legKey,
   MANUAL_MODES,
   MODE_LABEL,
+  RENTAL_VEHICLES,
   ROUTABLE_MODES,
   type ContainerId,
   type Item,
   type LatLng,
+  type RentalVehicle,
   type Trip,
 } from "../lib/types";
 
-const INSTRUCTIONS = `TripDeck is the user's trip planner. Trips have numbered days (columns) of cards (places, food, activities, stays, dives, transport) plus an "Ideas" list for unscheduled cards.
+const INSTRUCTIONS = `TripDeck is the user's trip planner. Trips have numbered days (columns) of cards (places, food, activities, stays, rentals, dives, transport) plus an "Ideas" list for unscheduled cards.
 The user sees every change live on a drag-and-drop board with a map, so make changes with the tools instead of only describing them.
 
 How to work:
 - Start with list_trips / get_trip. Refer to cards by their item_id. Days are numbered from 1; day 0 means Ideas.
 - To find places use search_places (by name) or nearby_places (what is around a card). Prefer adding cards with place_query so they get coordinates and a map pin.
 - Before reordering a day, call optimize_day for real travel times, then decide (meals, sunset, heat, opening hours) and apply with reorder_day. Explain your reasoning briefly.
-- Booking confirmations: if you have Gmail (or another mail) tools, search for confirmations (Booking.com, GetYourGuide, Viator, Airbnb, airlines, ferries, dive centres), then add one card per booking on the right day with provider, reference, times and price. Never invent booking numbers.
+- Booking confirmations: if you have Gmail (or another mail) tools, search for confirmations (Booking.com, GetYourGuide, Viator, Airbnb, airlines, ferries, car / scooter rentals, dive centres), then add one card per booking on the right day with provider, reference, times and price. Never invent booking numbers.
+- Rentals (car, scooter, motorbike, bicycle): one card of type rental on the pick-up day, start_time = pick-up time, rental.days = days until the return. The board then shows it on every day up to the return. Do not use transport car_rental for new rentals.
 - Dives: get_trip reports no-fly and altitude warnings (DAN guidance: ≥12 h after a single no-deco dive, ≥18 h after repetitive or multi-day diving). Point them out, but they are planning hints, not a substitute for the diver's computer or training.
 - Answer in the user's language. Keep card titles short; the app UI is in English.`;
 
@@ -140,6 +144,12 @@ function itemLine(item: Item): string {
     if (item.stay.checkIn) bits.push(`check-in from ${item.stay.checkIn}`);
     if (item.stay.checkOut) bits.push(`check-out by ${item.stay.checkOut}`);
   }
+  if (item.rental) {
+    const r = item.rental;
+    bits.push(
+      `${r.vehicle} rental, ${r.days} day(s)${r.returnTime ? `, return by ${r.returnTime}` : ""}${r.returnPlace ? ` at ${r.returnPlace}` : ""}`,
+    );
+  }
   if (item.booking?.provider || item.booking?.reference) {
     bits.push(
       `booked: ${[item.booking.provider, item.booking.reference, item.booking.price].filter(Boolean).join(" ")}`,
@@ -157,6 +167,7 @@ function itemLine(item: Item): string {
 function renderTrip(trip: Trip): string {
   const timelines = computeTripTimeline(trip);
   const diveWarnings = computeDiveWarnings(trip, timelines);
+  const rentals = rentalsOf(trip);
   const lines: string[] = [];
   const last = dayDate(trip.startDate, trip.days.length - 1);
   lines.push(
@@ -170,6 +181,14 @@ function renderTrip(trip: Trip): string {
     const day = trip.days[d];
     lines.push(`## Day ${d + 1} · ${formatDayLabel(tl.date)} (starts ${day.startTime})`);
     if (tl.base) lines.push(`Wakes up at: ${tl.base.title} [${tl.base.id}]`);
+    for (const r of rentals[d]) {
+      if (r.phase === "during") lines.push(`Has rental: ${r.rental.title} [${r.rental.id}] until ${r.returnLabel}`);
+      if (r.phase === "return") {
+        lines.push(
+          `Return rental today: ${r.rental.title} [${r.rental.id}]${r.rental.rental?.returnTime ? ` by ${r.rental.rental.returnTime}` : ""}`,
+        );
+      }
+    }
     if (!tl.entries.length) lines.push("(empty)");
     tl.entries.forEach((e, n) => {
       const item = trip.items[e.itemId];
@@ -222,7 +241,7 @@ const modes = z.enum([...ROUTABLE_MODES, ...MANUAL_MODES]);
 
 const cardFields = {
   title: z.string().min(1).max(120).optional(),
-  type: z.enum(["place", "food", "activity", "stay", "dive", "transport"]).optional(),
+  type: z.enum(["place", "food", "activity", "stay", "rental", "dive", "transport"]).optional(),
   place_query: z
     .string()
     .max(200)
@@ -253,6 +272,15 @@ const cardFields = {
   stay_nights: z.number().int().min(1).max(60).optional(),
   stay_check_in: hhmm.optional().describe("Stays: earliest check-in time"),
   stay_check_out: hhmm.optional().describe("Stays: latest check-out time"),
+  rental: z
+    .object({
+      vehicle: z.enum(RENTAL_VEHICLES as [RentalVehicle, ...RentalVehicle[]]),
+      days: z.number().int().min(1).max(90).describe("Rental length; it goes back on the day `days` after pick-up."),
+      return_time: hhmm.optional(),
+      return_place: z.string().max(120).optional().describe("Only when it goes back somewhere else."),
+    })
+    .optional()
+    .describe("Rentals (type rental): put the card on the pick-up day with start_time = pick-up time."),
   booking: z
     .object({
       provider: z.string().max(60).optional(),
@@ -305,6 +333,14 @@ async function applyCard(trip: Trip, base: Item, a: CardArgs): Promise<{ item: I
       checkOut: a.stay_check_out ?? item.stay?.checkOut,
     };
   } else if (item.type === "stay" && !item.stay) item.stay = { nights: 1 };
+  if (a.rental) {
+    item.rental = {
+      vehicle: a.rental.vehicle,
+      days: a.rental.days,
+      returnTime: a.rental.return_time,
+      returnPlace: a.rental.return_place,
+    };
+  } else if (item.type === "rental" && !item.rental) item.rental = { vehicle: "car", days: 1 };
   if (a.booking) item.booking = { ...item.booking, ...a.booking };
   if (!item.title) item.title = "Untitled";
 
@@ -449,7 +485,7 @@ server.registerTool(
   {
     title: "Add card",
     description:
-      "Adds a card (place, food, activity, stay, dive or transport) to a day or to Ideas. Use place_query (or lat/lng) so it appears on the map. Stays: set stay_nights on the check-in day; later days then start from it.",
+      "Adds a card (place, food, activity, stay, rental, dive or transport) to a day or to Ideas. Use place_query (or lat/lng) so it appears on the map. Stays: set stay_nights on the check-in day; later days then start from it. Rentals: put the card on the pick-up day and set rental.days.",
     inputSchema: {
       trip_id: tripId,
       day: dayNumber,

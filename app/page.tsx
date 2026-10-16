@@ -78,7 +78,7 @@ export default function Home() {
               open(t.id);
             }}
           >
-            🤿 Load demo trip
+            🏝️ Load demo trip
           </button>
           <input
             ref={fileRef}
