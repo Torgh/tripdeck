@@ -15,6 +15,8 @@ import {
   type StorageKind,
 } from "@/lib/configStatus";
 import { syncNow } from "@/lib/sync";
+import { THEME_CHOICES, THEME_LABEL } from "@/lib/theme";
+import { setThemeChoice, useThemeChoice } from "@/lib/useTheme";
 
 /** The page's origin never changes, so there is nothing to subscribe to. */
 const noSubscribe = () => () => undefined;
@@ -56,6 +58,11 @@ function Settings() {
         <h1 className="grow">Settings</h1>
         <SyncBadge />
       </header>
+
+      <section className="card stack">
+        <h2>🎨 Appearance</h2>
+        <ThemePicker />
+      </section>
 
       <section className="card stack">
         <h2>☁ Where your trips are stored</h2>
@@ -138,6 +145,33 @@ function Settings() {
   );
 }
 
+const THEME_ICON = { system: "🖥️", light: "☀️", dark: "🌙" } as const;
+
+function ThemePicker() {
+  const choice = useThemeChoice();
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <div className="row" role="radiogroup" aria-label="Theme">
+        {THEME_CHOICES.map((c) => (
+          <button
+            key={c}
+            role="radio"
+            aria-checked={choice === c}
+            className={`btn${choice === c ? " primary" : ""}`}
+            onClick={() => setThemeChoice(c)}
+          >
+            {THEME_ICON[c]} {THEME_LABEL[c]}
+          </button>
+        ))}
+      </div>
+      <span className="small muted">
+        {choice === "system"
+          ? "Follows your operating system's light or dark setting."
+          : "Saved in this browser. The printable itinerary always stays light."}
+      </span>
+    </div>
+  );
+}
 
 function StoragePicker({ config }: { config: ConfigStatus }) {
   const [state, setState] = useState<{ busy?: StorageKind; message?: string; error?: string }>({});

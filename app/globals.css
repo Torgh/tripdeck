@@ -1,46 +1,31 @@
 :root {
-  --bg: #f1f5f9;
-  --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --border: #e2e8f0;
-  --text: #0f172a;
-  --muted: #64748b;
-  --accent: #0e7490;
-  --accent-soft: #cffafe;
-  --accent-text: #ffffff;
-  --warn: #b45309;
-  --warn-soft: #fef3c7;
-  --info: #1d4ed8;
-  --info-soft: #dbeafe;
-  --danger: #b91c1c;
-  --ai: #7c3aed;
-  --ai-soft: #ede9fe;
-  --shadow: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 3px rgb(15 23 42 / 0.08);
+  /* Colours as light-dark(light, dark): the colour-scheme below picks one. */
+  --bg: light-dark(#f1f5f9, #0b1220);
+  --surface: light-dark(#ffffff, #111a2e);
+  --surface-2: light-dark(#f8fafc, #0f172a);
+  --border: light-dark(#e2e8f0, #1f2a44);
+  --text: light-dark(#0f172a, #e2e8f0);
+  --muted: light-dark(#64748b, #94a3b8);
+  --accent: light-dark(#0e7490, #22d3ee);
+  --accent-soft: light-dark(#cffafe, #083344);
+  --accent-text: light-dark(#ffffff, #042f3a);
+  --warn: light-dark(#b45309, #fbbf24);
+  --warn-soft: light-dark(#fef3c7, #3a2a07);
+  --info: light-dark(#1d4ed8, #93c5fd);
+  --info-soft: light-dark(#dbeafe, #172554);
+  --danger: light-dark(#b91c1c, #f87171);
+  --ai: light-dark(#7c3aed, #c4b5fd);
+  --ai-soft: light-dark(#ede9fe, #2e1065);
+  --shadow: 0 1px 2px light-dark(rgb(15 23 42 / 0.06), rgb(0 0 0 / 0.4)), 0 1px 3px light-dark(rgb(15 23 42 / 0.08), transparent);
   --radius: 10px;
+  /* Follows the system unless Settings → Appearance chose Light or Dark (lib/theme.ts). */
+  color-scheme: light dark;
+}
+:root[data-theme="light"] {
   color-scheme: light;
 }
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0b1220;
-    --surface: #111a2e;
-    --surface-2: #0f172a;
-    --border: #1f2a44;
-    --text: #e2e8f0;
-    --muted: #94a3b8;
-    --accent: #22d3ee;
-    --accent-soft: #083344;
-    --accent-text: #042f3a;
-    --warn: #fbbf24;
-    --warn-soft: #3a2a07;
-    --info: #93c5fd;
-    --info-soft: #172554;
-    --danger: #f87171;
-    --ai: #c4b5fd;
-    --ai-soft: #2e1065;
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-    color-scheme: dark;
-  }
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 * {
@@ -796,6 +781,8 @@ legend {
   --text: #0f172a;
   --muted: #475569;
   --border: #cbd5e1;
+  /* Every other colour token resolves to its light value here too. */
+  color-scheme: light;
   max-width: 820px;
   margin: 16px auto;
   padding: 32px 40px;
