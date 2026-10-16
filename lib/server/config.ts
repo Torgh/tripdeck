@@ -1,16 +1,21 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import type { StorageKind } from "../configStatus";
 
 /**
  * Local data directory shared by the web app and the MCP server.
- * Holds settings, the Google token and (until Google is connected) the trips themselves.
+ * Holds settings, the cloud tokens and (when "This PC" is the storage) the trips themselves.
  */
 export const DATA_DIR = process.env.TRIPDECK_HOME || path.join(os.homedir(), ".tripdeck");
 
 export interface AppConfig {
   googleClientId?: string;
   googleClientSecret?: string;
+  /** The OneDrive folder on this PC, when it isn't found automatically. Trips go into its TripDeck subfolder. */
+  oneDriveFolder?: string;
+  /** Where trips are stored. Unset means Google Drive when connected (the behaviour before OneDrive). */
+  storage?: StorageKind;
   /** Optional: Google Places / Routes / Elevation. Without it OpenStreetMap services are used. */
   googleMapsServerKey?: string;
   /** Optional: Google map in the browser. Without it an OpenStreetMap-based map is shown. */
@@ -23,9 +28,10 @@ export interface AppConfig {
 const CONFIG_FILE = path.join(DATA_DIR, "config.json");
 
 /** Environment variables win over the settings file, so deployments can still use .env. */
-const ENV: Record<keyof AppConfig, string> = {
+const ENV: Record<Exclude<keyof AppConfig, "storage">, string> = {
   googleClientId: "GOOGLE_CLIENT_ID",
   googleClientSecret: "GOOGLE_CLIENT_SECRET",
+  oneDriveFolder: "TRIPDECK_ONEDRIVE_FOLDER",
   googleMapsServerKey: "GOOGLE_MAPS_API_KEY",
   googleMapsBrowserKey: "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY",
   googleMapId: "NEXT_PUBLIC_GOOGLE_MAP_ID",
@@ -54,7 +60,7 @@ export function readFileConfig(): AppConfig {
 
 export function readConfig(): AppConfig {
   const config = readFileConfig();
-  for (const [key, env] of Object.entries(ENV) as [keyof AppConfig, string][]) {
+  for (const [key, env] of Object.entries(ENV) as [keyof typeof ENV, string][]) {
     const value = process.env[env]?.trim();
     if (value) config[key] = value;
   }
@@ -62,8 +68,8 @@ export function readConfig(): AppConfig {
 }
 
 /** Which settings come from the environment (and so can't be changed in the Settings page). */
-export function envOverrides(): (keyof AppConfig)[] {
-  return (Object.entries(ENV) as [keyof AppConfig, string][])
+export function envOverrides(): (keyof typeof ENV)[] {
+  return (Object.entries(ENV) as [keyof typeof ENV, string][])
     .filter(([, env]) => process.env[env]?.trim())
     .map(([key]) => key);
 }
@@ -73,7 +79,7 @@ export function writeConfig(patch: Partial<AppConfig>) {
   const next: AppConfig = { ...readFileConfig() };
   for (const [key, value] of Object.entries(patch) as [keyof AppConfig, string | undefined][]) {
     if (value === undefined) continue;
-    if (value.trim()) next[key] = value.trim();
+    if (value.trim()) (next as Record<string, string>)[key] = value.trim();
     else delete next[key];
   }
   writeJson(CONFIG_FILE, next);

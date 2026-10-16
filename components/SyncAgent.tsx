@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { STORAGE_LABEL } from "@/lib/configStatus";
 import { useHydrated } from "@/lib/hooks";
 import { useServerSync, useSyncState } from "@/lib/sync";
 
@@ -16,9 +17,9 @@ export function SyncBadge() {
   const state = useSyncState((s) => s.state);
   const label =
     state.status === "ok"
-      ? state.storage === "drive"
-        ? `☁ Google Drive${state.email ? ` · ${state.email}` : ""}`
-        : "💾 Saved on this PC"
+      ? state.storage === "local"
+        ? "💾 Saved on this PC"
+        : `☁ ${STORAGE_LABEL[state.storage]}${state.email ? ` · ${state.email}` : ""}`
       : state.status === "error"
         ? "⚠ Not synced"
         : "⟳ Syncing…";

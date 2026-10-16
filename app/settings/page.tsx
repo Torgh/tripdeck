@@ -2,12 +2,22 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { SyncBadge } from "@/components/SyncAgent";
 import { LICENSE_URL, SOURCE_URL } from "@/lib/about";
 import { reloadConfig, useConfig } from "@/lib/config";
-import type { ConfigKey, ConfigStatus } from "@/lib/configStatus";
+import {
+  CLOUD_PROVIDERS,
+  STORAGE_LABEL,
+  type CloudProvider,
+  type ConfigKey,
+  type ConfigStatus,
+  type StorageKind,
+} from "@/lib/configStatus";
 import { syncNow } from "@/lib/sync";
+
+/** The page's origin never changes, so there is nothing to subscribe to. */
+const noSubscribe = () => () => undefined;
 
 export default function Page() {
   return (
@@ -20,11 +30,10 @@ export default function Page() {
 function Settings() {
   const config = useConfig();
   const params = useSearchParams();
-  const [origin, setOrigin] = useState("");
-  useEffect(() => setOrigin(window.location.origin), []);
+  const origin = useSyncExternalStore(noSubscribe, () => window.location.origin, () => "");
 
   useEffect(() => {
-    if (params.get("google") === "connected") {
+    if (params.get("status") === "connected") {
       reloadConfig();
       syncNow();
     }
@@ -32,7 +41,11 @@ function Settings() {
 
   if (!config) return <main className="home muted">Loading settings…</main>;
 
-  const googleError = params.get("google") === "error" ? params.get("message") : null;
+  const failed = params.get("status") === "error" ? params.get("provider") : null;
+  const signInError =
+    failed && (CLOUD_PROVIDERS as string[]).includes(failed)
+      ? `${STORAGE_LABEL[failed as CloudProvider]} sign-in failed: ${params.get("message")}`
+      : null;
 
   return (
     <main className="home stack" style={{ gap: 20 }}>
@@ -45,42 +58,16 @@ function Settings() {
       </header>
 
       <section className="card stack">
-        <h2>☁ Google account – sync your trips</h2>
-        {config.google.connected ? (
-          <>
-            <p style={{ margin: 0 }}>
-              ✅ Connected as <strong>{config.google.email ?? "your Google account"}</strong>. Trips are stored in a
-              hidden TripDeck folder on your Google Drive – TripDeck cannot see your other files. Claude (via MCP) and
-              this app read and write the same trips.
-            </p>
-            <div className="row">
-              <button className="btn" onClick={() => syncNow()}>
-                ⟳ Sync now
-              </button>
-              <DisconnectButton />
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="muted" style={{ margin: 0 }}>
-              Right now trips are saved on this PC in <code>{config.dataDir}</code>. Connect Google to keep them on your
-              Google Drive instead (hidden app folder, only TripDeck can see it).
-            </p>
-            {googleError && <div className="error">Google sign-in failed: {googleError}</div>}
-            <GoogleClientSetup config={config} origin={origin} />
-            <div className="row">
-              <a
-                className={`btn primary${config.google.clientConfigured ? "" : " disabled"}`}
-                href={config.google.clientConfigured ? "/api/auth/google/start" : undefined}
-                aria-disabled={!config.google.clientConfigured}
-                style={config.google.clientConfigured ? undefined : { opacity: 0.5, pointerEvents: "none" }}
-              >
-                Connect Google
-              </a>
-              {!config.google.clientConfigured && <span className="small muted">Save the client ID and secret first.</span>}
-            </div>
-          </>
-        )}
+        <h2>☁ Where your trips are stored</h2>
+        <p className="muted" style={{ margin: 0 }}>
+          Keep trips on this PC, or in a visible <strong>TripDeck</strong> folder in OneDrive or on Google Drive. Claude
+          (via MCP) and this app read and write the same trips. Switching copies your trips to the new place; per trip
+          the newer version wins.
+        </p>
+        {signInError && <div className="error">{signInError}</div>}
+        <StoragePicker config={config} />
+        <OneDriveFolder config={config} />
+        <CloudAccount provider="google" config={config} origin={origin} />
       </section>
 
       <section className="card stack">
@@ -151,10 +138,152 @@ function Settings() {
   );
 }
 
+
+function StoragePicker({ config }: { config: ConfigStatus }) {
+  const [state, setState] = useState<{ busy?: StorageKind; message?: string; error?: string }>({});
+
+  const choose = async (storage: StorageKind) => {
+    setState({ busy: storage });
+    try {
+      const res = await fetch("/api/storage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storage }),
+      });
+      const data = (await res.json()) as { copied?: number; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Switching failed.");
+      await reloadConfig();
+      await syncNow();
+      setState({ message: data.copied ? `Copied ${data.copied} trip(s) ✓` : "Switched ✓" });
+    } catch (err) {
+      setState({ error: (err as Error).message });
+    }
+  };
+
+  const google = config.cloud.google;
+  const options: { kind: StorageKind; where: string; available: boolean }[] = [
+    { kind: "local", where: `${config.dataDir}${config.dataDir.includes("\\") ? "\\" : "/"}trips`, available: true },
+    {
+      kind: "onedrive",
+      where: config.oneDriveFolder ?? "OneDrive not found on this PC – set its folder below",
+      available: !!config.oneDriveFolder,
+    },
+    {
+      kind: "google",
+      where: !google.connected
+        ? "connect below first"
+        : `${google.needsReconnect ? "hidden app folder – reconnect to make it visible" : "My Drive › TripDeck"}${google.email ? ` · ${google.email}` : ""}`,
+      available: google.connected,
+    },
+  ];
+
+  return (
+    <div className="stack" style={{ gap: 6 }} role="radiogroup" aria-label="Storage">
+      {options.map((o) => (
+        <label
+          key={o.kind}
+          className="row"
+          style={{ gap: 8, opacity: o.available ? 1 : 0.55, cursor: o.available ? "pointer" : "default" }}
+        >
+          <input
+            type="radio"
+            name="storage"
+            style={{ width: "auto" }}
+            checked={config.storage === o.kind}
+            disabled={!o.available || !!state.busy}
+            onChange={() => choose(o.kind)}
+          />
+          <span>
+            <strong>
+              {o.kind === "local" ? "💾" : "☁"} {STORAGE_LABEL[o.kind]}
+            </strong>{" "}
+            <span className="small muted">{state.busy === o.kind ? "copying trips…" : o.where}</span>
+          </span>
+        </label>
+      ))}
+      {state.message && <span className="small">{state.message}</span>}
+      {state.error && <span className="small" style={{ color: "var(--danger)" }}>{state.error}</span>}
+      {config.storage === "google" && config.cloud.google.needsReconnect && (
+        <div className="error">
+          Your trips are still in Google Drive&apos;s hidden app folder. Click <strong>Reconnect</strong> under Google Drive
+          below to move them to a visible TripDeck folder.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OneDriveFolder({ config }: { config: ConfigStatus }) {
+  return (
+    <details open={!config.oneDriveFolder}>
+      <summary>
+        <strong>OneDrive</strong>{" "}
+        <span className="small muted">{config.oneDriveFolder ? "✅ found on this PC" : "not found on this PC"}</span>
+      </summary>
+      <div className="stack" style={{ marginTop: 10 }}>
+        <p className="small muted" style={{ margin: 0 }}>
+          Uses the OneDrive app on this PC – no Microsoft sign-in or app registration needed. TripDeck saves one{" "}
+          <code>Name (id).tripdeck.json</code> file per trip in the <strong>TripDeck</strong> folder inside OneDrive, and
+          OneDrive syncs it to your other devices, including the OneDrive phone app. Keep OneDrive running so changes
+          made on another PC arrive here.
+        </p>
+        <KeyForm
+          config={config}
+          fields={[{ key: "oneDriveFolder", label: "OneDrive folder (only if it isn't found automatically)", secret: false }]}
+        />
+      </div>
+    </details>
+  );
+}
+
+function CloudAccount({ provider, config, origin }: { provider: CloudProvider; config: ConfigStatus; origin: string }) {
+  const account = config.cloud[provider];
+  const label = STORAGE_LABEL[provider];
+  const connect = (
+    <a
+      className={`btn${account.connected && !account.needsReconnect ? "" : " primary"}`}
+      href={account.clientConfigured ? `/api/auth/${provider}/start` : undefined}
+      aria-disabled={!account.clientConfigured}
+      style={account.clientConfigured ? undefined : { opacity: 0.5, pointerEvents: "none" }}
+    >
+      {account.connected ? "Reconnect" : `Connect ${label}`}
+    </a>
+  );
+  return (
+    <details open={!account.connected || account.needsReconnect}>
+      <summary>
+        <strong>{label}</strong>{" "}
+        <span className="small muted">
+          {account.connected ? `✅ connected${account.email ? ` as ${account.email}` : ""}` : "not connected"}
+        </span>
+      </summary>
+      <div className="stack" style={{ marginTop: 10 }}>
+        {account.connected ? (
+          <div className="row">
+            <button className="btn" onClick={() => syncNow()}>
+              ⟳ Sync now
+            </button>
+            {connect}
+            <DisconnectButton provider={provider} />
+          </div>
+        ) : (
+          <>
+            <GoogleClientSetup config={config} origin={origin} />
+            <div className="row">
+              {connect}
+              {!account.clientConfigured && <span className="small muted">Save the client ID and secret first.</span>}
+            </div>
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
 function GoogleClientSetup({ config, origin }: { config: ConfigStatus; origin: string }) {
   const redirect = `${origin}/api/auth/google/callback`;
   return (
-    <details open={!config.google.clientConfigured}>
+    <details open={!config.cloud.google.clientConfigured}>
       <summary className="small">One-time setup: create a Google OAuth client (about 5 minutes)</summary>
       <ol className="small" style={{ paddingLeft: 18, display: "grid", gap: 6 }}>
         <li>
@@ -169,8 +298,8 @@ function GoogleClientSetup({ config, origin }: { config: ConfigStatus; origin: s
             Google Auth Platform → Branding
           </a>
           : app name “TripDeck”, your e-mail. Under <strong>Audience</strong> choose <em>External</em>, then click{" "}
-          <strong>Publish app</strong> (otherwise Google logs you out every 7 days). TripDeck only asks for its own
-          hidden Drive folder, which needs no Google review.
+          <strong>Publish app</strong> (otherwise Google logs you out every 7 days). TripDeck only asks for files it
+          creates itself (its TripDeck folder), which needs no Google review.
         </li>
         <li>
           <a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noreferrer">
@@ -317,16 +446,23 @@ function KeyForm({
   );
 }
 
-function DisconnectButton() {
+function DisconnectButton({ provider }: { provider: CloudProvider }) {
   const [busy, setBusy] = useState(false);
+  const label = STORAGE_LABEL[provider];
   return (
     <button
       className="btn danger"
       disabled={busy}
       onClick={async () => {
-        if (!confirm("Disconnect Google? Trips stay on Drive; this PC will use local storage until you reconnect.")) return;
+        if (!confirm(`Disconnect ${label}? Your trips stay in ${label}; if it holds your trips, they are copied to this PC first.`)) {
+          return;
+        }
         setBusy(true);
-        await fetch("/api/auth/google/disconnect", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+        await fetch(`/api/auth/${provider}/disconnect`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
         await reloadConfig();
         await syncNow();
         setBusy(false);

@@ -16,7 +16,6 @@ import { centroid, estimateMinutes } from "../lib/geo";
 import { bestOrder, evaluate, type OptInput } from "../lib/optimize";
 import { guessType, itemFieldsFromPlace } from "../lib/places";
 import { HttpError } from "../lib/server/errors";
-import { googleAccount } from "../lib/server/googleAuth";
 import {
   elevation,
   mapsProvider,
@@ -87,10 +86,6 @@ function containerFor(trip: Trip, day: number): ContainerId {
   const d = trip.days[day - 1];
   if (!d) throw new HttpError(400, `Day ${day} does not exist (trip has ${trip.days.length} days; 0 = Ideas).`);
   return d.id;
-}
-
-function dayNumberOf(trip: Trip, itemId: string): number {
-  return trip.days.findIndex((d) => d.itemIds.includes(itemId)) + 1; // 0 = Ideas
 }
 
 function requireItem(trip: Trip, itemId: string): Item {
@@ -337,8 +332,7 @@ server.registerTool(
   tool(async () => {
     const summaries = await store().list();
     const trips = (await Promise.all(summaries.map((s) => store().get(s.id)))).filter((t): t is Trip => !!t);
-    const account = googleAccount();
-    const where = account ? `Google Drive (${account.email ?? "connected"})` : "this PC (~/.tripdeck/trips)";
+    const where = store().location;
     if (!trips.length) return `No trips yet (storage: ${where}). Create one with create_trip.`;
     return [
       `Storage: ${where}. Maps data: ${mapsProvider() === "google" ? "Google" : "OpenStreetMap"}.`,

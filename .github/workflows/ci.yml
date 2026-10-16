@@ -5,8 +5,17 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+# A new push to a pull request cancels the run for the previous push.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
+    name: Typecheck, lint, tests with coverage, build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -16,7 +25,29 @@ jobs:
           node-version: 22
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
-      - run: bun run test
+      - run: bun run lint
+      - run: bun run test:coverage
+      - name: Coverage summary
+        if: always() && hashFiles('coverage/coverage-summary.json') != ''
+        run: |
+          bun -e '
+            const { total } = JSON.parse(await Bun.file("coverage/coverage-summary.json").text());
+            const row = (k) => `| ${k} | ${total[k].pct}% | ${total[k].covered}/${total[k].total} |`;
+            console.log(["### Test coverage", "| | % | covered |", "|---|---|---|",
+              ...["statements", "branches", "functions", "lines"].map(row)].join("\n"));
+          ' >> "$GITHUB_STEP_SUMMARY"
       - run: bun run build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
+
+  windows:
+    name: Tests on Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - run: bun run test

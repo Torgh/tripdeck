@@ -96,7 +96,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
           <button className="btn" onClick={() => setDialog({ kind: "settings" })}>
             ✏️ <span className="label">Trip</span>
           </button>
-          <Link className="btn" href="/settings" title="App settings: Google, maps, Claude">
+          <Link className="btn" href="/settings" title="App settings: storage, maps, Claude">
             ⚙
           </Link>
         </div>
