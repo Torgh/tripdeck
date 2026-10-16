@@ -33,6 +33,14 @@ function toCard(b: ImportedBooking, trip: Trip): { item: Item; container: Contai
   };
   if (b.type === "stay") item.stay = { nights: Math.max(1, b.nights ?? 1) };
   if (b.type === "dive") item.dive = { dives: 2, gas: "air" };
+  if (b.type === "rental") {
+    const days = b.date && b.return_date ? daysBetween(b.date, b.return_date) : 1;
+    item.rental = {
+      vehicle: b.vehicle ?? "car",
+      days: Math.max(1, days),
+      returnTime: b.return_time ?? undefined,
+    };
+  }
   if (b.type === "transport") {
     item.transport = {
       kind: TRANSPORT_KINDS.includes(b.transport_kind as TransportKind) ? (b.transport_kind as TransportKind) : "other",

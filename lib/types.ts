@@ -1,4 +1,4 @@
-export type ItemType = "place" | "food" | "activity" | "stay" | "dive" | "transport";
+export type ItemType = "place" | "food" | "activity" | "stay" | "rental" | "dive" | "transport";
 
 /** Modes Google's Routes API can compute. */
 export const ROUTABLE_MODES = ["DRIVE", "WALK", "BICYCLE", "TRANSIT", "TWO_WHEELER"] as const;
@@ -75,6 +75,36 @@ export interface StayDetails {
   checkOut?: string;
 }
 
+export type RentalVehicle = "car" | "scooter" | "motorbike" | "bicycle";
+
+/** A car, scooter, motorbike or bicycle hire. The card sits on the pick-up day; `startTime` is the pick-up time. */
+export interface RentalDetails {
+  vehicle: RentalVehicle;
+  /** Rental length in days: the vehicle goes back on the day `days` after pick-up. */
+  days: number;
+  /** Return "HH:MM" on the last day. */
+  returnTime?: string;
+  /** Where it goes back, when not where it was picked up (the card's location). */
+  returnPlace?: string;
+  returnLocation?: Location;
+}
+
+export const RENTAL_VEHICLES: RentalVehicle[] = ["car", "scooter", "motorbike", "bicycle"];
+
+export const RENTAL_VEHICLE_LABEL: Record<RentalVehicle, string> = {
+  car: "Car",
+  scooter: "Scooter",
+  motorbike: "Motorbike",
+  bicycle: "Bicycle",
+};
+
+export const RENTAL_VEHICLE_ICON: Record<RentalVehicle, string> = {
+  car: "🚗",
+  scooter: "🛵",
+  motorbike: "🏍️",
+  bicycle: "🚲",
+};
+
 export interface Booking {
   provider?: string;
   reference?: string;
@@ -105,6 +135,7 @@ export interface Item {
   dive?: DiveDetails;
   transport?: TransportDetails;
   stay?: StayDetails;
+  rental?: RentalDetails;
   booking?: Booking;
   tips?: AiTips;
   /** Set when the card came from an AI suggestion. */
@@ -163,6 +194,7 @@ export const ITEM_TYPE_LABEL: Record<ItemType, string> = {
   food: "Food & drink",
   activity: "Activity / tour",
   stay: "Stay",
+  rental: "Rental (car, scooter, bike)",
   dive: "Dive",
   transport: "Transport",
 };
@@ -172,6 +204,7 @@ export const ITEM_TYPE_ICON: Record<ItemType, string> = {
   food: "🍽️",
   activity: "🎟️",
   stay: "🏨",
+  rental: "🔑",
   dive: "🤿",
   transport: "✈️",
 };
@@ -192,6 +225,7 @@ export const DEFAULT_DURATION_MIN: Record<ItemType, number> = {
   food: 75,
   activity: 120,
   stay: 15,
+  rental: 20,
   dive: 240,
   transport: 60,
 };
@@ -206,6 +240,8 @@ const TRANSPORT_ICON: Record<TransportKind, string> = {
   other: "🧭",
 };
 
-export function itemIcon(item: Pick<Item, "type" | "transport">): string {
-  return item.type === "transport" && item.transport ? TRANSPORT_ICON[item.transport.kind] : ITEM_TYPE_ICON[item.type];
+export function itemIcon(item: Pick<Item, "type" | "transport" | "rental">): string {
+  if (item.type === "transport" && item.transport) return TRANSPORT_ICON[item.transport.kind];
+  if (item.type === "rental" && item.rental) return RENTAL_VEHICLE_ICON[item.rental.vehicle];
+  return ITEM_TYPE_ICON[item.type];
 }

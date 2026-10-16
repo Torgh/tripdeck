@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { demoTrip } from "./demo";
+import { rentalsOf } from "./rentals";
 import { nightsOf } from "./stays";
 import { computeTripTimeline } from "./timeline";
 
@@ -24,5 +25,20 @@ describe("demo trip", () => {
     const nights = nightsOf(trip);
     expect(nights.slice(0, -1).every((n) => n.kind === "stay")).toBe(true);
     expect(nights.at(-1)?.kind).toBe("end");
+  });
+
+  it("keeps the rental car until the airport hotel day and has a scooter on Gozo", () => {
+    const phases = rentalsOf(trip).map((day) => day.map((r) => `${r.rental.title} ${r.phase}`).join(", "));
+    expect(phases).toEqual([
+      "Rental car pickup",
+      "Rental car during",
+      "Rental car during",
+      "Rental car during, Scooter for Gozo pickup",
+      "Rental car during, Scooter for Gozo return",
+      "Rental car return",
+      "",
+    ]);
+    const scooter = Object.values(trip.items).find((i) => i.title === "Scooter for Gozo")!;
+    expect(scooter.rental?.returnPlace).toBe("Gozo farmhouse");
   });
 });

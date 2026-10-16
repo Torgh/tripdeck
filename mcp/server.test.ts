@@ -126,6 +126,28 @@ describe.skipIf(!bun)("MCP server", () => {
     expect(await ok("list_trips")).toMatch(/Malta test.*2 days · 2 cards/);
   });
 
+  it("adds a scooter rental that shows on every day until it goes back", async () => {
+    const created = await ok("create_trip", { name: "Chiang Mai", destination: "Thailand", start_date: "2027-01-14", days: 4 });
+    const tripId = idIn(created, /trip_id ([\w-]+)/);
+    expect(
+      await ok("add_item", {
+        trip_id: tripId,
+        day: 1,
+        type: "rental",
+        title: "Honda ADV 160",
+        start_time: "18:00",
+        rental: { vehicle: "scooter", days: 2, return_time: "18:00" },
+        booking: { reference: "#2202", price: "6127.65 THB" },
+      }),
+    ).toContain("🛵");
+
+    const plan = await ok("get_trip", { trip_id: tripId });
+    expect(plan).toContain("scooter rental, 2 day(s), return by 18:00");
+    expect(plan).toMatch(/Day 2[^#]*Has rental: Honda ADV 160 \[[\w-]+\] until Sat 16 Jan/);
+    expect(plan).toMatch(/Day 3[^#]*Return rental today: Honda ADV 160 \[[\w-]+\] by 18:00/);
+    expect(plan).not.toMatch(/Day 4[^#]*rental/i);
+  });
+
   it("reports invalid requests as tool errors instead of crashing", async () => {
     const missing = await call("get_trip", { trip_id: "does-not-exist" });
     expect(missing.isError).toBe(true);

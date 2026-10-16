@@ -5,6 +5,7 @@ import { useEffect, useMemo } from "react";
 import { computeDiveWarnings } from "@/lib/diveSafety";
 import { focusItems, mercatorAspect } from "@/lib/geo";
 import { useHydrated } from "@/lib/hooks";
+import { rentalsOf, type RentalDay } from "@/lib/rentals";
 import { nightsOf, type Night } from "@/lib/stays";
 import { useTrip } from "@/lib/store";
 import { dayDate, formatDayLabel, formatDuration, formatHm } from "@/lib/time";
@@ -20,6 +21,7 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
   const timelines = useMemo(() => (trip ? computeTripTimeline(trip) : []), [trip]);
   const warnings = useMemo(() => (trip ? computeDiveWarnings(trip, timelines) : new Map()), [trip, timelines]);
   const nights = useMemo(() => (trip ? nightsOf(trip) : []), [trip]);
+  const rentals = useMemo(() => (trip ? rentalsOf(trip) : []), [trip]);
   const focus = useMemo(() => {
     const items = trip ? focusItems(Object.values(trip.items)) : [];
     return { ids: new Set(items.map((it) => it.id)), aspect: mercatorAspect(items.map((it) => it.location!)) };
@@ -154,6 +156,13 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
                 Day {i + 1} · {formatDayLabel(dayDate(trip.startDate, i))}
               </h3>
               {tl?.base && <p className="muted small">Wake up at {tl.base.title}</p>}
+              {rentals[i]
+                ?.filter((r) => r.phase !== "pickup")
+                .map((r) => (
+                  <p key={r.rental.id} className="muted small">
+                    {itemIcon(r.rental)} {rentalLabel(r)}
+                  </p>
+                ))}
               {tl?.entries.length ? (
                 <ol className="print-entries">
                   {tl.entries.map((e) => {
@@ -215,6 +224,14 @@ function ItemDetails({ item }: { item: Item }) {
     if (item.stay.checkIn) bits.push(`check-in from ${item.stay.checkIn}`);
     if (item.stay.checkOut) bits.push(`check-out by ${item.stay.checkOut}`);
   }
+  if (item.rental) {
+    const r = item.rental;
+    bits.push(
+      [`${r.days} day${r.days > 1 ? "s" : ""}`, r.returnTime && `return by ${r.returnTime}`, r.returnPlace && `at ${r.returnPlace}`]
+        .filter(Boolean)
+        .join(" · "),
+    );
+  }
   if (item.dive) {
     const d = item.dive;
     bits.push(
@@ -245,4 +262,12 @@ function nightLabel(night: Night | undefined): string {
   if (night.kind === "transport") return `Overnight · ${night.item.title}`;
   if (night.kind === "none") return "No accommodation";
   return night.nights > 1 ? `${night.stay.title} (${night.night}/${night.nights})` : night.stay.title;
+}
+
+function rentalLabel({ rental, phase, returnLabel }: RentalDay): string {
+  const r = rental.rental;
+  if (phase === "return") {
+    return `Return ${rental.title} today${r?.returnTime ? ` by ${r.returnTime}` : ""}${r?.returnPlace ? ` at ${r.returnPlace}` : ""}`;
+  }
+  return `${rental.title} · back ${returnLabel}`;
 }

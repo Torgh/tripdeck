@@ -21,14 +21,19 @@ const schema = z.object({
 });
 
 const bookingSchema = z.object({
-  type: z.enum(["stay", "activity", "transport", "dive", "food", "place"]),
+  type: z
+    .enum(["stay", "rental", "activity", "transport", "dive", "food", "place"])
+    .describe("rental = car, scooter, motorbike or bicycle hire."),
   title: z.string().describe('Short card title, e.g. "Hotel Phoenicia" or "Comino boat trip".'),
   provider: z.string().nullable().describe("Booking.com, GetYourGuide, Viator, Airbnb, airline name, dive centre..."),
   reference: z.string().nullable().describe("Booking / confirmation number."),
-  date: z.string().nullable().describe("Start date YYYY-MM-DD (check-in date for stays)."),
-  start_time: z.string().nullable().describe("Start / meeting / departure time HH:MM, 24h."),
+  date: z.string().nullable().describe("Start date YYYY-MM-DD (check-in date for stays, pick-up date for rentals)."),
+  start_time: z.string().nullable().describe("Start / meeting / departure / pick-up time HH:MM, 24h."),
   duration_min: z.number().int().nullable(),
   nights: z.number().int().nullable().describe("Stays only."),
+  vehicle: z.enum(["car", "scooter", "motorbike", "bicycle"]).nullable().describe("Rentals only."),
+  return_date: z.string().nullable().describe("Rentals only: return date YYYY-MM-DD."),
+  return_time: z.string().nullable().describe("Rentals only: return time HH:MM, 24h."),
   location_query: z
     .string()
     .nullable()
@@ -40,7 +45,7 @@ const bookingSchema = z.object({
   transport_kind: z
     .string()
     .nullable()
-    .describe("Transport only: flight, ferry, train, bus, car_rental, boat or other."),
+    .describe("Transport only: flight, ferry, train, bus, boat or other. Vehicle hire is type rental."),
   from: z.string().nullable(),
   to: z.string().nullable(),
   number: z.string().nullable().describe("Flight / train number."),

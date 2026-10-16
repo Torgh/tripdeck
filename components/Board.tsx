@@ -28,6 +28,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { routeKey } from "@/lib/geo";
+import { rentalsOf, type RentalDay } from "@/lib/rentals";
 import { nightsOf, stayColorIndex, type Night } from "@/lib/stays";
 import { containersOf, useStore } from "@/lib/store";
 import { formatDayLabel, formatDistance, formatDuration, formatHm } from "@/lib/time";
@@ -50,6 +51,8 @@ export const DAY_COLORS = ["#0e7490", "#c2410c", "#7c3aed", "#15803d", "#be185d"
 export const dayColor = (index: number) => DAY_COLORS[index % DAY_COLORS.length];
 /** Hues kept apart from DAY_COLORS so a stay never looks like a day. */
 export const STAY_COLORS = ["#0d9488", "#d97706", "#db2777", "#4f46e5", "#65a30d", "#dc2626", "#0891b2", "#9333ea"];
+/** Rentals get their own, earthier hues so they do not read as a hotel. */
+export const RENTAL_COLORS = ["#b45309", "#57534e", "#0f766e", "#9f1239"];
 
 const COL = "col:";
 
@@ -89,6 +92,11 @@ export function Board(props: BoardProps) {
   const containers = drag ?? containersOf(trip);
   const nights = useMemo(() => nightsOf(trip), [trip]);
   const staySlots = useMemo(() => stayColorIndex(nights), [nights]);
+  const rentals = useMemo(() => rentalsOf(trip), [trip]);
+  const rentalColors = useMemo(() => {
+    const ids = [...new Set(rentals.flat().map((r) => r.rental.id))];
+    return new Map(ids.map((id, i) => [id, RENTAL_COLORS[i % RENTAL_COLORS.length]]));
+  }, [rentals]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -195,6 +203,8 @@ export function Board(props: BoardProps) {
               itemIds={containers[day.id] ?? []}
               dragging={!!drag}
               night={nights[i]}
+              rentals={rentals[i]}
+              rentalColors={rentalColors}
               nightColor={nights[i]?.kind === "stay" ? STAY_COLORS[staySlots.get(nights[i].colorKey)! % STAY_COLORS.length] : undefined}
             />
           ))}
@@ -261,7 +271,15 @@ function IdeasColumn(props: BoardProps & { itemIds: string[]; dragging: boolean 
 }
 
 function DayColumn(
-  props: BoardProps & { dayIndex: number; itemIds: string[]; dragging: boolean; night?: Night; nightColor?: string },
+  props: BoardProps & {
+    dayIndex: number;
+    itemIds: string[];
+    dragging: boolean;
+    night?: Night;
+    nightColor?: string;
+    rentals?: RentalDay[];
+    rentalColors: Map<string, string>;
+  },
 ) {
   const { trip, dayIndex, timelines, selectedDayId } = props;
   const day = trip.days[dayIndex];
@@ -328,6 +346,9 @@ function DayColumn(
           )}
         </div>
       </div>
+      {props.rentals?.map((r) => (
+        <RentalStrip key={r.rental.id} rental={r} color={props.rentalColors.get(r.rental.id)} onHighlight={props.onHighlight} />
+      ))}
       <ColumnBody {...props} empty="Drag places here">
         {!props.dragging && tl?.base && props.itemIds.length > 0 && (
           <div className="start-from">From {tl.base.title}</div>
@@ -404,6 +425,36 @@ function NightStrip({
       <span>{itemIcon(stay)}</span>
       <span className="grow">
         <strong>{stay.title}</strong>
+        <small>{detail}</small>
+      </span>
+    </button>
+  );
+}
+
+/** A car, scooter or bike you have on this day: picked up, in use, or going back. */
+function RentalStrip({ rental: r, color, onHighlight }: { rental: RentalDay; color?: string; onHighlight: (id: string) => void }) {
+  const { rental, phase, days, returnLabel } = r;
+  const by = rental.rental?.returnTime ? ` by ${rental.rental.returnTime}` : "";
+  const where = rental.rental?.returnPlace ? ` at ${rental.rental.returnPlace}` : "";
+  const detail =
+    phase === "pickup"
+      ? `Pick-up${rental.startTime ? ` ${rental.startTime}` : ""} · ${days} day${days > 1 ? "s" : ""}, back ${returnLabel}${by}`
+      : phase === "return"
+        ? `Return today${by}${where}`
+        : `Rented · back ${returnLabel}${by}`;
+  return (
+    <button
+      className={`rental-strip ${phase}`}
+      style={{ "--rental-color": color } as CSSProperties}
+      title="Show this rental"
+      onClick={() => {
+        onHighlight(rental.id);
+        document.getElementById(`item-${rental.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }}
+    >
+      <span>{itemIcon(rental)}</span>
+      <span className="grow">
+        <strong>{rental.title}</strong>
         <small>{detail}</small>
       </span>
     </button>
@@ -507,6 +558,12 @@ function ItemCard({
         {item.stay && <span>{item.stay.nights} night{item.stay.nights > 1 ? "s" : ""}</span>}
         {item.stay?.checkIn && <span>in {item.stay.checkIn}</span>}
         {item.stay?.checkOut && <span>out {item.stay.checkOut}</span>}
+        {item.rental && (
+          <span>
+            {item.rental.days} day{item.rental.days > 1 ? "s" : ""}
+            {item.rental.returnTime ? ` · back ${item.rental.returnTime}` : ""}
+          </span>
+        )}
         {item.transport && (item.transport.from || item.transport.to) && (
           <span>
             {item.transport.from ?? "?"} → {item.transport.to ?? "?"}
