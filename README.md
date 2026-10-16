@@ -123,8 +123,13 @@ bun run build      # production build
 bun run start      # serve the production build
 bun run mcp        # run the MCP server manually (normally Claude/Codex starts it)
 bun run typecheck
-bun run test
+bun run lint       # ESLint (Next.js + TypeScript rules), no warnings allowed
+bun run test       # unit, API and MCP integration tests
+bun run test:coverage
+bun run check      # everything CI runs on a pull request: typecheck, lint, tests with coverage, build
 ```
+
+CI runs `bun run check` on every pull request, plus the tests on Windows. It fails when coverage drops below the thresholds in `vitest.config.mts`. Tests never touch your real trips: each suite uses its own temporary `TRIPDECK_HOME`, and the OneDrive folder is replaced with a temporary one.
 
 ## Disclaimer
 

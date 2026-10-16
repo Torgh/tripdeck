@@ -16,6 +16,8 @@ export function useMapWidth() {
   useEffect(() => {
     try {
       const saved = Number(localStorage.getItem(STORAGE_KEY));
+      // Read after hydration, not in useState(), so the server and first client render match.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (saved) setPct(clamp(saved));
     } catch {}
   }, []);

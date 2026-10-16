@@ -51,6 +51,8 @@ export default function Home() {
   return (
     <main className="home">
       <header>
+        {/* A small static SVG: next/image would not optimise it. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon.svg" alt="" />
         <div className="grow">
           <h1>TripDeck</h1>
