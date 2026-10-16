@@ -30,7 +30,7 @@ bun install
 bun run dev          # http://localhost:3000 (bound to 127.0.0.1)
 ```
 
-Click **Load demo trip** to explore a Malta & Gozo dive week. The demo includes a deliberate no-fly warning.
+Click **Load demo trip** to explore a seven-day Malta & Gozo dive week. It uses every card type and travel mode, has three stays with check-in and check-out times, bookings with prices, opening hours, AI tips and an AI-suggested idea. It also contains three deliberate problems: a cathedral visit on a Sunday when it is closed, a late arrival for the noon gun, and a flight home less than 18 h after diving.
 
 Everything else is configured in the app under **⚙ Settings**, with no `.env` editing needed. Settings are stored in `~/.tripdeck/config.json` on your machine.
 
@@ -72,9 +72,9 @@ Settings → *Google account* walks you through a one-time setup:
 ### 3. Google Maps and in-app AI (optional)
 
 - **Google Maps:** a server key for Places API (New), Routes API and Elevation API, plus a browser key for the Maps JavaScript API restricted by HTTP referrer.
-- **Anthropic API key:** turns on the in-app ✨ AI features (billed per use). It defaults to `claude-opus-5-5`; override it with the `ANTHROPIC_MODEL` environment variable.
+- **Anthropic API key:** turns on the in-app ✨ AI features (billed per use). It defaults to `claude-opus-5-5`; override it with the `ANTHROPIC_MODEL` environment variable. If the API declines a harmless request, it is retried on Anthropic's recommended fallback model; set `AI_FALLBACKS=off` to turn that off.
 
-Environment variables still work and take precedence over Settings: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAP_ID`, `ANTHROPIC_API_KEY`, and `TRIPDECK_HOME` (data directory).
+Environment variables still work and take precedence over Settings: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAP_ID`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `AI_FALLBACKS`, and `TRIPDECK_HOME` (data directory).
 
 ## Security model
 
