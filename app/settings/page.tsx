@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { SyncBadge } from "@/components/SyncAgent";
 import { LICENSE_URL, SOURCE_URL } from "@/lib/about";
 import { reloadConfig, useConfig } from "@/lib/config";
@@ -16,6 +16,9 @@ import {
 } from "@/lib/configStatus";
 import { syncNow } from "@/lib/sync";
 
+/** The page's origin never changes, so there is nothing to subscribe to. */
+const noSubscribe = () => () => undefined;
+
 export default function Page() {
   return (
     <Suspense fallback={<main className="home muted">Loading…</main>}>
@@ -27,8 +30,7 @@ export default function Page() {
 function Settings() {
   const config = useConfig();
   const params = useSearchParams();
-  const [origin, setOrigin] = useState("");
-  useEffect(() => setOrigin(window.location.origin), []);
+  const origin = useSyncExternalStore(noSubscribe, () => window.location.origin, () => "");
 
   useEffect(() => {
     if (params.get("status") === "connected") {

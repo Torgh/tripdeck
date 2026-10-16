@@ -88,10 +88,6 @@ function containerFor(trip: Trip, day: number): ContainerId {
   return d.id;
 }
 
-function dayNumberOf(trip: Trip, itemId: string): number {
-  return trip.days.findIndex((d) => d.itemIds.includes(itemId)) + 1; // 0 = Ideas
-}
-
 function requireItem(trip: Trip, itemId: string): Item {
   const item = trip.items[itemId];
   if (!item) throw new HttpError(404, `No card with id "${itemId}" in this trip.`);

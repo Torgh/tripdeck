@@ -35,7 +35,9 @@ export function OsmMap({
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const [loaded, setLoaded] = useState(false);
   const clickRef = useRef(onMarkerClick);
-  clickRef.current = onMarkerClick;
+  useEffect(() => {
+    clickRef.current = onMarkerClick;
+  }, [onMarkerClick]);
 
   useEffect(() => {
     const first = layers.markers[0]?.item.location;
