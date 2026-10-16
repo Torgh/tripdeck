@@ -57,7 +57,7 @@ export default function Home() {
           <div className="muted">Plan trips day by day – routes, dives, bookings and AI suggestions.</div>
         </div>
         <SyncBadge />
-        <Link href="/settings" className="btn" title="Google sync, maps, Claude">
+        <Link href="/settings" className="btn" title="Storage and sync, maps, Claude">
           ⚙ Settings
         </Link>
       </header>
@@ -171,7 +171,7 @@ export default function Home() {
             </label>
           </div>
           <div className="row">
-            <span className="muted small grow">Trips sync to this PC or your Google Drive (see Settings), so Claude can work on them too.</span>
+            <span className="muted small grow">Trips sync to this PC, Google Drive or OneDrive (see Settings), so Claude can work on them too.</span>
             <button className="btn primary" type="submit">
               Create trip
             </button>

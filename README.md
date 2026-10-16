@@ -14,7 +14,7 @@
 - **Dive planning.** Dive cards hold site, centre, number of dives, depth and gas. TripDeck warns about flights less than 12 h after a single dive or 18 h after repetitive diving (DAN guidance), about going above 300 m altitude in that window, and suggests a rest day after long dive streaks.
 - **Plan with Claude or ChatGPT (MCP).** Ask in plain language, for example “plan day 3 around Gozo”, “what's worth seeing near my hotel?” or “find my Booking.com and GetYourGuide confirmations in Gmail and add them”. The cards appear on the board within seconds.
 - **No keys needed for maps.** OpenStreetMap powers the map (OpenFreeMap tiles), search (Photon), nearby places (Overpass, with a Wikipedia fallback), routing (OSRM) and elevation (Open-Meteo). If you add Google Maps keys, TripDeck uses Google's richer data and falls back to OSM if a Google API fails.
-- **Google Drive sync.** Connect your Google account once and your trips live in a hidden TripDeck folder on your Drive. TripDeck can't see your other files. Until you connect, trips are saved in `~/.tripdeck/trips`.
+- **Your choice of storage: this PC, OneDrive or Google Drive.** Trips start in `~/.tripdeck/trips`. Choose OneDrive and they go into a visible **TripDeck** folder in OneDrive, synced by the OneDrive app, with no sign-in needed. Choose Google and they go into *My Drive › TripDeck*; TripDeck can't see your other Drive files. Each trip is one `Name (id).tripdeck.json` file, the same format as *Export → JSON*. Switch in *Settings* at any time; your trips are copied to the new place.
 - **Optional in-app AI.** With an Anthropic API key, the ✨ buttons give AI suggestions, an AI day optimizer, visiting tips and booking import (paste an email or upload a PDF or screenshot) directly in the app.
 - **Export as PDF or JSON.** *Export → PDF* opens a printable itinerary to save as a PDF: a map zoomed on the trip's area (flights more than 1000 km from all your stops, such as the flights from home, are left out), an overview of days and nights, a table of every booking with references and prices, and a day-by-day plan. *Export → JSON* downloads a backup you can import again.
 - **PWA.** Installable and works offline.
@@ -60,21 +60,27 @@ For Claude Desktop, add the same command to `mcpServers` in its config. The MCP 
 
 Prompts: `/mcp__tripdeck__plan-day` and `/mcp__tripdeck__import-bookings`. Booking import works best with the Gmail connector enabled in Claude.
 
-### 2. Sync with Google Drive (optional)
+### 2. Store trips in OneDrive or on Google Drive (optional)
 
-Settings → *Google account* walks you through a one-time setup:
+*Settings → Where your trips are stored* lets you choose **This PC**, **OneDrive** or **Google Drive**. Switching copies your trips to the new place; per trip the newer version wins.
+
+**OneDrive** puts trips in the *TripDeck* folder inside your OneDrive folder on this PC (on Windows `%OneDrive%\TripDeck`, on macOS under `~/Library/CloudStorage/OneDrive-…`). The OneDrive app syncs that folder to your other devices and to the OneDrive phone app. No Microsoft sign-in or app registration is needed. If TripDeck doesn't find OneDrive, set its folder in Settings or with `TRIPDECK_ONEDRIVE_FOLDER`. When two PCs edit the same trip offline, OneDrive keeps both files and TripDeck uses the newer one.
+
+**Google Drive** puts trips in *My Drive › TripDeck*. It needs a one-time setup, and Settings walks you through it:
 
 1. In Google Cloud, enable the **Google Drive API**.
-2. Under *Google Auth Platform*, set the audience to *External* and **publish the app**. Apps left in testing mode get logged out every 7 days. TripDeck only requests the `drive.appdata` scope, which needs no Google review.
+2. Under *Google Auth Platform*, set the audience to *External* and **publish the app**. Apps left in testing mode get logged out every 7 days. TripDeck only requests the `drive.file` scope (files it created itself), which needs no Google review.
 3. Create an OAuth client of type *Web application* with the redirect URI `http://localhost:3000/api/auth/google/callback`.
-4. Paste the client ID and secret into Settings and click **Connect Google**. Your existing trips are copied to Drive.
+4. Paste the client ID and secret into Settings and click **Connect Google Drive**.
+
+Connected Google before this version? Your trips are still in Drive's hidden app folder. Click **Reconnect** in Settings and TripDeck copies them into the visible folder.
 
 ### 3. Google Maps and in-app AI (optional)
 
 - **Google Maps:** a server key for Places API (New), Routes API and Elevation API, plus a browser key for the Maps JavaScript API restricted by HTTP referrer.
 - **Anthropic API key:** turns on the in-app ✨ AI features (billed per use). It defaults to `claude-opus-5-5`; override it with the `ANTHROPIC_MODEL` environment variable. If the API declines a harmless request, it is retried on Anthropic's recommended fallback model; set `AI_FALLBACKS=off` to turn that off.
 
-Environment variables still work and take precedence over Settings: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAP_ID`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `AI_FALLBACKS`, and `TRIPDECK_HOME` (data directory).
+Environment variables still work and take precedence over Settings: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `TRIPDECK_ONEDRIVE_FOLDER`, `GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAP_ID`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `AI_FALLBACKS`, and `TRIPDECK_HOME` (data directory).
 
 ## Security model
 
@@ -83,7 +89,7 @@ TripDeck is a **personal, local app**:
 - The server binds to `127.0.0.1`.
 - Settings, tokens and trip endpoints only accept requests addressed to `localhost`, which defeats DNS rebinding.
 - These endpoints require a JSON content type, which blocks cross-site form posts.
-- The Google refresh token is stored in `~/.tripdeck/google-token.json` and can only access TripDeck's own hidden Drive folder.
+- The Google refresh token is stored in `~/.tripdeck/google-token.json` and can only reach files TripDeck created (its TripDeck folder). OneDrive needs no token: TripDeck writes to the synced folder on this PC.
 
 Do not expose this app to the internet as-is.
 
@@ -93,8 +99,9 @@ Do not expose this app to the internet as-is.
 app/
   page.tsx, trip/, settings/   UI (Next.js 16, React 19, dnd-kit, MapLibre / Google Maps)
   trip/print/                  printable itinerary (Export → PDF)
-  api/trips/                   trip storage (Drive or ~/.tripdeck/trips) used by the browser sync
-  api/config, api/auth/google  settings + Google OAuth (PKCE)
+  api/trips/                   trip storage (this PC, OneDrive folder or Google Drive) used by the browser sync
+  api/storage                  switch storage and copy the trips over
+  api/config, api/auth/[provider]  settings + Google OAuth (PKCE)
   api/places|route|elevation   maps facade: Google when configured, OSM otherwise
   api/ai/*                     optional in-app AI (Claude API)
 mcp/server.ts                  MCP server (stdio) – same storage and maps facade
@@ -104,7 +111,8 @@ lib/
   stays.ts                     where each night is spent, stay colours
   optimize.ts                  exact (≤ 8 stops) or 2-opt day ordering
   sync.ts                      browser ⇄ server sync (newest updatedAt wins per trip, polls every 15 s)
-  server/osm.ts, google.ts     map providers; server/tripStore.ts – local folder / Google Drive
+  server/osm.ts, google.ts     map providers
+  server/tripStore.ts          local / OneDrive folder, Google Drive; server/cloudAuth.ts – OAuth tokens
 ```
 
 ## Scripts

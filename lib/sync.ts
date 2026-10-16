@@ -3,12 +3,13 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { ApiError } from "./api";
+import type { StorageKind } from "./configStatus";
 import { useStore } from "./store";
 import type { Trip } from "./types";
 
 export type SyncState =
   | { status: "idle" | "syncing" }
-  | { status: "ok"; storage: "drive" | "local"; email?: string; at: number }
+  | { status: "ok"; storage: StorageKind; email?: string; at: number }
   | { status: "error"; message: string };
 
 export const useSyncState = create<{ state: SyncState; set: (s: SyncState) => void }>((set) => ({
@@ -36,8 +37,8 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 let running: Promise<void> | undefined;
 
 /**
- * Two-way sync between this browser and the server store (Google Drive, or ~/.tripdeck/trips
- * before Google is connected). Per trip the newer `updatedAt` wins, so edits made by Claude
+ * Two-way sync between this browser and the server store (~/.tripdeck/trips, Google Drive or
+ * OneDrive, as chosen in Settings). Per trip the newer `updatedAt` wins, so edits made by Claude
  * through MCP show up here and edits made here are visible to Claude.
  */
 export function syncNow(): Promise<void> {
@@ -49,7 +50,7 @@ async function syncOnce() {
   const ui = useSyncState.getState();
   if (ui.state.status === "idle") ui.set({ status: "syncing" });
   try {
-    const remote = await api<{ storage: "drive" | "local"; email?: string; trips: Summary[] }>("/api/trips");
+    const remote = await api<{ storage: StorageKind; email?: string; trips: Summary[] }>("/api/trips");
     resetIfStorageChanged(`${remote.storage}:${remote.email ?? ""}`);
     const s = useStore.getState();
 
@@ -90,7 +91,7 @@ async function syncOnce() {
 const STORAGE_KEY = "tripdeck.syncTarget";
 
 /**
- * After switching between local storage and Drive (or Google accounts) the new target has never
+ * After switching storage (this PC, Google Drive, OneDrive or another account) the new target has never
  * seen our trips. Forget what was synced so they get uploaded instead of looking "deleted".
  */
 function resetIfStorageChanged(target: string) {

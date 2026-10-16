@@ -16,7 +16,6 @@ import { centroid, estimateMinutes } from "../lib/geo";
 import { bestOrder, evaluate, type OptInput } from "../lib/optimize";
 import { guessType, itemFieldsFromPlace } from "../lib/places";
 import { HttpError } from "../lib/server/errors";
-import { googleAccount } from "../lib/server/googleAuth";
 import {
   elevation,
   mapsProvider,
@@ -337,8 +336,7 @@ server.registerTool(
   tool(async () => {
     const summaries = await store().list();
     const trips = (await Promise.all(summaries.map((s) => store().get(s.id)))).filter((t): t is Trip => !!t);
-    const account = googleAccount();
-    const where = account ? `Google Drive (${account.email ?? "connected"})` : "this PC (~/.tripdeck/trips)";
+    const where = store().location;
     if (!trips.length) return `No trips yet (storage: ${where}). Create one with create_trip.`;
     return [
       `Storage: ${where}. Maps data: ${mapsProvider() === "google" ? "Google" : "OpenStreetMap"}.`,

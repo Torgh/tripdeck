@@ -1,9 +1,11 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import type { StorageKind } from "../configStatus";
 import type { Trip } from "../types";
-import { DATA_DIR, readJson, writeJson } from "./config";
+import { accessToken, cloudAccount, GOOGLE_DRIVE_FILE_SCOPE, hasScope } from "./cloudAuth";
+import { DATA_DIR, readConfig, readJson, writeJson } from "./config";
 import { HttpError } from "./errors";
-import { googleAccessToken, googleAccount } from "./googleAuth";
 
 export interface TripSummary {
   id: string;
@@ -12,7 +14,9 @@ export interface TripSummary {
 }
 
 export interface TripStore {
-  kind: "drive" | "local";
+  kind: StorageKind;
+  /** Where the trips are, for people: a folder path or "My Drive › TripDeck". */
+  location: string;
   list(): Promise<TripSummary[]>;
   get(id: string): Promise<Trip | undefined>;
   put(trip: Trip): Promise<void>;
@@ -25,34 +29,170 @@ export function assertTripId(id: string) {
   if (!ID_RE.test(id)) throw new HttpError(400, "Invalid trip id.");
 }
 
-/** Trips as JSON files in ~/.tripdeck/trips – used until Google Drive is connected. */
-class LocalStore implements TripStore {
-  kind = "local" as const;
-  private dir = path.join(DATA_DIR, "trips");
-  private file = (id: string) => (assertTripId(id), path.join(this.dir, `${id}.json`));
+/** The folder name people see in OneDrive and Google Drive. */
+export const CLOUD_FOLDER = "TripDeck";
+
+/**
+ * "Malta trip (abc123).tripdeck.json" – readable in a file browser, unique per trip, and the same
+ * format as Export → JSON so the file can be imported directly. Strips characters OneDrive and
+ * Windows reject.
+ */
+export function tripFileName(trip: Pick<Trip, "id" | "name">): string {
+  const base =
+    trip.name
+      .normalize("NFC")
+      .replace(/[\\/:*?"<>|#%\u0000-\u001f]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 60)
+      .trim() || "Trip";
+  return `${base} (${trip.id}).tripdeck.json`;
+}
+
+const tripJson = (trip: Trip) => JSON.stringify(trip, null, 2);
+
+interface FileEntry {
+  file: string;
+  mtimeMs: number;
+  size: number;
+  summary?: TripSummary;
+}
+
+/** Parsed summaries per file, re-read only when the file changes (the browser polls every 15 s). */
+const folderCache = new Map<string, FileEntry>();
+
+/**
+ * Trips as JSON files in a folder: ~/.tripdeck/trips, or TripDeck inside the OneDrive folder that
+ * the OneDrive app syncs. A trip's file is found by the id inside it, so renamed files and OneDrive's
+ * conflict copies ("… (abc)-MY-PC.tripdeck.json") still work; the newest copy wins.
+ */
+export class FolderStore implements TripStore {
+  constructor(
+    public kind: "local" | "onedrive",
+    private dir: string,
+    /** "<id>.json" in ~/.tripdeck/trips (as before), readable names in OneDrive. */
+    private nameOf: (trip: Trip) => string,
+  ) {}
+
+  get location() {
+    return this.dir;
+  }
+
+  private entries(): FileEntry[] {
+    if (!fs.existsSync(this.dir)) return [];
+    const out: FileEntry[] = [];
+    for (const name of fs.readdirSync(this.dir)) {
+      if (!name.endsWith(".json")) continue;
+      const file = path.join(this.dir, name);
+      let stat: fs.Stats;
+      try {
+        stat = fs.statSync(file);
+      } catch {
+        continue; // Deleted or renamed meanwhile.
+      }
+      if (!stat.isFile()) continue;
+      let entry = folderCache.get(file);
+      if (!entry || entry.mtimeMs !== stat.mtimeMs || entry.size !== stat.size) {
+        const trip = readJson<Trip>(file);
+        const valid = typeof trip?.id === "string" && ID_RE.test(trip.id);
+        entry = {
+          file,
+          mtimeMs: stat.mtimeMs,
+          size: stat.size,
+          summary: valid ? { id: trip.id, name: trip.name, updatedAt: trip.updatedAt } : undefined,
+        };
+        folderCache.set(file, entry);
+      }
+      out.push(entry);
+    }
+    return out;
+  }
+
+  /** Every file holding this trip, newest first. */
+  private filesOf(id: string) {
+    assertTripId(id);
+    return this.entries()
+      .filter((e) => e.summary?.id === id)
+      .sort((a, b) => b.summary!.updatedAt.localeCompare(a.summary!.updatedAt));
+  }
 
   async list() {
-    if (!fs.existsSync(this.dir)) return [];
-    return fs
-      .readdirSync(this.dir)
-      .filter((f) => f.endsWith(".json"))
-      .map((f) => readJson<Trip>(path.join(this.dir, f)))
-      .filter((t): t is Trip => !!t?.id)
-      .map((t) => ({ id: t.id, name: t.name, updatedAt: t.updatedAt }));
+    const newest = new Map<string, TripSummary>();
+    for (const { summary } of this.entries()) {
+      if (!summary) continue;
+      const seen = newest.get(summary.id);
+      if (!seen || summary.updatedAt > seen.updatedAt) newest.set(summary.id, summary);
+    }
+    return [...newest.values()];
   }
+
   async get(id: string) {
-    return readJson<Trip>(this.file(id));
+    const [newest] = this.filesOf(id);
+    return newest && readJson<Trip>(newest.file);
   }
+
   async put(trip: Trip) {
-    writeJson(this.file(trip.id), trip);
+    const others = this.filesOf(trip.id);
+    const file = path.join(this.dir, this.nameOf(trip));
+    writeJson(file, trip);
+    // Drop older copies (the old name after a rename, outdated conflict copies); keep newer ones.
+    for (const e of others) {
+      if (e.file !== file && e.summary!.updatedAt <= trip.updatedAt) fs.rmSync(e.file, { force: true });
+    }
   }
+
   async delete(id: string) {
-    fs.rmSync(this.file(id), { force: true });
+    for (const e of this.filesOf(id)) fs.rmSync(e.file, { force: true });
   }
+}
+
+/**
+ * The OneDrive folder on this PC: from Settings, else the folder the OneDrive app announces
+ * (Windows sets %OneDrive%), else OneDrive under ~/Library/CloudStorage on macOS.
+ */
+export function oneDriveRoot(): string | undefined {
+  const configured = readConfig().oneDriveFolder;
+  if (configured) return fs.existsSync(configured) ? configured : undefined;
+  for (const name of ["OneDriveConsumer", "OneDrive", "OneDriveCommercial"]) {
+    const dir = process.env[name];
+    if (dir && fs.existsSync(dir)) return dir;
+  }
+  const cloudStorage = path.join(os.homedir(), "Library", "CloudStorage");
+  if (fs.existsSync(cloudStorage)) {
+    const found = fs.readdirSync(cloudStorage).find((d) => d.startsWith("OneDrive"));
+    if (found) return path.join(cloudStorage, found);
+  }
+  return undefined;
+}
+
+/** The TripDeck folder inside OneDrive, if OneDrive was found on this PC. */
+export function oneDriveTripsFolder(): string | undefined {
+  const root = oneDriveRoot();
+  return root && path.join(root, CLOUD_FOLDER);
+}
+
+/** fetch() with the provider's token, turning failures into HttpErrors. 404 is returned to the caller. */
+async function cloudFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const label = "Google Drive";
+  const token = await accessToken("google");
+  if (!token) throw new HttpError(401, `${label} is not connected.`);
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${token}` }, cache: "no-store" });
+  } catch {
+    throw new HttpError(503, `${label} is unreachable – are you online?`);
+  }
+  if (!res.ok && res.status !== 404) {
+    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+    const message = body.error?.message ?? `${label} error ${res.status}`;
+    throw new HttpError(res.status === 401 || res.status === 403 ? 503 : 502, message);
+  }
+  return res;
 }
 
 const DRIVE = "https://www.googleapis.com/drive/v3/files";
 const UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
+const FOLDER_MIME = "application/vnd.google-apps.folder";
 
 interface DriveFile {
   id: string;
@@ -61,75 +201,88 @@ interface DriveFile {
 }
 
 /**
- * Trips in the hidden "appDataFolder" of your Google Drive: one `trip-<id>.json` per trip.
- * TripDeck only has access to this folder, never to your other Drive files.
+ * Trips on Google Drive, one JSON file per trip, in a visible "TripDeck" folder in My Drive.
+ * The drive.file permission only reaches files TripDeck created, never your other files.
+ *
+ * `hidden` is the layout before the visible folder: `trip-<id>.json` in the hidden appDataFolder.
+ * It is used until Google is reconnected with the new permission, and to migrate from.
  */
-class DriveStore implements TripStore {
-  kind = "drive" as const;
+export class GoogleDriveStore implements TripStore {
+  kind = "google" as const;
+  location: string;
 
-  private async request(url: string, init: RequestInit = {}): Promise<Response> {
-    const token = await googleAccessToken();
-    if (!token) throw new HttpError(401, "Google is not connected.");
-    let res: Response;
-    try {
-      res = await fetch(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${token}` }, cache: "no-store" });
-    } catch {
-      throw new HttpError(503, "Google Drive is unreachable – are you online?");
-    }
-    if (!res.ok && res.status !== 404) {
-      const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-      const message = body.error?.message ?? `Google Drive error ${res.status}`;
-      throw new HttpError(res.status === 401 || res.status === 403 ? 503 : 502, message);
-    }
-    return res;
+  constructor(private hidden = !hasScope("google", GOOGLE_DRIVE_FILE_SCOPE)) {
+    this.location = hidden ? "Google Drive (hidden app folder)" : `My Drive › ${CLOUD_FOLDER}`;
   }
 
-  private async files(): Promise<DriveFile[]> {
+  private request = (url: string, init?: RequestInit) => cloudFetch(url, init);
+
+  /** The TripDeck folder in My Drive, created on first use. Looked up each time in case it was moved or trashed. */
+  private async folderId(): Promise<string> {
+    const url = new URL(DRIVE);
+    url.search = new URLSearchParams({
+      q: `mimeType='${FOLDER_MIME}' and name='${CLOUD_FOLDER}' and trashed=false`,
+      fields: "files(id)",
+      orderBy: "createdTime",
+      pageSize: "1",
+    }).toString();
+    const found = (await (await this.request(url.toString())).json()) as { files?: { id: string }[] };
+    if (found.files?.[0]) return found.files[0].id;
+    const res = await this.request(`${DRIVE}?fields=id`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: CLOUD_FOLDER, mimeType: FOLDER_MIME }),
+    });
+    return ((await res.json()) as { id: string }).id;
+  }
+
+  private async files(): Promise<{ folder?: string; files: DriveFile[] }> {
+    const folder = this.hidden ? undefined : await this.folderId();
     const out: DriveFile[] = [];
     let pageToken: string | undefined;
     do {
       const url = new URL(DRIVE);
       url.search = new URLSearchParams({
-        spaces: "appDataFolder",
+        ...(folder ? { q: `'${folder}' in parents and trashed=false` } : { spaces: "appDataFolder" }),
         fields: "nextPageToken,files(id,name,appProperties)",
         pageSize: "1000",
         ...(pageToken ? { pageToken } : {}),
       }).toString();
       const data = (await (await this.request(url.toString())).json()) as { files?: DriveFile[]; nextPageToken?: string };
-      out.push(...(data.files ?? []).filter((f) => f.name.startsWith("trip-")));
+      out.push(...(data.files ?? []).filter((f) => (folder ? !!f.appProperties?.tripId : f.name.startsWith("trip-"))));
       pageToken = data.nextPageToken;
     } while (pageToken);
-    return out;
+    return { folder, files: out };
   }
 
-  private async fileFor(id: string) {
-    assertTripId(id);
-    return (await this.files()).find((f) => f.appProperties?.tripId === id || f.name === `trip-${id}.json`);
-  }
+  private static tripId = (f: DriveFile) => f.appProperties?.tripId ?? f.name.slice(5, -5);
 
   async list() {
-    return (await this.files()).map((f) => ({
-      id: f.appProperties?.tripId ?? f.name.slice(5, -5),
+    return (await this.files()).files.map((f) => ({
+      id: GoogleDriveStore.tripId(f),
       name: f.appProperties?.name ?? "",
       updatedAt: f.appProperties?.updatedAt ?? "",
     }));
   }
 
   async get(id: string) {
-    const file = await this.fileFor(id);
+    assertTripId(id);
+    const file = (await this.files()).files.find((f) => GoogleDriveStore.tripId(f) === id);
     if (!file) return undefined;
     const res = await this.request(`${DRIVE}/${file.id}?alt=media`);
     return res.ok ? ((await res.json()) as Trip) : undefined;
   }
 
   async put(trip: Trip) {
-    const existing = await this.fileFor(trip.id);
+    assertTripId(trip.id);
+    const { folder, files } = await this.files();
+    const existing = files.find((f) => GoogleDriveStore.tripId(f) === trip.id);
     const metadata = {
-      name: `trip-${trip.id}.json`,
+      name: folder ? tripFileName(trip) : `trip-${trip.id}.json`,
       mimeType: "application/json",
       // appProperties values are limited to ~124 bytes including the key.
       appProperties: { tripId: trip.id, updatedAt: trip.updatedAt, name: trip.name.slice(0, 80) },
-      ...(existing ? {} : { parents: ["appDataFolder"] }),
+      ...(existing ? {} : { parents: [folder ?? "appDataFolder"] }),
     };
     const boundary = `tripdeck${Date.now()}`;
     const body = [
@@ -140,7 +293,7 @@ class DriveStore implements TripStore {
       `--${boundary}`,
       "Content-Type: application/json",
       "",
-      JSON.stringify(trip),
+      tripJson(trip),
       `--${boundary}--`,
     ].join("\r\n");
     await this.request(existing ? `${UPLOAD}/${existing.id}?uploadType=multipart` : `${UPLOAD}?uploadType=multipart`, {
@@ -151,26 +304,50 @@ class DriveStore implements TripStore {
   }
 
   async delete(id: string) {
-    const file = await this.fileFor(id);
+    assertTripId(id);
+    const file = (await this.files()).files.find((f) => GoogleDriveStore.tripId(f) === id);
     if (file) await this.request(`${DRIVE}/${file.id}`, { method: "DELETE" });
   }
 }
 
-/** Google Drive once connected, the local folder otherwise. */
-export function tripStore(): TripStore {
-  return googleAccount() ? new DriveStore() : new LocalStore();
+/** The storage chosen in Settings, falling back to this PC when Google is not connected or OneDrive is missing. */
+export function activeStorage(): StorageKind {
+  const { storage } = readConfig();
+  if (storage === "local") return "local";
+  if (storage === "onedrive") return oneDriveTripsFolder() ? "onedrive" : "local";
+  if (storage === "google") return cloudAccount("google") ? "google" : "local";
+  // Before the choice existed, connecting Google meant storing trips there.
+  return cloudAccount("google") ? "google" : "local";
 }
 
-/** Copies local trips that Drive does not have yet (or has older) – run right after connecting Google. */
-export async function migrateLocalToDrive() {
-  const local = new LocalStore();
-  const drive = new DriveStore();
-  const remote = new Map((await drive.list()).map((t) => [t.id, t.updatedAt]));
-  for (const t of await local.list()) {
-    const remoteUpdated = remote.get(t.id);
-    if (!remoteUpdated || remoteUpdated < t.updatedAt) {
-      const trip = await local.get(t.id);
-      if (trip) await drive.put(trip);
-    }
+export function storeFor(kind: StorageKind): TripStore {
+  if (kind === "google") return new GoogleDriveStore();
+  const oneDrive = kind === "onedrive" && oneDriveTripsFolder();
+  if (oneDrive) return new FolderStore("onedrive", oneDrive, tripFileName);
+  return new FolderStore("local", path.join(DATA_DIR, "trips"), (trip) => `${trip.id}.json`);
+}
+
+export function tripStore(): TripStore {
+  return storeFor(activeStorage());
+}
+
+/** Copies trips that `to` does not have yet, or has in an older version. Returns how many were copied. */
+export async function copyTrips(from: TripStore, to: TripStore): Promise<number> {
+  const existing = new Map((await to.list()).map((t) => [t.id, t.updatedAt]));
+  let copied = 0;
+  for (const t of await from.list()) {
+    const theirs = existing.get(t.id);
+    if (theirs && theirs >= t.updatedAt) continue;
+    const trip = await from.get(t.id);
+    if (!trip) continue;
+    await to.put(trip);
+    copied++;
   }
+  return copied;
+}
+
+/** After Google grants the visible-folder permission: move trips out of the hidden app folder. */
+export async function migrateHiddenGoogleTrips() {
+  if (!hasScope("google", GOOGLE_DRIVE_FILE_SCOPE)) return;
+  await copyTrips(new GoogleDriveStore(true), new GoogleDriveStore(false));
 }
