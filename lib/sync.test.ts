@@ -179,6 +179,16 @@ describe("parseTripFile", () => {
     expect(imported.updatedAt > "2026-01-01").toBe(true);
   });
 
+  it("keeps the file's id and date with keepId, so a re-import replaces the trip", () => {
+    const exported = trip("old-id", "2026-01-01", "Malta");
+    expect(parseTripFile(JSON.parse(JSON.stringify(exported)), { keepId: true })).toMatchObject({
+      id: "old-id",
+      updatedAt: "2026-01-01",
+    });
+    const { id: _id, ...noId } = exported;
+    expect(parseTripFile(noId, { keepId: true }).id).toEqual(expect.any(String));
+  });
+
   it("fills fields that older exports lack", () => {
     const { ideas: _i, legs: _l, interests: _n, defaultMode: _m, ...old } = trip("x", "1");
     expect(parseTripFile(old)).toMatchObject({ ideas: [], legs: {}, interests: "", defaultMode: "DRIVE" });

@@ -83,6 +83,24 @@ Connected Google before this version? Your trips are still in Drive's hidden app
 
 Environment variables still work and take precedence over Settings: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `TRIPDECK_ONEDRIVE_FOLDER`, `GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAP_ID`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `AI_FALLBACKS`, and `TRIPDECK_HOME` (data directory).
 
+### 4. TripDeck on your Android phone (optional)
+
+`mobile/` is a small Android app for the road: it shows your trips offline, with nothing to host and no account. It shares the trip logic in `lib/` with the desktop app.
+
+- **Getting a trip onto the phone:** in a trip on the PC choose **Export → JSON**, then on the phone tap **Import trip file** and pick the `.tripdeck.json` from OneDrive, Google Drive, Downloads or an email. Importing a newer export of the same trip replaces it.
+- **Day view:** opens on today's day during the trip. Swipe left or right to change days. It shows times, travel between stops, where you wake up and sleep, rentals in use and when they go back, booking references and prices, opening-hours and dive-safety warnings, plus the Ideas list.
+- **🧭 Navigate:** opens the Google Maps app with directions to the card, in the trip's travel mode.
+
+The phone app only reads trips; you still plan on the PC.
+
+To build it you need Node.js, JDK 21 and Android Studio (SDK and emulator). Start an emulator or connect a phone with USB debugging, then:
+
+```bash
+bun run android    # build the web part, copy it into mobile/android, ask which device, install and start
+```
+
+`bun run dev:mobile` serves the same UI on http://localhost:5173 for quick work in a desktop browser (device mode in DevTools). The APK for sideloading is at `mobile/android/app/build/outputs/apk/debug/app-debug.apk`.
+
 ## Security model
 
 TripDeck is a **personal, local app**:
@@ -106,10 +124,14 @@ app/
   api/places|route|elevation   maps facade: Google when configured, OSM otherwise
   api/ai/*                     optional in-app AI (Claude API)
 mcp/server.ts                  MCP server (stdio) – same storage and maps facade
+mobile/
+  src/                         Android app UI (Vite + React), reads trips imported from a JSON export
+  android/                     Capacitor's Android project (capacitor.config.ts at the repo root)
 lib/
   tripOps.ts                   pure trip operations (shared by browser and MCP)
   timeline.ts, diveSafety.ts   arrival times, opening hours, no-fly / altitude rules
   stays.ts                     where each night is spent, stay colours
+  itinerary.ts                 today's day, trip status and Google Maps directions links (phone app)
   optimize.ts                  exact (≤ 8 stops) or 2-opt day ordering
   sync.ts                      browser ⇄ server sync (newest updatedAt wins per trip, polls every 15 s)
   server/osm.ts, google.ts     map providers
@@ -123,6 +145,9 @@ bun run dev        # development server on http://localhost:3000
 bun run build      # production build
 bun run start      # serve the production build
 bun run mcp        # run the MCP server manually (normally Claude/Codex starts it)
+bun run dev:mobile # phone app UI in a desktop browser on http://localhost:5173
+bun run build:mobile
+bun run android    # build the phone app and run it on the emulator or a connected phone
 bun run typecheck
 bun run lint       # ESLint (Next.js + TypeScript rules), no warnings allowed
 bun run test       # unit, API and MCP integration tests

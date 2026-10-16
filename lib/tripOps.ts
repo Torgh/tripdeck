@@ -32,6 +32,27 @@ export function createTrip(init: {
   };
 }
 
+/**
+ * Validates the minimal shape of an imported trip file. By default it gets a fresh id, so importing
+ * a file twice gives two trips; `keepId` keeps the file's id and date so a re-import replaces it.
+ */
+export function parseTripFile(json: unknown, { keepId = false } = {}): Trip {
+  const t = json as Partial<Trip>;
+  if (!t || typeof t !== "object" || !Array.isArray(t.days) || typeof t.items !== "object" || !t.startDate) {
+    throw new Error("This file is not a TripDeck trip export.");
+  }
+  const kept = keepId && typeof t.id === "string" && t.id !== "";
+  return {
+    ...(t as Trip),
+    id: kept ? t.id! : newId(),
+    ideas: t.ideas ?? [],
+    legs: t.legs ?? {},
+    interests: t.interests ?? "",
+    defaultMode: t.defaultMode ?? "DRIVE",
+    updatedAt: kept && t.updatedAt ? t.updatedAt : new Date().toISOString(),
+  };
+}
+
 /** Grow or shrink the trip to `count` days; cards from removed days move to Ideas. */
 export function setDayCount(trip: Trip, count: number): Trip {
   const n = Math.max(1, Math.floor(count));

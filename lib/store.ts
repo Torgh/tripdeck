@@ -5,7 +5,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import * as ops from "./tripOps";
 import type { ContainerId, Day, Item, Leg, Trip } from "./types";
 
-export { containersOf, createTrip, newDay, newId } from "./tripOps";
+export { containersOf, createTrip, newDay, newId, parseTripFile } from "./tripOps";
 
 interface State {
   trips: Record<string, Trip>;
@@ -110,21 +110,4 @@ export const useStore = create<State>()(
 
 export function useTrip(tripId: string | null | undefined): Trip | undefined {
   return useStore((s) => (tripId ? s.trips[tripId] : undefined));
-}
-
-/** Validates the minimal shape of an imported trip file and gives it a fresh id. */
-export function parseTripFile(json: unknown): Trip {
-  const t = json as Partial<Trip>;
-  if (!t || typeof t !== "object" || !Array.isArray(t.days) || typeof t.items !== "object" || !t.startDate) {
-    throw new Error("This file is not a TripDeck trip export.");
-  }
-  return {
-    ...(t as Trip),
-    id: ops.newId(),
-    ideas: t.ideas ?? [],
-    legs: t.legs ?? {},
-    interests: t.interests ?? "",
-    defaultMode: t.defaultMode ?? "DRIVE",
-    updatedAt: new Date().toISOString(),
-  };
 }

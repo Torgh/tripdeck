@@ -1,4 +1,4 @@
-import { createTrip, newId } from "./store";
+import { createTrip, newId } from "./tripOps";
 import { isoDate } from "./time";
 import { legKey, type Item, type Leg, type OpeningPeriod, type Trip } from "./types";
 
