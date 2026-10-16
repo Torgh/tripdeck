@@ -14,5 +14,10 @@ export default defineConfig([
       ],
     },
   },
-  globalIgnores([".next/**", "out/**", "build/**", "coverage/**", "next-env.d.ts", "public/**"]),
+  {
+    // The phone app is plain Vite + React, not Next.js.
+    files: ["mobile/**"],
+    rules: { "@next/next/no-img-element": "off" },
+  },
+  globalIgnores([".next/**", "out/**", "build/**", "coverage/**", "next-env.d.ts", "public/**", "mobile/dist/**", "mobile/android/**"]),
 ]);
