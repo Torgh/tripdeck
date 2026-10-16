@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import { SyncAgent } from "@/components/SyncAgent";
+import { ThemeAgent } from "@/components/ThemeAgent";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,11 +20,16 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // The <head> script may set data-theme on <html> before React hydrates.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>
         {children}
         <ServiceWorker />
         <SyncAgent />
+        <ThemeAgent />
       </body>
     </html>
   );

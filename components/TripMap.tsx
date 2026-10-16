@@ -6,6 +6,7 @@ import { decodePolyline, routeKey } from "@/lib/geo";
 import { findBase, getLeg } from "@/lib/timeline";
 import { isRoutable, type Item, type LatLng, type Trip } from "@/lib/types";
 import { useConfig } from "@/lib/config";
+import { useTheme } from "@/lib/useTheme";
 import { dayColor } from "./Board";
 import { OsmMap } from "./OsmMap";
 
@@ -40,6 +41,7 @@ export function TripMap({
   staticView?: boolean;
 }) {
   const config = useConfig();
+  const theme = useTheme();
   const layers = useMemo(() => buildLayers(trip, selectedDayId, onlyItemIds), [trip, selectedDayId, onlyItemIds]);
   const { markers, lines } = layers;
   const fitKey = `${selectedDayId}|${markers.length}`;
@@ -64,12 +66,14 @@ export function TripMap({
   return (
     <APIProvider apiKey={config.googleMapsBrowserKey}>
       <Map
+        // Google applies the colour scheme only when the map is created.
+        key={staticView ? "static" : theme}
         mapId={config.googleMapId || "DEMO_MAP_ID"}
         defaultCenter={markers[0]?.item.location ?? { lat: 20, lng: 0 }}
         defaultZoom={markers.length ? 10 : 2}
         gestureHandling={staticView ? "none" : "greedy"}
         keyboardShortcuts={!staticView}
-        colorScheme={staticView ? "LIGHT" : "FOLLOW_SYSTEM"}
+        colorScheme={staticView || theme === "light" ? "LIGHT" : "DARK"}
         disableDefaultUI={staticView}
         mapTypeControl={false}
         streetViewControl={false}

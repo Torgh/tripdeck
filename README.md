@@ -18,6 +18,7 @@
 - **Your choice of storage: this PC, OneDrive or Google Drive.** Trips start in `~/.tripdeck/trips`. Choose OneDrive and they go into a visible **TripDeck** folder in OneDrive, synced by the OneDrive app, with no sign-in needed. Choose Google and they go into *My Drive › TripDeck*; TripDeck can't see your other Drive files. Each trip is one `Name (id).tripdeck.json` file, the same format as *Export → JSON*. Switch in *Settings* at any time; your trips are copied to the new place.
 - **Optional in-app AI.** With an Anthropic API key, the ✨ buttons give AI suggestions, an AI day optimizer, visiting tips and booking import (paste an email or upload a PDF or screenshot) directly in the app.
 - **Export as PDF or JSON.** *Export → PDF* opens a printable itinerary to save as a PDF: a map zoomed on the trip's area (flights more than 1000 km from all your stops, such as the flights from home, are left out), an overview of days and nights, a table of every booking with references and prices, and a day-by-day plan. *Export → JSON* downloads a backup you can import again.
+- **Light or dark.** *Settings → Appearance* chooses Light, Dark or System (follows your operating system). The board, dialogs and the Google map follow it; the printable itinerary always stays light.
 - **PWA.** Installable and works offline.
 
 ## Quick start
