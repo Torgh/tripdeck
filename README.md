@@ -91,6 +91,8 @@ Environment variables still work and take precedence over Settings: `GOOGLE_CLIE
 - **Getting a trip onto the phone:** in a trip on the PC choose **Export → JSON**, then on the phone tap **Import trip file** and pick the `.tripdeck.json` from OneDrive, Google Drive, Downloads or an email. Importing a newer export of the same trip replaces it.
 - **Day view:** opens on today's day during the trip. Swipe left or right to change days. It shows times, travel between stops, where you wake up and sleep, rentals in use and when they go back, booking references and prices, opening-hours and dive-safety warnings, plus the Ideas list.
 - **🧭 Navigate:** opens the Google Maps app with directions to the card, in the trip's travel mode.
+- **Map:** each day shows its pins and route above the plan; hide it or open it full screen. Tapping a pin finds its card and the other way round. Routes come from the trip file, so without network you still see pins and routes on a plain background.
+- **Google or free map tiles:** when you build the APK with `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in `.env.local` (and the Map Tiles API enabled for that key), the map shows Google's tiles; otherwise OpenFreeMap. The key is then inside the APK, so keep such a build to yourself and don't publish it.
 
 The phone app only reads trips; you still plan on the PC.
 

@@ -1,25 +1,13 @@
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { pinClass, type MapLayers, type Marker } from "@/lib/mapLayers";
 import type { LatLng } from "@/lib/types";
+import { chooseBasemap, offlineStyle, type Basemap } from "./basemap";
 
 // MapLibre can't find its worker from inside a bundle; ship it as an asset of the app.
 maplibregl.setWorkerUrl(workerUrl);
-
-const dark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
-/** Free vector tiles, no key needed – the same maps as the desktop app without a Google key. */
-const tilesStyle = () => `https://tiles.openfreemap.org/styles/${dark() ? "dark" : "liberty"}`;
-/**
- * Offline (or when the tile server can't be reached) the plan still has to be readable: pins and
- * routes on a plain background. Route shapes come from the trip file, so they need no network.
- */
-const offlineStyle = (): maplibregl.StyleSpecification => ({
-  version: 8,
-  sources: {},
-  layers: [{ id: "background", type: "background", paint: { "background-color": dark() ? "#0b1220" : "#e8eef3" } }],
-});
 
 const toLngLat = (p: LatLng): [number, number] => [p.lng, p.lat];
 
@@ -44,11 +32,14 @@ export function MapView({ layers, fitKey, highlightId, onPinTap }: Props) {
     tapRef.current = onPinTap;
   });
 
+  /** Set while Google's tiles are showing: their copyright for the area in view. */
+  const [googleCopyright, setGoogleCopyright] = useState<string>();
+
   useEffect(() => {
-    const online = navigator.onLine;
+    // Start on the plain background so pins show at once; the real map replaces it when it's ready.
     const map = new maplibregl.Map({
       container: container.current!,
-      style: online ? tilesStyle() : offlineStyle(),
+      style: offlineStyle(),
       bounds: boundsOf(layersRef.current),
       fitBoundsOptions: { padding: 40, maxZoom: 14 },
       attributionControl: { compact: true },
@@ -57,21 +48,50 @@ export function MapView({ layers, fitKey, highlightId, onPinTap }: Props) {
       touchPitch: false,
     });
     map.touchZoomRotate.disableRotation();
-    let styled = false;
     // The route lines live in the style, so add them again whenever a style (re)loads.
+    let waiting = false;
     map.on("style.load", () => {
-      styled = true;
+      waiting = false;
       addLegLayers(map);
       setLegs(map, layersRef.current);
     });
-    map.on("error", () => {
-      if (!styled) map.setStyle(offlineStyle());
+    // A tile server that can't be reached, or never answers: keep the plain background.
+    const giveUp = () => {
+      if (!waiting) return;
+      waiting = false;
+      map.setStyle(offlineStyle(), { diff: false });
+    };
+    map.on("error", giveUp);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    let basemap: Basemap | undefined;
+
+    const updateCopyright = () => {
+      if (!basemap?.google) return;
+      const b = map.getBounds();
+      basemap.google
+        .copyright({ north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() }, map.getZoom())
+        .then((c) => !cancelled && setGoogleCopyright(c || "Google"))
+        .catch(() => undefined);
+    };
+    map.on("moveend", updateCopyright);
+
+    void chooseBasemap().then((chosen) => {
+      if (cancelled || typeof chosen.style !== "string" && !chosen.google) return; // offline: stay as is
+      basemap = chosen;
+      waiting = true;
+      map.setStyle(chosen.style, { diff: false });
+      timer = setTimeout(giveUp, 8000);
+      if (chosen.google) {
+        setGoogleCopyright("Google");
+        updateCopyright();
+      }
     });
-    // A slow network that never answers: don't leave the plan blank.
-    const fallback = setTimeout(() => !styled && map.setStyle(offlineStyle()), 8000);
+
     mapRef.current = map;
     return () => {
-      clearTimeout(fallback);
+      cancelled = true;
+      clearTimeout(timer);
       map.remove();
       mapRef.current = null;
     };
@@ -121,7 +141,17 @@ export function MapView({ layers, fitKey, highlightId, onPinTap }: Props) {
     if (target) mapRef.current?.easeTo({ center: toLngLat(target.position), duration: 400 });
   }, [highlightId]);
 
-  return <div ref={container} className="map" />;
+  return (
+    <div className="map-wrap">
+      <div ref={container} className="map" />
+      {googleCopyright && (
+        <div className="google-attribution">
+          <img src="https://maps.gstatic.com/mapfiles/api-3/images/google_white5.png" alt="Google" height={14} />
+          <span>{googleCopyright}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function boundsOf(layers: MapLayers): maplibregl.LngLatBounds | undefined {
