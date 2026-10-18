@@ -564,6 +564,11 @@ function ItemCard({
             {item.rental.returnTime ? ` · back ${item.rental.returnTime}` : ""}
           </span>
         )}
+        {item.tour?.stops.length ? (
+          <span title={`Pick-up: ${item.location?.address ?? item.title}`}>
+            🗺️ {item.tour.stops.map((s) => s.name).join(" → ")}
+          </span>
+        ) : null}
         {item.transport && (item.transport.from || item.transport.to) && (
           <span>
             {item.transport.from ?? "?"} → {item.transport.to ?? "?"}

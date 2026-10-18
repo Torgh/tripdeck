@@ -89,6 +89,18 @@ export interface RentalDetails {
   returnLocation?: Location;
 }
 
+/** A place an organised tour visits. */
+export interface TourStop {
+  name: string;
+  location?: Location;
+}
+
+/** An organised tour (type activity). The card's location is where it picks you up or where you meet the guide. */
+export interface TourDetails {
+  /** Places visited, in order. They show on the map but do not affect travel times. */
+  stops: TourStop[];
+}
+
 export const RENTAL_VEHICLES: RentalVehicle[] = ["car", "scooter", "motorbike", "bicycle"];
 
 export const RENTAL_VEHICLE_LABEL: Record<RentalVehicle, string> = {
@@ -136,6 +148,7 @@ export interface Item {
   transport?: TransportDetails;
   stay?: StayDetails;
   rental?: RentalDetails;
+  tour?: TourDetails;
   booking?: Booking;
   tips?: AiTips;
   /** Set when the card came from an AI suggestion. */

@@ -44,6 +44,7 @@ import {
   type Item,
   type LatLng,
   type RentalVehicle,
+  type TourStop,
   type Trip,
 } from "../lib/types";
 
@@ -56,6 +57,7 @@ How to work:
 - Before reordering a day, call optimize_day for real travel times, then decide (meals, sunset, heat, opening hours) and apply with reorder_day. Explain your reasoning briefly.
 - Booking confirmations: if you have Gmail (or another mail) tools, search for confirmations (Booking.com, GetYourGuide, Viator, Airbnb, airlines, ferries, car / scooter rentals, dive centres), then add one card per booking on the right day with provider, reference, times and price. Never invent booking numbers.
 - Rentals (car, scooter, motorbike, bicycle): one card of type rental on the pick-up day, start_time = pick-up time, rental.days = days until the return. The board then shows it on every day up to the return. Do not use transport car_rental for new rentals.
+- Organised tours (type activity): the card's place is the pick-up / meeting point (travel times go there); list the places the tour visits in tour_stops so they show on the map.
 - Dives: get_trip reports no-fly and altitude warnings (DAN guidance: ≥12 h after a single no-deco dive, ≥18 h after repetitive or multi-day diving). Point them out, but they are planning hints, not a substitute for the diver's computer or training.
 - Answer in the user's language. Keep card titles short; the app UI is in English.`;
 
@@ -150,6 +152,7 @@ function itemLine(item: Item): string {
       `${r.vehicle} rental, ${r.days} day(s)${r.returnTime ? `, return by ${r.returnTime}` : ""}${r.returnPlace ? ` at ${r.returnPlace}` : ""}`,
     );
   }
+  if (item.tour?.stops.length) bits.push(`tour visits: ${item.tour.stops.map((s) => s.name).join(" → ")}`);
   if (item.booking?.provider || item.booking?.reference) {
     bits.push(
       `booked: ${[item.booking.provider, item.booking.reference, item.booking.price].filter(Boolean).join(" ")}`,
@@ -281,6 +284,20 @@ const cardFields = {
     })
     .optional()
     .describe("Rentals (type rental): put the card on the pick-up day with start_time = pick-up time."),
+  tour_stops: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(120),
+        place_query: z.string().max(200).optional().describe("Find the stop by name, e.g. \"Valladolid, Yucatán\"."),
+        lat: z.number().min(-90).max(90).optional(),
+        lng: z.number().min(-180).max(180).optional(),
+      }),
+    )
+    .max(20)
+    .optional()
+    .describe(
+      "Organised tours (type activity): the places the tour visits, in order. The card's own place is the pick-up / meeting point. Replaces the list; [] clears it.",
+    ),
   booking: z
     .object({
       provider: z.string().max(60).optional(),
@@ -341,6 +358,19 @@ async function applyCard(trip: Trip, base: Item, a: CardArgs): Promise<{ item: I
       returnPlace: a.rental.return_place,
     };
   } else if (item.type === "rental" && !item.rental) item.rental = { vehicle: "car", days: 1 };
+  if (a.tour_stops) {
+    const stops: TourStop[] = [];
+    for (const s of a.tour_stops) {
+      if (s.place_query) {
+        const [place] = await searchPlaces(s.place_query, { bias: item.location ?? tripCenter(trip), maxResults: 1 });
+        if (!place) throw new HttpError(404, `No place found for tour stop "${s.place_query}".`);
+        stops.push({ name: s.name, location: { lat: place.lat, lng: place.lng, address: place.address, placeId: place.placeId } });
+      } else {
+        stops.push({ name: s.name, location: s.lat != null && s.lng != null ? { lat: s.lat, lng: s.lng } : undefined });
+      }
+    }
+    item.tour = stops.length ? { stops } : undefined;
+  }
   if (a.booking) item.booking = { ...item.booking, ...a.booking };
   if (!item.title) item.title = "Untitled";
 
@@ -485,7 +515,7 @@ server.registerTool(
   {
     title: "Add card",
     description:
-      "Adds a card (place, food, activity, stay, rental, dive or transport) to a day or to Ideas. Use place_query (or lat/lng) so it appears on the map. Stays: set stay_nights on the check-in day; later days then start from it. Rentals: put the card on the pick-up day and set rental.days.",
+      "Adds a card (place, food, activity, stay, rental, dive or transport) to a day or to Ideas. Use place_query (or lat/lng) so it appears on the map. Stays: set stay_nights on the check-in day; later days then start from it. Rentals: put the card on the pick-up day and set rental.days. Organised tours: place = pick-up point, tour_stops = places visited.",
     inputSchema: {
       trip_id: tripId,
       day: dayNumber,
