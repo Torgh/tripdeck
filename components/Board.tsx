@@ -28,6 +28,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { routeKey } from "@/lib/geo";
+import { dayColor } from "@/lib/mapLayers";
 import { rentalsOf, type RentalDay } from "@/lib/rentals";
 import { nightsOf, stayColorIndex, type Night } from "@/lib/stays";
 import { containersOf, useStore } from "@/lib/store";
@@ -47,8 +48,6 @@ import {
   type Trip,
 } from "@/lib/types";
 
-export const DAY_COLORS = ["#0e7490", "#c2410c", "#7c3aed", "#15803d", "#be185d", "#1d4ed8", "#a16207", "#475569"];
-export const dayColor = (index: number) => DAY_COLORS[index % DAY_COLORS.length];
 /** Hues kept apart from DAY_COLORS so a stay never looks like a day. */
 export const STAY_COLORS = ["#0d9488", "#d97706", "#db2777", "#4f46e5", "#65a30d", "#dc2626", "#0891b2", "#9333ea"];
 /** Rentals get their own, earthier hues so they do not read as a hotel. */

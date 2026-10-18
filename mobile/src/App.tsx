@@ -31,6 +31,8 @@ export function App() {
   }, [openId]);
   useEffect(() => {
     const back = NativeApp.addListener("backButton", () => {
+      // Screens can take the back press first (the full-screen map closes itself).
+      if (!window.dispatchEvent(new Event("app-back", { cancelable: true }))) return;
       if (openRef.current) setOpenId(null);
       else void NativeApp.exitApp();
     });

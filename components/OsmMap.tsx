@@ -4,16 +4,12 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 import type { LatLng } from "@/lib/types";
-import type { MapLayers, Marker } from "./TripMap";
+import { pinClass, type MapLayers } from "@/lib/mapLayers";
 
 /** Free vector tiles, no key needed. */
 const STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
 const toLngLat = (p: LatLng): [number, number] => [p.lng, p.lat];
-
-export function pinClass(m: Marker, highlightId?: string): string {
-  return `pin${m.stop ? " stop" : ""}${highlightId === m.item.id ? " active" : ""}`;
-}
 
 // MapLibre derives its worker URL from import.meta.url, which bundlers rewrite; serve it ourselves.
 if (typeof window !== "undefined") maplibregl.setWorkerUrl("/vendor/maplibre-worker");
