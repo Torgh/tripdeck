@@ -14,9 +14,12 @@ interface DayProps {
   night: Night;
   rentals: RentalDay[];
   isToday: boolean;
+  /** The card picked on the map (or tapped here), highlighted in the list. */
+  highlightId?: string;
+  onSelect: (itemId: string) => void;
 }
 
-export function DayView({ trip, timeline, warnings, night, rentals, isToday }: DayProps) {
+export function DayView({ trip, timeline, warnings, night, rentals, isToday, highlightId, onSelect }: DayProps) {
   const { dayIndex, base, entries } = timeline;
   // Rentals picked up today have their own card; the others are reminders.
   const ongoing = rentals.filter((r) => r.phase !== "pickup");
@@ -75,6 +78,8 @@ export function DayView({ trip, timeline, warnings, night, rentals, isToday }: D
                 dayIndex={dayIndex}
                 entry={entry}
                 issues={[...entry.issues, ...(warnings.get(item.id) ?? [])]}
+                highlighted={item.id === highlightId}
+                onSelect={onSelect}
               />
             </li>
           );
@@ -86,7 +91,15 @@ export function DayView({ trip, timeline, warnings, night, rentals, isToday }: D
   );
 }
 
-export function IdeasView({ trip }: { trip: Trip }) {
+export function IdeasView({
+  trip,
+  highlightId,
+  onSelect,
+}: {
+  trip: Trip;
+  highlightId?: string;
+  onSelect: (itemId: string) => void;
+}) {
   return (
     <>
       <div className="day-head">
@@ -98,7 +111,14 @@ export function IdeasView({ trip }: { trip: Trip }) {
           const item = trip.items[id];
           return item ? (
             <li key={id}>
-              <ItemCard trip={trip} item={item} dayIndex={-1} issues={[]} />
+              <ItemCard
+                trip={trip}
+                item={item}
+                dayIndex={-1}
+                issues={[]}
+                highlighted={item.id === highlightId}
+                onSelect={onSelect}
+              />
             </li>
           ) : null;
         })}
@@ -175,9 +195,11 @@ interface CardProps {
   dayIndex: number;
   entry?: TimelineEntry;
   issues: Issue[];
+  highlighted: boolean;
+  onSelect: (itemId: string) => void;
 }
 
-function ItemCard({ trip, item, dayIndex, entry, issues }: CardProps) {
+function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect }: CardProps) {
   const [open, setOpen] = useState(false);
   const sub = subtitle(trip, item, dayIndex);
   // Head for the card the way the plan travels there.
@@ -192,9 +214,17 @@ function ItemCard({ trip, item, dayIndex, entry, issues }: CardProps) {
   const details = Boolean(item.notes || item.tips || links.length || item.aiReason);
 
   return (
-    <article className={`card type-${item.type}`}>
+    <article id={`card-${item.id}`} className={`card type-${item.type}${highlighted ? " highlight" : ""}`}>
       <div className="card-row">
-        <button className="card-main" onClick={() => setOpen(!open)} aria-expanded={open} disabled={!details}>
+        <button
+          className="card-main"
+          // Tapping a card also shows it on the map; only cards with details fold open.
+          onClick={() => {
+            onSelect(item.id);
+            if (details) setOpen(!open);
+          }}
+          aria-expanded={details ? open : undefined}
+        >
           {entry && (
             <div className="time">
               <span className={entry.fixed ? "fixed" : undefined}>{formatHm(entry.start)}</span>

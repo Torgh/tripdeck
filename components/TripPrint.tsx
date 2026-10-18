@@ -7,11 +7,11 @@ import { focusItems, mercatorAspect } from "@/lib/geo";
 import { useHydrated } from "@/lib/hooks";
 import { rentalsOf, type RentalDay } from "@/lib/rentals";
 import { nightsOf, type Night } from "@/lib/stays";
+import { dayColor } from "@/lib/mapLayers";
 import { useTrip } from "@/lib/store";
 import { dayDate, formatDayLabel, formatDuration, formatHm } from "@/lib/time";
 import { computeTripTimeline, getLeg, type Issue } from "@/lib/timeline";
 import { itemIcon, MODE_LABEL, type Item } from "@/lib/types";
-import { dayColor } from "./Board";
 import { TripMap } from "./TripMap";
 
 /** Printable itinerary; the browser's print dialog saves it as a PDF. */
