@@ -161,6 +161,9 @@ function subtitle(trip: Trip, item: Item, dayIndex: number): string | undefined 
         .filter(Boolean)
         .join(" · ");
     }
+    case "activity":
+      // An organised tour's location is where it picks you up, not what you see.
+      return item.tour?.stops.length && item.location?.address ? `Pick-up: ${item.location.address}` : item.location?.address;
     default:
       return item.location?.address;
   }
@@ -206,6 +209,9 @@ function ItemCard({ trip, item, dayIndex, entry, issues }: CardProps) {
             {item.type === "rental" && item.rental?.returnPlace && (
               <div className="muted small">Return: {item.rental.returnPlace}</div>
             )}
+            {item.tour?.stops.length ? (
+              <div className="small">🗺️ {item.tour.stops.map((s) => s.name).join(" → ")}</div>
+            ) : null}
             {b && (b.provider || b.reference || b.price) && (
               <div className="booking small">
                 {[b.provider, b.reference && `#${b.reference}`, b.price].filter(Boolean).join(" · ")}
