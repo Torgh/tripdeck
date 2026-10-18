@@ -36,7 +36,14 @@ function server(remote: Record<string, Trip>, storage = "local", email?: string)
         return Response.json({ storage, email, trips });
       }
       if (method === "GET") return Response.json({ trip: remote[id] });
-      if (method === "PUT") return (remote[id] = JSON.parse(String(init!.body))), Response.json({ ok: true });
+      if (method === "PUT") {
+        const [tripId, query] = id.split("?base=");
+        const base = query && decodeURIComponent(query);
+        if (base && remote[tripId] && remote[tripId].updatedAt !== base) {
+          return Response.json({ error: "changed", trip: remote[tripId] }, { status: 409 });
+        }
+        return (remote[tripId] = JSON.parse(String(init!.body))), Response.json({ ok: true });
+      }
       if (method === "DELETE") return delete remote[id], Response.json({ ok: true });
       throw new Error(`unexpected ${method} ${url}`);
     }),
@@ -49,7 +56,7 @@ const local = () => useStore.getState();
 beforeEach(() => {
   localStorage.clear();
   localStorage.setItem("tripdeck.syncTarget", "local:");
-  useStore.setState({ trips: {}, synced: {}, deleted: [] });
+  useStore.setState({ trips: {}, synced: {}, bases: {}, deleted: [] });
   useSyncState.getState().set({ status: "idle" });
 });
 
@@ -68,6 +75,27 @@ describe("syncNow", () => {
     await syncNow();
     expect(s.remote.a.name).toBe("edited here");
     expect(local().synced.a).toBe("2026-10-03");
+  });
+
+  it("merges instead of overwriting when the server changed the trip too", async () => {
+    // Downloaded at 10:00; Claude then added a card on the server while the board renamed the trip here.
+    const base = trip("a", "2026-10-18T10:00:00.000Z");
+    const edited = { ...base, name: "renamed here", updatedAt: "2026-10-18T10:00:05.000Z" };
+    const byClaude = {
+      ...base,
+      items: { e: { id: "e", type: "place", title: "Evening in Roma" } },
+      days: [{ ...base.days[0], itemIds: ["e"] }],
+      updatedAt: "2026-10-18T10:00:02.000Z",
+    } as Trip;
+    useStore.setState({ trips: { a: edited }, synced: { a: base.updatedAt }, bases: { a: base } });
+    const s = server({ a: byClaude });
+
+    await syncNow();
+    expect(s.remote.a.name).toBe("renamed here");
+    expect(s.remote.a.days[0].itemIds).toEqual(["e"]);
+    expect(local().trips.a).toEqual(s.remote.a);
+    expect(local().synced.a).toBe(s.remote.a.updatedAt);
+    expect(s.calls.filter((c) => c.startsWith("PUT"))).toHaveLength(2); // refused once, then the merge
   });
 
   it("uploads new trips and downloads trips it has never seen", async () => {
@@ -161,10 +189,11 @@ describe("store", () => {
   });
 
   it("persists trips, sync state and pending deletes", () => {
-    useStore.setState({ trips: { a: trip("a", "1") }, synced: { a: "1" }, deleted: ["z"] });
+    useStore.setState({ trips: { a: trip("a", "1") }, synced: { a: "1" }, bases: { a: trip("a", "1") }, deleted: ["z"] });
     expect(JSON.parse(localStorage.getItem("tripdeck")!).state).toEqual({
       trips: { a: trip("a", "1") },
       synced: { a: "1" },
+      bases: { a: trip("a", "1") },
       deleted: ["z"],
     });
   });

@@ -79,11 +79,20 @@ async function loadTrip(tripId: string): Promise<Trip> {
   return trip;
 }
 
+/**
+ * Read-modify-write of one trip. The web app saves to the same store, so if the trip changed while
+ * `fn` ran (place lookups can take a while), start again from the newer copy instead of overwriting it.
+ */
 async function updateTrip(tripId: string, fn: (trip: Trip) => Trip | Promise<Trip>): Promise<Trip> {
   return exclusive(async () => {
-    const next = ops.touch(await fn(await loadTrip(tripId)));
-    await store().put(next);
-    return next;
+    for (let attempt = 0; ; attempt++) {
+      const current = await loadTrip(tripId);
+      const next = ops.touch(await fn(current));
+      const latest = await store().get(tripId);
+      if (latest && latest.updatedAt !== current.updatedAt && attempt < 3) continue;
+      await store().put(next);
+      return next;
+    }
   });
 }
 
