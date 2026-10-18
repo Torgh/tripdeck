@@ -596,6 +596,20 @@ label {
   outline: 3px solid #fff;
   outline-offset: 1px;
 }
+/* A place an organised tour visits: smaller and lighter than the card's own pin. */
+.pin.stop {
+  width: 20px;
+  height: 20px;
+  opacity: 0.8;
+}
+.pin.stop span {
+  font-size: 9px;
+}
+
+.tour-stops {
+  display: grid;
+  gap: 4px;
+}
 
 /* ---------- Modal ---------- */
 

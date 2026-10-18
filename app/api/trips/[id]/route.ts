@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { assertLocal, handle, HttpError, readBody } from "@/lib/server/http";
 import { assertTripId, tripStore } from "@/lib/server/tripStore";
@@ -26,12 +27,24 @@ const tripSchema = z
   })
   .loose();
 
+/**
+ * `?base=<updatedAt>` names the version the browser edited. If the stored trip has changed since
+ * (Claude edited it through MCP, or another tab saved), nothing is written: the 409 carries the
+ * stored trip so the browser can merge both edits and try again.
+ */
 export const PUT = handle<Ctx>(async (req, { params }) => {
   assertLocal(req);
   const { id } = await params;
   assertTripId(id);
   const trip = (await readBody(req, tripSchema)) as unknown as Trip;
   if (trip.id !== id) throw new HttpError(400, "Trip id mismatch.");
+  const base = new URL(req.url).searchParams.get("base");
+  if (base) {
+    const current = await tripStore().get(id);
+    if (current && current.updatedAt !== base) {
+      return NextResponse.json({ error: "The trip changed elsewhere.", trip: current }, { status: 409 });
+    }
+  }
   await tripStore().put(trip);
   return { ok: true };
 });

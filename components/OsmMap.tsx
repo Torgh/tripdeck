@@ -4,12 +4,16 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 import type { LatLng } from "@/lib/types";
-import type { MapLayers } from "./TripMap";
+import type { MapLayers, Marker } from "./TripMap";
 
 /** Free vector tiles, no key needed. */
 const STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
 const toLngLat = (p: LatLng): [number, number] => [p.lng, p.lat];
+
+export function pinClass(m: Marker, highlightId?: string): string {
+  return `pin${m.stop ? " stop" : ""}${highlightId === m.item.id ? " active" : ""}`;
+}
 
 // MapLibre derives its worker URL from import.meta.url, which bundlers rewrite; serve it ourselves.
 if (typeof window !== "undefined") maplibregl.setWorkerUrl("/vendor/maplibre-worker");
@@ -40,7 +44,7 @@ export function OsmMap({
   }, [onMarkerClick]);
 
   useEffect(() => {
-    const first = layers.markers[0]?.item.location;
+    const first = layers.markers[0]?.position;
     const map = new maplibregl.Map({
       container: container.current!,
       style: STYLE,
@@ -99,24 +103,24 @@ export function OsmMap({
     markersRef.current = layers.markers.map((m) => {
       // MapLibre positions the outer element with a transform, so the rotated pin goes inside it.
       const el = document.createElement("div");
-      el.title = `${m.label}. ${m.item.title}`;
+      el.title = m.title;
       el.style.cursor = "pointer";
       const pin = el.appendChild(document.createElement("div"));
-      pin.className = `pin${highlightId === m.item.id ? " active" : ""}`;
+      pin.className = pinClass(m, highlightId);
       pin.style.background = m.color;
       pin.appendChild(document.createElement("span")).textContent = m.label;
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         clickRef.current(m.item.id);
       });
-      return new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat(toLngLat(m.item.location!)).addTo(map);
+      return new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat(toLngLat(m.position)).addTo(map);
     });
   }, [layers, highlightId]);
 
   // Fit to the visible stops when the selection changes
   useEffect(() => {
     const map = mapRef.current;
-    const pts = layers.markers.map((m) => m.item.location!);
+    const pts = layers.markers.map((m) => m.position);
     if (!map || !pts.length) return;
     if (pts.length === 1) {
       map.easeTo({ center: toLngLat(pts[0]), zoom: 13, duration: staticView ? 0 : undefined });

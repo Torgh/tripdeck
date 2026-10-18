@@ -24,6 +24,7 @@ import {
   RENTAL_VEHICLES,
   type RentalDetails,
   type RentalVehicle,
+  type TourStop,
   type TransportKind,
   type Trip,
 } from "@/lib/types";
@@ -117,6 +118,13 @@ export function ItemEditor({
       rental: type === "rental" ? (d.rental ?? NEW_RENTAL) : d.rental,
     }));
   const setRental = (patch: Partial<RentalDetails>) => set({ rental: { ...NEW_RENTAL, ...draft.rental, ...patch } });
+  const stops = draft.tour?.stops ?? [];
+  const setStops = (next: TourStop[]) => set({ tour: next.length ? { stops: next } : undefined });
+  const moveStop = (from: number, to: number) => {
+    const next = [...stops];
+    next.splice(to, 0, ...next.splice(from, 1));
+    setStops(next);
+  };
 
   const fetchTips = async () => {
     setTipsState({ loading: true });
@@ -224,7 +232,9 @@ export function ItemEditor({
           </div>
 
           <fieldset>
-            <legend>{draft.type === "rental" ? "Pick-up place" : "Place"}</legend>
+            <legend>
+              {draft.type === "rental" ? "Pick-up place" : draft.type === "activity" ? "Place or pick-up point" : "Place"}
+            </legend>
             <PlaceSearch
               bias={draft.location ?? tripCenter(trip)}
               onPick={pickPlace}
@@ -248,7 +258,56 @@ export function ItemEditor({
             ) : (
               <div className="small muted">No location yet – routes and the map need one.</div>
             )}
+            {draft.type === "activity" && (
+              <div className="small muted">
+                For an organised tour, use where it picks you up or where you meet the guide – travel times go there.
+              </div>
+            )}
           </fieldset>
+
+          {draft.type === "activity" && (
+            <fieldset>
+              <legend>🗺️ Places visited on the tour</legend>
+              <PlaceSearch
+                bias={stops.at(-1)?.location ?? draft.location ?? tripCenter(trip)}
+                placeholder="Add a place the tour visits"
+                onPick={(p) =>
+                  setStops([...stops, { name: p.name, location: { lat: p.lat, lng: p.lng, address: p.address, placeId: p.placeId } }])
+                }
+                onCoordinates={(p) =>
+                  setStops([...stops, { name: `${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`, location: { lat: p.lat, lng: p.lng } }])
+                }
+              />
+              {stops.length ? (
+                <div className="tour-stops">
+                  {stops.map((s, i) => (
+                    <div key={i} className="row small">
+                      <span className="grow">
+                        {i + 1}. <strong>{s.name}</strong>
+                        {s.location?.address && <span className="muted"> · {s.location.address}</span>}
+                      </span>
+                      <button className="btn small ghost" title="Move up" disabled={i === 0} onClick={() => moveStop(i, i - 1)}>
+                        ↑
+                      </button>
+                      <button
+                        className="btn small ghost"
+                        title="Move down"
+                        disabled={i === stops.length - 1}
+                        onClick={() => moveStop(i, i + 1)}
+                      >
+                        ↓
+                      </button>
+                      <button className="btn small ghost" onClick={() => setStops(stops.filter((_, k) => k !== i))}>
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="small muted">Optional. They show on the map, without changing the day&apos;s timing.</div>
+              )}
+            </fieldset>
+          )}
 
           {draft.type === "rental" && (
             <fieldset>

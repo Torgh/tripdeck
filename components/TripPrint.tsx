@@ -240,6 +240,7 @@ function ItemDetails({ item }: { item: Item }) {
         .join(" · "),
     );
   }
+  if (item.tour?.stops.length) bits.push(`Visits: ${item.tour.stops.map((s) => s.name).join(" → ")}`);
   const b = item.booking;
   if (b && (b.provider || b.reference || b.price)) {
     bits.push(["Booked", b.provider, b.reference && `ref ${b.reference}`, b.price].filter(Boolean).join(" · "));
@@ -251,7 +252,12 @@ function ItemDetails({ item }: { item: Item }) {
           {t}
         </div>
       ))}
-      {item.location?.address && <div className="small muted">📍 {item.location.address}</div>}
+      {item.location?.address && (
+        <div className="small muted">
+          📍 {item.tour?.stops.length ? "Pick-up: " : ""}
+          {item.location.address}
+        </div>
+      )}
       {item.notes && <div className="small print-notes">{item.notes}</div>}
     </>
   );

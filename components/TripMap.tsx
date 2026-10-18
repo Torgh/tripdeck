@@ -8,12 +8,17 @@ import { isRoutable, type Item, type LatLng, type Trip } from "@/lib/types";
 import { useConfig } from "@/lib/config";
 import { useTheme } from "@/lib/useTheme";
 import { dayColor } from "./Board";
-import { OsmMap } from "./OsmMap";
+import { OsmMap, pinClass } from "./OsmMap";
 
 export interface Marker {
+  key: string;
   item: Item;
+  position: LatLng;
   label: string;
   color: string;
+  title: string;
+  /** A place an organised tour visits, drawn smaller than the card's own pin. */
+  stop?: boolean;
 }
 
 export interface Line {
@@ -69,7 +74,7 @@ export function TripMap({
         // Google applies the colour scheme only when the map is created.
         key={staticView ? "static" : theme}
         mapId={config.googleMapId || "DEMO_MAP_ID"}
-        defaultCenter={markers[0]?.item.location ?? { lat: 20, lng: 0 }}
+        defaultCenter={markers[0]?.position ?? { lat: 20, lng: 0 }}
         defaultZoom={markers.length ? 10 : 2}
         gestureHandling={staticView ? "none" : "greedy"}
         keyboardShortcuts={!staticView}
@@ -101,18 +106,18 @@ export function TripMap({
         ))}
         {markers.map((m) => (
           <AdvancedMarker
-            key={m.item.id}
-            position={m.item.location!}
-            title={`${m.label}. ${m.item.title}`}
+            key={m.key}
+            position={m.position}
+            title={m.title}
             zIndex={highlightId === m.item.id ? 1000 : undefined}
             onClick={() => onMarkerClick?.(m.item.id)}
           >
-            <div className={`pin${highlightId === m.item.id ? " active" : ""}`} style={{ background: m.color }}>
+            <div className={pinClass(m, highlightId)} style={{ background: m.color }}>
               <span>{m.label}</span>
             </div>
           </AdvancedMarker>
         ))}
-        <FitBounds points={markers.map((m) => m.item.location!)} fitKey={fitKey} />
+        <FitBounds points={markers.map((m) => m.position)} fitKey={fitKey} />
         <PanTo point={highlight} />
       </Map>
     </APIProvider>
@@ -120,6 +125,28 @@ export function TripMap({
 }
 
 export type MapLayers = ReturnType<typeof buildLayers>;
+
+function cardMarker(item: Item, position: LatLng, label: string, color: string): Marker {
+  return { key: item.id, item, position, label, color, title: `${label}. ${item.title}` };
+}
+
+/** Small pins for the places an organised tour visits, and a dashed line from its pick-up point through them. */
+function tourLayers(item: Item, pickUp: LatLng, label: string, color: string): { markers: Marker[]; lines: Line[] } {
+  const stops = (item.tour?.stops ?? []).flatMap((s, k) => (s.location ? [{ ...s, k, location: s.location }] : []));
+  if (!stops.length) return { markers: [], lines: [] };
+  return {
+    markers: stops.map((s) => ({
+      key: `${item.id}#${s.k}`,
+      item,
+      position: s.location,
+      label: `${label}.${s.k + 1}`,
+      color,
+      title: `${label}.${s.k + 1}. ${s.name} (${item.title})`,
+      stop: true,
+    })),
+    lines: [{ key: `${item.id}-tour`, path: [pickUp, ...stops.map((s) => s.location)], color, dashed: true }],
+  };
+}
 
 function buildLayers(trip: Trip, selectedDayId: string | null, onlyItemIds?: Set<string>) {
   const visible = (id: string) => !onlyItemIds || onlyItemIds.has(id);
@@ -141,7 +168,10 @@ function buildLayers(trip: Trip, selectedDayId: string | null, onlyItemIds?: Set
         continue;
       }
       if (!shown.has(id)) {
-        markers.push({ item, label: item.type === "stay" ? "🏨" : String(n), color });
+        const label = item.type === "stay" ? "🏨" : String(n);
+        const tour = tourLayers(item, item.location, label, color);
+        markers.push(cardMarker(item, item.location, label, color), ...tour.markers);
+        lines.push(...tour.lines);
         shown.add(id);
       }
       if (prev?.location && prev.id !== item.id && visible(prev.id)) {
@@ -163,14 +193,16 @@ function buildLayers(trip: Trip, selectedDayId: string | null, onlyItemIds?: Set
     for (const id of trip.ideas) {
       const item = trip.items[id];
       if (item?.location && !shown.has(id)) {
-        markers.push({ item, label: "💡", color: "#64748b" });
+        markers.push(cardMarker(item, item.location, "💡", "#64748b"));
       }
     }
   } else {
     // Show the morning's stay as context for a single day.
     const index = trip.days.findIndex((d) => d.id === selectedDayId);
     const base = index >= 0 ? findBase(trip, index) : undefined;
-    if (base?.location && !shown.has(base.id)) markers.push({ item: base, label: "🏨", color: dayColor(index) });
+    if (base?.location && !shown.has(base.id)) {
+      markers.push(cardMarker(base, base.location, "🏨", dayColor(index)));
+    }
   }
 
   return { markers, lines };

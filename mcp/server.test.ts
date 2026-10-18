@@ -148,6 +148,35 @@ describe.skipIf(!bun)("MCP server", () => {
     expect(plan).not.toMatch(/Day 4[^#]*rental/i);
   });
 
+  it("keeps the places an organised tour visits, apart from its pick-up point", async () => {
+    const created = await ok("create_trip", { name: "Yucatán", destination: "Mexico", start_date: "2027-02-20", days: 1 });
+    const tripId = idIn(created, /trip_id ([\w-]+)/);
+    const tour = idIn(
+      await ok("add_item", {
+        trip_id: tripId,
+        day: 1,
+        type: "activity",
+        title: "Chichén Itzá tour",
+        lat: 21.162,
+        lng: -86.823,
+        tour_stops: [
+          { name: "Chichén Itzá", lat: 20.6843, lng: -88.5678 },
+          { name: "Valladolid", lat: 20.6896, lng: -88.2011 },
+        ],
+      }),
+      /\[([\w-]+)\]/,
+    );
+    expect(await ok("get_trip", { trip_id: tripId })).toContain("tour visits: Chichén Itzá → Valladolid");
+
+    // The pick-up point stays the card's location, so travel times still go there.
+    const saved = JSON.parse(fs.readFileSync(path.join(home, "trips", `${tripId}.json`), "utf8"));
+    expect(saved.items[tour].location).toMatchObject({ lat: 21.162, lng: -86.823 });
+    expect(saved.items[tour].tour.stops[1]).toEqual({ name: "Valladolid", location: { lat: 20.6896, lng: -88.2011 } });
+
+    await ok("update_item", { trip_id: tripId, item_id: tour, tour_stops: [] });
+    expect(await ok("get_trip", { trip_id: tripId })).not.toContain("tour visits");
+  });
+
   it("reports invalid requests as tool errors instead of crashing", async () => {
     const missing = await call("get_trip", { trip_id: "does-not-exist" });
     expect(missing.isError).toBe(true);
