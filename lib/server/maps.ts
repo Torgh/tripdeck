@@ -82,6 +82,12 @@ export function routeMatrix(points: LatLng[], mode: RoutableMode) {
   );
 }
 
+/** The IANA time zone at a point. Google only – without a Google key there is none (503). */
+export function timeZone(point: LatLng): Promise<string> {
+  if (mapsProvider() === "osm") throw new HttpError(503, "Time zones need a Google Maps key.");
+  return google.timeZoneAt(point);
+}
+
 export function elevation(point: LatLng) {
   return withFallback(
     () => google.elevation(point),

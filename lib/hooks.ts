@@ -7,7 +7,17 @@ import { isoDate } from "./time";
 import { computeTripTimeline, getLeg } from "./timeline";
 import { legRouteTime } from "./transit";
 import { useStore } from "./store";
-import { isRoutable, leavesFrom, legKey, routeTimeKey, type Item, type RouteTime, type Trip } from "./types";
+import {
+  isRoutable,
+  leavesFrom,
+  legKey,
+  routeTimeKey,
+  type Item,
+  type LatLng,
+  type Location,
+  type RouteTime,
+  type Trip,
+} from "./types";
 import type { RouteOut } from "./server/google";
 
 let hydration: Promise<void> | undefined;
@@ -81,11 +91,24 @@ export function useRouteLegs(trip: Trip | undefined) {
   }, [trip, setLeg]);
 }
 
+/**
+ * Adds looked-up facts (elevation, time zone) to a card's place – or a transport card's arrival place –
+ * on the card as it is now, so two lookups finishing together don't undo each other, and only while
+ * the place is still where it was looked up.
+ */
+function patchPlace(tripId: string, itemId: string, arrival: boolean, at: LatLng, patch: Partial<Location>) {
+  const { trips, updateItem } = useStore.getState();
+  const item = trips[tripId]?.items[itemId];
+  const loc = arrival ? item?.transport?.toLocation : item?.location;
+  if (!item || !loc || loc.lat !== at.lat || loc.lng !== at.lng) return;
+  if (arrival) updateItem(tripId, itemId, { transport: { ...item.transport!, toLocation: { ...loc, ...patch } } });
+  else updateItem(tripId, itemId, { location: { ...loc, ...patch } });
+}
+
 const elevationTried = new Set<string>();
 
 /** Looks up elevation for located items (used by the dive altitude checks). */
 export function useElevations(trip: Trip | undefined) {
-  const updateItem = useStore((s) => s.updateItem);
   useEffect(() => {
     if (!trip || googleUnavailable) return;
     const hasDives = Object.values(trip.items).some((i) => i.type === "dive");
@@ -97,12 +120,39 @@ export function useElevations(trip: Trip | undefined) {
       if (elevationTried.has(k)) continue;
       elevationTried.add(k);
       postJSON<{ elevationM: number }>("/api/elevation", { lat: loc.lat, lng: loc.lng })
-        .then(({ elevationM }) => updateItem(trip.id, item.id, { location: { ...loc, elevationM } }))
+        .then(({ elevationM }) => patchPlace(trip.id, item.id, false, loc, { elevationM }))
         .catch((err) => {
           // Only remember a failure for this place when the lookup itself failed.
           if (isUnavailable(err)) googleUnavailable = true;
-          else updateItem(trip.id, item.id, { location: { ...loc, elevationM: null } });
+          else patchPlace(trip.id, item.id, false, loc, { elevationM: null });
         });
     }
-  }, [trip, updateItem]);
+  }, [trip]);
+}
+
+const zoneTried = new Set<string>();
+
+/** Looks up the time zones where flights, ferries and trains leave and arrive (for the clock changes). */
+export function useTimeZones(trip: Trip | undefined) {
+  useEffect(() => {
+    if (!trip || googleUnavailable) return;
+    for (const item of Object.values(trip.items)) {
+      if (item.type !== "transport") continue;
+      for (const [arrival, loc] of [
+        [false, item.location],
+        [true, item.transport?.toLocation],
+      ] as const) {
+        if (!loc || loc.timeZone !== undefined) continue;
+        const k = `${item.id}|${arrival}|${loc.lat},${loc.lng}`;
+        if (zoneTried.has(k)) continue;
+        zoneTried.add(k);
+        postJSON<{ timeZone: string }>("/api/timezone", { lat: loc.lat, lng: loc.lng })
+          .then(({ timeZone }) => patchPlace(trip.id, item.id, arrival, loc, { timeZone }))
+          .catch((err) => {
+            if (isUnavailable(err)) googleUnavailable = true;
+            else patchPlace(trip.id, item.id, arrival, loc, { timeZone: null });
+          });
+      }
+    }
+  }, [trip]);
 }

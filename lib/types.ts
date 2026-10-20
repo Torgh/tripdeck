@@ -23,6 +23,8 @@ export interface Location extends LatLng {
   placeId?: string;
   /** Metres above sea level. `null` means the lookup was attempted and failed. */
   elevationM?: number | null;
+  /** IANA time zone, e.g. "Asia/Bangkok" – looked up for flights, ferries and trains. `null`: lookup failed. */
+  timeZone?: string | null;
 }
 
 /** Mirrors Google Places `regularOpeningHours.periods` (day: 0 = Sunday). */

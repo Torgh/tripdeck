@@ -6,7 +6,7 @@ import { centroid } from "@/lib/geo";
 import { rentalSummary } from "@/lib/rentals";
 import { guessType, itemFieldsFromPlace } from "@/lib/places";
 import { newId, useStore } from "@/lib/store";
-import { dayDate, formatDayLabel, formatDuration, isoDate } from "@/lib/time";
+import { dayDate, formatDayLabel, formatDuration, formatHm, isoDate, parseHm } from "@/lib/time";
 import { durationOf } from "@/lib/timeline";
 import {
   DEFAULT_DURATION_MIN,
@@ -352,7 +352,11 @@ export function ItemEditor({
 
           {draft.type !== "stay" && <div className="grid2">
             <label>
-              {draft.type === "rental" ? "Pick-up time" : "Fixed start time (optional)"}
+              {draft.type === "rental"
+                ? "Pick-up time"
+                : draft.type === "transport"
+                  ? "Departs (local time)"
+                  : "Fixed start time (optional)"}
               <input
                 type="time"
                 value={draft.startTime ?? ""}
@@ -469,6 +473,7 @@ export function ItemEditor({
                     onChange={(e) => set({ transport: { kind: "other", ...draft.transport, to: e.target.value } })}
                   />
                 </label>
+                <ArrivalField draft={draft} onDuration={(durationMin) => set({ durationMin })} />
               </div>
               <div className="small">Arrives at (airport, port, station)</div>
               <PlaceSearch
@@ -671,6 +676,44 @@ export function ItemEditor({
         </>
       )}
     </Modal>
+  );
+}
+
+/**
+ * The local arrival time as printed on the ticket. It sets the card's length (local clock, departure to
+ * arrival); with both time zones known the board works out the clock change and the real journey time.
+ */
+function ArrivalField({ draft, onDuration }: { draft: Item; onDuration: (min: number) => void }) {
+  const leaves = parseHm(draft.startTime);
+  if (leaves === undefined) {
+    return <div className="small muted">Set the departure time to enter the arrival time.</div>;
+  }
+  const arrives = leaves + durationOf(draft);
+  const nextDay = arrives >= 1440;
+  return (
+    <div className="grid2">
+      <label>
+        Arrives (local time)
+        <input
+          type="time"
+          value={formatHm(arrives % 1440)}
+          onChange={(e) => {
+            const at = parseHm(e.target.value);
+            if (at === undefined) return;
+            // Earlier than departure on the clock means it lands the next day.
+            onDuration(at - leaves + (nextDay || at < leaves ? 1440 : 0));
+          }}
+        />
+      </label>
+      <label className="row">
+        <input
+          type="checkbox"
+          checked={nextDay}
+          onChange={(e) => onDuration(Math.max(0, arrives % 1440 - leaves + (e.target.checked ? 1440 : 0)))}
+        />
+        Next day
+      </label>
+    </div>
   );
 }
 
