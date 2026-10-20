@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { assertLocal, handle, HttpError, readBody } from "@/lib/server/http";
+import { saveIfUnchanged } from "@/lib/server/tripLock";
 import { assertTripId, tripStore } from "@/lib/server/tripStore";
 import type { Trip } from "@/lib/types";
 
@@ -38,14 +39,11 @@ export const PUT = handle<Ctx>(async (req, { params }) => {
   assertTripId(id);
   const trip = (await readBody(req, tripSchema)) as unknown as Trip;
   if (trip.id !== id) throw new HttpError(400, "Trip id mismatch.");
-  const base = new URL(req.url).searchParams.get("base");
-  if (base) {
-    const current = await tripStore().get(id);
-    if (current && current.updatedAt !== base) {
-      return NextResponse.json({ error: "The trip changed elsewhere.", trip: current }, { status: 409 });
-    }
+  const base = new URL(req.url).searchParams.get("base") || undefined;
+  const result = await saveIfUnchanged(tripStore(), trip, base);
+  if (!result.saved) {
+    return NextResponse.json({ error: "The trip changed elsewhere.", trip: result.current }, { status: 409 });
   }
-  await tripStore().put(trip);
   return { ok: true };
 });
 

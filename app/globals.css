@@ -517,6 +517,37 @@ label {
   background: var(--accent-soft);
   color: var(--text);
 }
+.badge.status-pending {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.badge.status-todo {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.linklike {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--info);
+  cursor: pointer;
+}
+.linklike:hover {
+  text-decoration: underline;
+}
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.todo-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
 .issue {
   font-size: 12px;
   border-radius: 6px;
@@ -552,6 +583,40 @@ label {
   width: 56px;
   padding: 1px 4px;
   font-size: 12px;
+}
+.leg {
+  flex-wrap: wrap;
+}
+.leg .transit {
+  flex-basis: 100%;
+}
+
+/* Public-transport lines of a leg: coloured chips, opening to the rides. */
+.transit summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  list-style: none;
+}
+.transit summary::-webkit-details-marker {
+  display: none;
+}
+.transit-line {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--border);
+  color: var(--text);
+  font-weight: 600;
+}
+.transit ol {
+  margin: 4px 0;
+  padding-left: 18px;
 }
 
 .map-pane {

@@ -37,6 +37,33 @@ export function dayDate(startDate: string, index: number): Date {
   return new Date(Date.UTC(y, m - 1, d + index));
 }
 
+/** The instant a local wall-clock time ("YYYY-MM-DD", "HH:MM") happens in an IANA time zone. */
+export function zonedTimeToUtc(date: string, time: string, timeZone: string): Date {
+  const wall = dayDate(date, 0).getTime() + (parseHm(time) ?? 0) * 60_000;
+  const format = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+  });
+  // How far the zone's clock is ahead of UTC at instant t.
+  const offset = (t: number) => {
+    const p = Object.fromEntries(format.formatToParts(t).map((x) => [x.type, Number(x.value)]));
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - Math.floor(t / 60_000) * 60_000;
+  };
+  // A second pass settles times next to a daylight-saving change.
+  const guess = wall - offset(wall);
+  return new Date(wall - offset(guess));
+}
+
+/** "HH:MM" on the clock of an IANA time zone at instant `at`. */
+export function hmInZone(at: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
+}
+
 export function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }

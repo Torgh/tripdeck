@@ -1,4 +1,5 @@
 import { estimateMinutes, routeKey } from "./geo";
+import { defaultModeTo } from "./rentals";
 import { dayDate, formatHm, parseHm } from "./time";
 import {
   DEFAULT_DURATION_MIN,
@@ -8,6 +9,7 @@ import {
   type Item,
   type Leg,
   type OpeningPeriod,
+  type RouteResult,
   type Trip,
 } from "./types";
 
@@ -23,6 +25,11 @@ export interface TimelineEntry {
   legMin?: number;
   /** True when legMin is a straight-line estimate because no route is known yet. */
   legEstimated: boolean;
+  /**
+   * Minutes after midnight you set off from `fromId` – or, when `arriveBy`, when you must be there:
+   * the day's first appointment sets the departure, so the leg is planned backwards from it.
+   */
+  legAt?: { min: number; arriveBy: boolean };
   /** Minutes after midnight of the day. */
   start: number;
   end: number;
@@ -49,7 +56,9 @@ export function durationOf(item: Item): number {
 }
 
 export function getLeg(trip: Trip, fromId: string, toId: string): Leg {
-  return trip.legs[legKey(fromId, toId)] ?? { mode: trip.defaultMode };
+  const leg = trip.legs[legKey(fromId, toId)];
+  if (leg && !(leg.auto ?? leg.mode === trip.defaultMode)) return leg;
+  return { ...leg, mode: defaultModeTo(trip, toId), auto: true };
 }
 
 /**
@@ -59,15 +68,27 @@ export function getLeg(trip: Trip, fromId: string, toId: string): Leg {
 export function legMinutes(trip: Trip, from: Item, to: Item): { minutes?: number; estimated: boolean } {
   const leg = getLeg(trip, from.id, to.id);
   const origin = leavesFrom(from);
+  const routed = freshRoute(trip, from, to);
   if (!isRoutable(leg.mode)) {
     if (leg.manualMin != null) return { minutes: leg.manualMin, estimated: false };
-  } else if (origin && to.location && leg.result?.key === routeKey(leg.mode, origin, to.location)) {
-    return { minutes: leg.result.durationSec / 60, estimated: false };
+  } else if (routed) {
+    return { minutes: routed.durationSec / 60, estimated: false };
   }
   if (origin && to.location) {
     return { minutes: estimateMinutes(origin, to.location, leg.mode), estimated: true };
   }
   return { estimated: true };
+}
+
+/**
+ * The routed result for a leg when it still matches its mode and endpoints. A public-transport route
+ * planned for another time of day still counts until the new one arrives – it beats a straight line.
+ */
+export function freshRoute(trip: Trip, from: Item, to: Item): RouteResult | undefined {
+  const leg = getLeg(trip, from.id, to.id);
+  const origin = leavesFrom(from);
+  if (!isRoutable(leg.mode) || !origin || !to.location) return undefined;
+  return leg.result?.key === routeKey(leg.mode, origin, to.location) ? leg.result : undefined;
 }
 
 /** The minutes of a ferry, boat or flight leg the user entered between two cards, if there is one. */
@@ -140,6 +161,7 @@ export function computeDayTimeline(trip: Trip, dayIndex: number): DayTimeline {
     let legMin: number | undefined;
     let legEstimated = false;
     let fromId: string | undefined;
+    const leaveAt = cursor;
 
     if (prev && prev.id !== item.id) {
       const leg = legMinutes(trip, prev, item);
@@ -182,7 +204,10 @@ export function computeDayTimeline(trip: Trip, dayIndex: number): DayTimeline {
       issues.push({ level: "warn", message: `May be closed ${formatHm(start)}–${formatHm(end)}.` });
     }
 
-    entries.push({ itemId: id, fromId, legMin, legEstimated, start, end, fixed: fixedStart != null, issues });
+    // The first appointment of the day is planned backwards: be there by its start.
+    const arriveBy = fixedStart != null && entries.length === 0;
+    const legAt = fromId ? { min: arriveBy ? fixedStart : leaveAt, arriveBy } : undefined;
+    entries.push({ itemId: id, fromId, legMin, legEstimated, legAt, start, end, fixed: fixedStart != null, issues });
     cursor = end;
     prev = item;
   }

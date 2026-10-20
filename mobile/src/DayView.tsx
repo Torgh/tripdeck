@@ -1,11 +1,20 @@
 import { useState } from "react";
 import { navigationUrl } from "@/lib/itinerary";
 import type { RentalDay } from "@/lib/rentals";
-import { rentalSummary } from "@/lib/rentals";
+import { defaultModeTo, rentalSummary } from "@/lib/rentals";
 import type { Night } from "@/lib/stays";
 import { formatDayLabel, formatDuration, formatHm } from "@/lib/time";
-import { getLeg, type DayTimeline, type Issue, type TimelineEntry } from "@/lib/timeline";
-import { itemIcon, MODE_LABEL, RENTAL_VEHICLE_LABEL, type Item, type Trip } from "@/lib/types";
+import { freshRoute, getLeg, type DayTimeline, type Issue, type TimelineEntry } from "@/lib/timeline";
+import { vehicleIcon } from "@/lib/transit";
+import {
+  BOOKING_STATUS_ICON,
+  BOOKING_STATUS_LABEL,
+  itemIcon,
+  MODE_LABEL,
+  RENTAL_VEHICLE_LABEL,
+  type Item,
+  type Trip,
+} from "@/lib/types";
 
 interface DayProps {
   trip: Trip;
@@ -142,11 +151,34 @@ function nightLabel(night: Night): string {
 
 function LegRow({ trip, entry, from }: { trip: Trip; entry: TimelineEntry; from?: string }) {
   const mode = getLeg(trip, entry.fromId!, entry.itemId).mode;
+  const origin = trip.items[entry.fromId!];
+  const target = trip.items[entry.itemId];
+  // Saved with the trip, so the lines and stops are there offline too.
+  const route = origin && target ? freshRoute(trip, origin, target) : undefined;
+  const transit = route?.transit;
   return (
     <div className="leg">
       {MODE_LABEL[mode]} · {entry.legEstimated ? "~" : ""}
       {formatDuration(entry.legMin!)}
       {from && <> from {from}</>}
+      {transit?.length ? (
+        <ol className="transit">
+          {transit.map((s, i) => (
+            <li key={i}>
+              <span
+                className="transit-line"
+                style={s.color ? { background: s.color, color: s.textColor ?? "#fff" } : undefined}
+              >
+                {vehicleIcon(s.vehicle)} {s.line}
+              </span>{" "}
+              {s.departs && <strong>{s.departs} </strong>}
+              {s.from} → {s.to}
+              {s.stops ? ` · ${s.stops} stop${s.stops > 1 ? "s" : ""}` : ""}
+            </li>
+          ))}
+          {route?.sampledOn && <li>Times from a typical week – check them closer to the day.</li>}
+        </ol>
+      ) : null}
     </div>
   );
 }
@@ -203,7 +235,7 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect }
   const [open, setOpen] = useState(false);
   const sub = subtitle(trip, item, dayIndex);
   // Head for the card the way the plan travels there.
-  const mode = entry?.fromId ? getLeg(trip, entry.fromId, entry.itemId).mode : trip.defaultMode;
+  const mode = entry?.fromId ? getLeg(trip, entry.fromId, entry.itemId).mode : defaultModeTo(trip, item.id);
   const nav = navigationUrl(item, mode);
   const b = item.booking;
   const links = [
@@ -242,9 +274,16 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect }
             {item.tour?.stops.length ? (
               <div className="small">🗺️ {item.tour.stops.map((s) => s.name).join(" → ")}</div>
             ) : null}
-            {b && (b.provider || b.reference || b.price) && (
+            {b && (b.provider || b.reference || b.price || b.status) && (
               <div className="booking small">
-                {[b.provider, b.reference && `#${b.reference}`, b.price].filter(Boolean).join(" · ")}
+                {[
+                  b.status && `${BOOKING_STATUS_ICON[b.status]} ${BOOKING_STATUS_LABEL[b.status]}`,
+                  b.provider,
+                  b.reference && `#${b.reference}`,
+                  b.price,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </div>
             )}
           </div>

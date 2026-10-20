@@ -99,6 +99,17 @@ describe("computeDayTimeline", () => {
     expect(computeDayTimeline(trip, 0).entries[1]).toMatchObject({ start: 14 * 60 + 40 + 40, legEstimated: false });
   });
 
+  it("records when each leg sets off, and plans the first appointment backwards", () => {
+    const hotel: Item = { id: "h", type: "stay", title: "Hotel", stay: { nights: 1 }, location: { lat: 0, lng: 0 } };
+    const tour: Item = { id: "t", type: "activity", title: "Tour", startTime: "08:00", durationMin: 120, location: { lat: 0, lng: 0.1 } };
+    const lunch: Item = { id: "l", type: "food", title: "Lunch", durationMin: 60, location: { lat: 0, lng: 0.2 } };
+    const tl = computeDayTimeline(tripWith([[hotel], [tour, lunch]]), 1);
+    expect(tl.entries.map((e) => e.legAt)).toEqual([
+      { min: 480, arriveBy: true },
+      { min: 600, arriveBy: false },
+    ]);
+  });
+
   it("warns when a place is closed that weekday", () => {
     const museum: Item = {
       id: "m",

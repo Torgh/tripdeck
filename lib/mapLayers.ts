@@ -1,6 +1,6 @@
-import { decodePolyline, haversineM, routeKey } from "./geo";
-import { findBase, getLeg } from "./timeline";
-import { isRoutable, leavesFrom, type Item, type LatLng, type Trip } from "./types";
+import { decodePolyline, FOCUS_MAX_KM, haversineM } from "./geo";
+import { findBase, freshRoute } from "./timeline";
+import { leavesFrom, type Item, type LatLng, type Trip } from "./types";
 
 /** What the trip maps draw – shared by the desktop board and the phone app. */
 
@@ -27,6 +27,17 @@ export interface Line {
   path: LatLng[];
   color: string;
   dashed: boolean;
+}
+
+/**
+ * Where a map should zoom to: every pin except the far end of a flight (home, a stopover) more than
+ * FOCUS_MAX_KM from all the other pins – the same rule as `focusItems`. A day of only flights shows them all.
+ */
+export function fitPoints(markers: Marker[]): LatLng[] {
+  const isFlight = (m: Marker) => m.item.type === "transport" && m.item.transport?.kind === "flight";
+  const ground = markers.filter((m) => !isFlight(m)).map((m) => m.position);
+  const near = (p: LatLng) => ground.some((g) => haversineM(g, p) <= FOCUS_MAX_KM * 1000);
+  return markers.filter((m) => !ground.length || !isFlight(m) || near(m.position)).map((m) => m.position);
 }
 
 export function pinClass(m: Marker, highlightId?: string): string {
@@ -108,14 +119,24 @@ export function buildLayers(trip: Trip, selectedDayId: string | null, onlyItemId
       }
       const origin = prev && leavesFrom(prev);
       if (prev && origin && prev.id !== item.id && visible(prev.id)) {
-        const leg = getLeg(trip, prev.id, item.id);
-        const fresh =
-          isRoutable(leg.mode) && leg.result?.key === routeKey(leg.mode, origin, item.location) && leg.result.polyline;
+        const route = freshRoute(trip, prev, item);
+        const legId = `${d}-${prev.id}-${item.id}`;
         lines.push({
-          key: `${d}-${prev.id}-${item.id}`,
-          path: fresh ? decodePolyline(fresh) : [origin, item.location],
+          key: legId,
+          path: route?.polyline ? decodePolyline(route.polyline) : [origin, item.location],
           color,
-          dashed: !fresh,
+          dashed: !route?.polyline,
+        });
+        // Public-transport rides drawn over the day's line in their own line colours.
+        route?.transit?.forEach((s, k) => {
+          if (s.polyline) {
+            lines.push({
+              key: `${legId}-${k}`,
+              path: decodePolyline(s.polyline),
+              color: s.color ?? color,
+              dashed: false,
+            });
+          }
         });
       }
       prev = item;

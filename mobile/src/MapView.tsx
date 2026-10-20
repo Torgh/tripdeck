@@ -2,7 +2,7 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef, useState } from "react";
-import { pinClass, type MapLayers, type Marker } from "@/lib/mapLayers";
+import { fitPoints, pinClass, type MapLayers, type Marker } from "@/lib/mapLayers";
 import type { LatLng } from "@/lib/types";
 import { chooseBasemap, offlineStyle, type Basemap } from "./basemap";
 
@@ -155,7 +155,7 @@ export function MapView({ layers, fitKey, highlightId, onPinTap }: Props) {
 }
 
 function boundsOf(layers: MapLayers): maplibregl.LngLatBounds | undefined {
-  const [first, ...rest] = layers.markers.map((m) => toLngLat(m.position));
+  const [first, ...rest] = fitPoints(layers.markers).map(toLngLat);
   if (!first) return undefined;
   const bounds = new maplibregl.LngLatBounds(first, first);
   rest.forEach((p) => bounds.extend(p));

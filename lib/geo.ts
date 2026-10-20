@@ -81,7 +81,7 @@ export function parseCoordinates(input: string): LatLng | undefined {
 }
 
 /** Flights more than this far from every other stop (e.g. the flight from home) are left out of the trip's area. */
-const FOCUS_MAX_KM = 1000;
+export const FOCUS_MAX_KM = 1000;
 
 /**
  * The cards that make up a trip's area on a map: every located card except flights that are far from

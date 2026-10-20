@@ -1,4 +1,5 @@
-import type { LatLng, OpeningPeriod, RoutableMode } from "../types";
+import { hmInZone, isoDate, zonedTimeToUtc } from "../time";
+import type { LatLng, OpeningPeriod, RoutableMode, RouteTime, TransitStep } from "../types";
 import { readConfig } from "./config";
 import { HttpError } from "./errors";
 
@@ -167,27 +168,166 @@ export interface RouteOut {
   durationSec: number;
   distanceM: number;
   polyline?: string;
+  transit?: TransitStep[];
+  walkMin?: number;
+  sampledOn?: string;
 }
 
-export async function computeRoute(origin: LatLng, destination: LatLng, mode: RoutableMode): Promise<RouteOut> {
-  const data = await googleFetch<{
-    routes?: { duration?: string; distanceMeters?: number; polyline?: { encodedPolyline?: string } }[];
-  }>(`${ROUTES_URL}/directions/v2:computeRoutes`, {
-    method: "POST",
-    body: JSON.stringify({
-      origin: waypoint(origin),
-      destination: waypoint(destination),
-      travelMode: mode,
-      ...routingPreference(mode),
-    }),
-    fieldMask: "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
-  });
-  const route = data.routes?.[0];
-  if (!route) throw new HttpError(404, `No ${mode.toLowerCase()} route found between these places.`);
+interface RawStep {
+  travelMode?: string;
+  staticDuration?: string;
+  polyline?: { encodedPolyline?: string };
+  transitDetails?: {
+    headsign?: string;
+    stopCount?: number;
+    stopDetails?: {
+      departureStop?: { name?: string };
+      arrivalStop?: { name?: string };
+      departureTime?: string;
+      arrivalTime?: string;
+    };
+    localizedValues?: {
+      departureTime?: { time?: { text?: string }; timeZone?: string };
+      arrivalTime?: { time?: { text?: string }; timeZone?: string };
+    };
+    transitLine?: {
+      name?: string;
+      nameShort?: string;
+      color?: string;
+      textColor?: string;
+      vehicle?: { type?: string };
+    };
+  };
+}
+
+const ROUTE_FIELDS = "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline";
+const TRANSIT_FIELDS =
+  "routes.legs.steps.travelMode,routes.legs.steps.staticDuration,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.transitDetails";
+
+/** The rides of a public-transport route and the minutes walked around them. */
+export function transitSteps(steps: RawStep[]): { transit: TransitStep[]; walkMin: number } {
+  const transit: TransitStep[] = [];
+  let walkSec = 0;
+  for (const s of steps) {
+    const t = s.transitDetails;
+    if (!t) {
+      if (s.travelMode === "WALK") walkSec += parseDuration(s.staticDuration);
+      continue;
+    }
+    const line = t.transitLine;
+    // Google's own text follows the language ("2:00 PM"); the board shows 24-hour times.
+    const clock = (at: string | undefined, local?: { time?: { text?: string }; timeZone?: string }) =>
+      at && local?.timeZone ? hmInZone(new Date(at), local.timeZone) : local?.time?.text;
+    transit.push({
+      vehicle: line?.vehicle?.type ?? "TRANSIT",
+      line: line?.nameShort || line?.name || "Public transport",
+      color: line?.color,
+      textColor: line?.textColor,
+      from: t.stopDetails?.departureStop?.name ?? "?",
+      to: t.stopDetails?.arrivalStop?.name ?? "?",
+      stops: t.stopCount,
+      departs: clock(t.stopDetails?.departureTime, t.localizedValues?.departureTime),
+      arrives: clock(t.stopDetails?.arrivalTime, t.localizedValues?.arrivalTime),
+      headsign: t.headsign,
+      polyline: s.polyline?.encodedPolyline,
+    });
+  }
+  return { transit, walkMin: Math.round(walkSec / 60) };
+}
+
+/** IANA time zones by rounded location – they rarely change within ~10 km, and each lookup is billed. */
+const zoneCache = new Map<string, Promise<string>>();
+
+export function timeZoneAt(point: LatLng): Promise<string> {
+  const k = `${point.lat.toFixed(1)},${point.lng.toFixed(1)}`;
+  let zone = zoneCache.get(k);
+  if (!zone) {
+    zone = (async () => {
+      const url = new URL("https://maps.googleapis.com/maps/api/timezone/json");
+      url.searchParams.set("location", `${point.lat},${point.lng}`);
+      url.searchParams.set("timestamp", String(Math.floor(Date.now() / 1000)));
+      url.searchParams.set("key", apiKey());
+      const res = await fetch(url, { cache: "no-store" });
+      const data = (await res.json()) as { status: string; timeZoneId?: string; errorMessage?: string };
+      if (data.status !== "OK" || !data.timeZoneId) {
+        const status = data.status === "REQUEST_DENIED" ? 503 : 502;
+        throw new HttpError(status, data.errorMessage ?? `Time Zone API: ${data.status}`);
+      }
+      return data.timeZoneId;
+    })();
+    zone.catch(() => zoneCache.delete(k));
+    zoneCache.set(k, zone);
+  }
+  return zone;
+}
+
+type RawRoute = {
+  duration?: string;
+  distanceMeters?: number;
+  polyline?: { encodedPolyline?: string };
+  legs?: { steps?: RawStep[] }[];
+};
+
+/** The first date after `today` that falls on the same weekday as `date` (all "YYYY-MM-DD"). */
+export function sameWeekdaySoon(date: string, today: string): string {
+  const d = new Date(`${today}T00:00:00Z`);
+  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  do d.setUTCDate(d.getUTCDate() + 1);
+  while (d.getUTCDay() !== weekday);
+  return d.toISOString().slice(0, 10);
+}
+
+export async function computeRoute(
+  origin: LatLng,
+  destination: LatLng,
+  mode: RoutableMode,
+  time?: RouteTime,
+): Promise<RouteOut> {
+  const transit = mode === "TRANSIT";
+  const zone = transit && time ? await timeZoneAt(time.arriveBy ? destination : origin) : undefined;
+  const fetchRoute = async (date?: string) => {
+    const when =
+      time && zone && date
+        ? { [time.arriveBy ? "arrivalTime" : "departureTime"]: zonedTimeToUtc(date, time.time, zone).toISOString() }
+        : {};
+    const data = await googleFetch<{ routes?: RawRoute[] }>(`${ROUTES_URL}/directions/v2:computeRoutes`, {
+      method: "POST",
+      body: JSON.stringify({
+        origin: waypoint(origin),
+        destination: waypoint(destination),
+        travelMode: mode,
+        ...routingPreference(mode),
+        ...when,
+        // Station names in English rather than the local script.
+        ...(transit ? { languageCode: "en" } : {}),
+      }),
+      fieldMask: transit ? `${ROUTE_FIELDS},${TRANSIT_FIELDS}` : ROUTE_FIELDS,
+    });
+    return data.routes?.[0];
+  };
+
+  let route = await fetchRoute(time?.date);
+  let sampledOn: string | undefined;
+  if (!route && zone && time) {
+    // Google only plans as far ahead as timetables are published (a few weeks to months). For a
+    // later trip, use the same weekday and time next week: it shows the lines and whether they run then.
+    sampledOn = sameWeekdaySoon(time.date, isoDate(new Date()));
+    if (sampledOn < time.date) route = await fetchRoute(sampledOn);
+  }
+  if (!route) {
+    throw new HttpError(
+      404,
+      transit && time
+        ? `No public transport ${time.arriveBy ? "arriving by" : "leaving around"} ${time.time} on ${time.date}${sampledOn && sampledOn < time.date ? ` (checked on the same weekday, ${sampledOn})` : ""} – it may not run then.`
+        : `No ${mode.toLowerCase()} route found between these places.`,
+    );
+  }
   return {
     durationSec: parseDuration(route.duration),
     distanceM: route.distanceMeters ?? 0,
     polyline: route.polyline?.encodedPolyline,
+    ...(transit ? transitSteps(route.legs?.flatMap((l) => l.steps ?? []) ?? []) : {}),
+    ...(sampledOn ? { sampledOn } : {}),
   };
 }
 

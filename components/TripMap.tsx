@@ -3,7 +3,7 @@
 import { AdvancedMarker, APIProvider, Map, Polyline, useMap } from "@vis.gl/react-google-maps";
 import { useEffect, useMemo } from "react";
 import { useConfig } from "@/lib/config";
-import { buildLayers, pinClass } from "@/lib/mapLayers";
+import { buildLayers, fitPoints, pinClass } from "@/lib/mapLayers";
 import type { LatLng, Trip } from "@/lib/types";
 import { useTheme } from "@/lib/useTheme";
 import { OsmMap } from "./OsmMap";
@@ -97,7 +97,7 @@ export function TripMap({
             </div>
           </AdvancedMarker>
         ))}
-        <FitBounds points={markers.map((m) => m.position)} fitKey={fitKey} />
+        <FitBounds points={fitPoints(markers)} fitKey={fitKey} />
         <PanTo point={highlight} />
       </Map>
     </APIProvider>

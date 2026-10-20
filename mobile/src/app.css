@@ -313,6 +313,22 @@ p {
   color: var(--muted);
   font-size: 13px;
 }
+.leg .transit {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.leg .transit li {
+  margin: 3px 0;
+}
+.transit-line {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--border);
+  color: var(--text);
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 /* ---------- Card ---------- */
 

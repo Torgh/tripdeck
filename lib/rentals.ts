@@ -1,5 +1,5 @@
 import { dayDate, formatDayLabel } from "./time";
-import type { Item, Trip } from "./types";
+import type { Item, RentalVehicle, TravelMode, Trip } from "./types";
 
 /** A rental on one day of the trip: picked up, in use, or going back. */
 export interface RentalDay {
@@ -26,6 +26,38 @@ export function rentalsOf(trip: Trip): RentalDay[][] {
     }
   });
   return out;
+}
+
+export const VEHICLE_MODE: Record<RentalVehicle, TravelMode> = {
+  car: "DRIVE",
+  scooter: "TWO_WHEELER",
+  motorbike: "TWO_WHEELER",
+  bicycle: "BICYCLE",
+};
+
+/**
+ * How you get to card `toId` unless a leg says otherwise. The trip's default mode – but when that is a
+ * vehicle the trip rents (a scooter, a car, a bike), only while you have one: from the pick-up card on,
+ * until the day it goes back. Before and after, it is a car (taxi or ride-hailing), so a scooter trip
+ * doesn't ride a scooter from the airport you just landed at.
+ */
+export function defaultModeTo(trip: Trip, toId: string): TravelMode {
+  const rented = new Set<TravelMode>();
+  const active: TravelMode[] = [];
+  const dayOf = trip.days.findIndex((d) => d.itemIds.includes(toId));
+  trip.days.forEach((day, start) => {
+    day.itemIds.forEach((id, position) => {
+      const vehicle = trip.items[id]?.type === "rental" ? trip.items[id].rental?.vehicle : undefined;
+      if (!vehicle) return;
+      rented.add(VEHICLE_MODE[vehicle]);
+      const end = start + Math.max(1, trip.items[id].rental?.days ?? 1);
+      const pickedUp = dayOf > start || (dayOf === start && day.itemIds.indexOf(toId) > position);
+      if (pickedUp && dayOf <= end) active.push(VEHICLE_MODE[vehicle]);
+    });
+  });
+  if (!rented.has(trip.defaultMode)) return trip.defaultMode;
+  if (active.includes(trip.defaultMode)) return trip.defaultMode;
+  return active[0] ?? "DRIVE";
 }
 
 /** "9 days · back Sat 23 Jan 18:00" for a rental picked up on day `dayIndex`; empty in Ideas. */

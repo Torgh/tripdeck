@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildLayers } from "./mapLayers";
+import { routeKey } from "./geo";
+import { buildLayers, fitPoints } from "./mapLayers";
 import type { Item, Trip } from "./types";
 
 const hotel: Item = { id: "h", type: "stay", title: "Hotel", location: { lat: 21.162, lng: -86.823 }, stay: { nights: 2 } };
@@ -66,6 +67,48 @@ describe("buildLayers", () => {
     expect(markers.find((m) => m.key === "f#to")).toMatchObject({ label: "1→", position: landing, stop: true });
     expect(lines.find((l) => l.key === "f-to")?.path).toEqual([t.items.f.location, landing]);
     expect(lines.find((l) => l.key === "1-f-t")?.path[0]).toEqual(landing);
+  });
+
+  it("draws public-transport rides in their line colours over the day's route", () => {
+    const t = trip();
+    const museum: Item = { id: "m", type: "place", title: "Museum", location: { lat: 21.2, lng: -86.8 } };
+    t.items.m = museum;
+    t.days[1].itemIds = ["m"];
+    t.legs["h>m"] = {
+      mode: "TRANSIT",
+      result: {
+        key: routeKey("TRANSIT", hotel.location!, museum.location!),
+        durationSec: 1800,
+        distanceM: 5000,
+        polyline: "_p~iF~ps|U_ulLnnqC",
+        transit: [
+          { vehicle: "BUS", line: "R1", color: "#00ff00", from: "A", to: "B", polyline: "_p~iF~ps|U_ulLnnqC" },
+          { vehicle: "BUS", line: "R2", from: "B", to: "C" },
+        ],
+      },
+    };
+    const { lines } = buildLayers(t, "d2");
+    expect(lines.map((l) => [l.key, l.color, l.dashed])).toEqual([
+      ["1-h-m", "#c2410c", false],
+      ["1-h-m-0", "#00ff00", false], // the ride without a polyline has nothing to draw
+    ]);
+  });
+
+  it("zooms to the trip, not to the far end of the flights", () => {
+    const t = trip();
+    t.items.f = {
+      id: "f",
+      type: "transport",
+      title: "Flight home",
+      location: { lat: 21.04, lng: -86.87 },
+      transport: { kind: "flight", toLocation: { lat: 52.17, lng: 20.97 } },
+    };
+    t.days[1].itemIds = ["t", "f"];
+    const { markers } = buildLayers(t, "d2");
+    expect(markers.some((m) => m.position.lat === 52.17)).toBe(true); // Warsaw is still pinned…
+    expect(fitPoints(markers).some((p) => p.lat === 52.17)).toBe(false); // …but not zoomed to
+    // A day of nothing but flights shows them all.
+    expect(fitPoints(markers.filter((m) => m.item.id === "f"))).toHaveLength(2);
   });
 
   it("leaves out the morning's hotel pin when a card is picked up right there", () => {
