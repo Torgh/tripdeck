@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { VEHICLE_MODE } from "@/lib/rentals";
 import { useStore } from "@/lib/store";
 import { dayDate, daysBetween, isoDate } from "@/lib/time";
 import * as ops from "@/lib/tripOps";
@@ -103,6 +104,12 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
           </select>
         </label>
       </div>
+      {Object.values(trip.items).some((i) => i.rental && VEHICLE_MODE[i.rental.vehicle] === form.defaultMode) && (
+        <p className="muted" style={{ fontSize: 13 }}>
+          You rent this vehicle on the trip, so it is used only from its pick-up until it goes back; other
+          days default to 🚗 Car (taxi). Any leg can still be changed on the board.
+        </p>
+      )}
       <p className="muted" style={{ fontSize: 13 }}>
         {!validRange
           ? `The last day must be on or after the first day, and a trip can have at most ${maxDays} days.`

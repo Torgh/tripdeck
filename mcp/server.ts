@@ -15,7 +15,7 @@ import { computeDiveWarnings } from "../lib/diveSafety";
 import { centroid } from "../lib/geo";
 import { bestOrder, evaluate, travelMatrix, type OptInput } from "../lib/optimize";
 import { guessType, itemFieldsFromPlace } from "../lib/places";
-import { rentalsOf } from "../lib/rentals";
+import { defaultModeTo, rentalsOf, VEHICLE_MODE } from "../lib/rentals";
 import { HttpError } from "../lib/server/errors";
 import {
   elevation,
@@ -26,12 +26,18 @@ import {
   searchPlaces,
   type PlaceResult,
 } from "../lib/server/maps";
+import { saveIfUnchanged } from "../lib/server/tripLock";
 import { tripStore } from "../lib/server/tripStore";
+import { mergeTrips } from "../lib/merge";
+import { nightsOf } from "../lib/stays";
 import { dayDate, daysBetween, formatDayLabel, formatDuration, formatHm, isoDate, parseHm } from "../lib/time";
 import { computeTripTimeline, durationOf, findBase, freshRoute, getLeg, manualLegMinutes } from "../lib/timeline";
+import { todoLabel, tripTodos } from "../lib/todo";
 import { transitStepLine } from "../lib/transit";
 import * as ops from "../lib/tripOps";
 import {
+  BOOKING_STATUS_ICON,
+  BOOKING_STATUS_LABEL,
   IDEAS,
   isRoutable,
   ITEM_TYPE_LABEL,
@@ -59,6 +65,7 @@ How to work:
 - To find places use search_places (by name) or nearby_places (what is around a card). Prefer adding cards with place_query so they get coordinates and a map pin.
 - Before reordering a day, call optimize_day for real travel times, then decide (meals, sunset, heat, opening hours) and apply with reorder_day. Explain your reasoning briefly.
 - Booking confirmations: if you have Gmail (or another mail) tools, search for confirmations (Booking.com, GetYourGuide, Viator, Airbnb, airlines, ferries, car / scooter rentals, dive centres), then add one card per booking on the right day with provider, reference, times and price. Never invent booking numbers.
+- Booking status: booking.status "confirmed", "pending" (paid or requested, not confirmed yet) or "todo" (still to book). get_trip lists the pending and to-book ones, and nights with nowhere to sleep, under "To sort out" – mention them.
 - Rentals (car, scooter, motorbike, bicycle): one card of type rental on the pick-up day, start_time = pick-up time, rental.days = days until the return. The board then shows it on every day up to the return. Do not use transport car_rental for new rentals.
 - Organised tours (type activity): the card's place is the pick-up / meeting point (travel times go there); list the places the tour visits in tour_stops so they show on the map.
 - Flights, ferries, trains (type transport): place_query = where it departs, transport.to_place_query = where it arrives, start_time = departure, duration_min = arrival minus departure in local clock times. The route to the next card then starts at the arrival, so no flight leg is needed.
@@ -85,19 +92,24 @@ async function loadTrip(tripId: string): Promise<Trip> {
 }
 
 /**
- * Read-modify-write of one trip. The web app saves to the same store, so if the trip changed while
- * `fn` ran (place lookups can take a while), start again from the newer copy instead of overwriting it.
+ * Read-modify-write of one trip. The web app saves to the same store at the same time (the board
+ * stores routes it fetched, the user drags cards), so the save happens under the trip's lock and only
+ * if nobody saved in between. If someone did while `fn` ran (place lookups can take a while), both
+ * edits are merged – the way the browser merges – instead of one overwriting the other.
  */
 async function updateTrip(tripId: string, fn: (trip: Trip) => Trip | Promise<Trip>): Promise<Trip> {
   return exclusive(async () => {
-    for (let attempt = 0; ; attempt++) {
-      const current = await loadTrip(tripId);
-      const next = ops.touch(await fn(current));
-      const latest = await store().get(tripId);
-      if (latest && latest.updatedAt !== current.updatedAt && attempt < 3) continue;
-      await store().put(next);
-      return next;
+    const base = await loadTrip(tripId);
+    let next = ops.touch(await fn(base));
+    let seen = base;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const result = await saveIfUnchanged(store(), next, seen.updatedAt);
+      if (result.saved) return next;
+      // `seen` is what this edit already includes; merge in what changed after it.
+      next = ops.touch(mergeTrips(seen, next, result.current));
+      seen = result.current;
     }
+    throw new HttpError(409, "The trip keeps changing in the app – try again in a moment.");
   });
 }
 
@@ -173,6 +185,7 @@ function itemLine(item: Item): string {
       `booked: ${[item.booking.provider, item.booking.reference, item.booking.price].filter(Boolean).join(" ")}`,
     );
   }
+  if (item.booking?.status) bits.push(`status: ${BOOKING_STATUS_ICON[item.booking.status]} ${BOOKING_STATUS_LABEL[item.booking.status]}`);
   if (item.location) {
     bits.push(
       `📍 ${item.location.address ?? ""} (${item.location.lat.toFixed(5)}, ${item.location.lng.toFixed(5)})${item.location.elevationM != null ? ` ${Math.round(item.location.elevationM)} m a.s.l.` : ""}`,
@@ -188,12 +201,18 @@ function renderTrip(trip: Trip): string {
   const rentals = rentalsOf(trip);
   const lines: string[] = [];
   const last = dayDate(trip.startDate, trip.days.length - 1);
+  const rentsDefault = Object.values(trip.items).some(
+    (i) => i.type === "rental" && i.rental && VEHICLE_MODE[i.rental.vehicle] === trip.defaultMode,
+  );
   lines.push(
     `# ${trip.name} [trip_id ${trip.id}]`,
-    `${trip.destination} · ${trip.startDate} → ${isoDate(last)} (${trip.days.length} days) · default travel: ${MODE_LABEL[trip.defaultMode]}`,
+    `${trip.destination} · ${trip.startDate} → ${isoDate(last)} (${trip.days.length} days) · default travel: ${MODE_LABEL[trip.defaultMode]}${rentsDefault ? " while rented, 🚗 Car otherwise" : ""}`,
     `Interests: ${trip.interests || "not set"}`,
     "",
   );
+  const todos = tripTodos(trip);
+  if (todos.length) lines.push("## To sort out", ...todos.map((t) => `- ${todoLabel(t)}`), "");
+  const nights = nightsOf(trip);
 
   timelines.forEach((tl, d) => {
     const day = trip.days[d];
@@ -231,6 +250,10 @@ function renderTrip(trip: Trip): string {
     if (tl.entries.length) {
       lines.push(`${tl.travelMin >= 1 ? `Travel ${formatDuration(tl.travelMin)} · ` : ""}ends ~${formatHm(tl.endMin)}`);
     }
+    const night = nights[d];
+    if (night?.kind === "stay") lines.push(`Night: ${night.stay.title} [${night.stay.id}] (night ${night.night} of ${night.nights})`);
+    if (night?.kind === "transport") lines.push(`Night: on the way – ${night.item.title} [${night.item.id}]`);
+    if (night?.kind === "none") lines.push("Night: ⚠️ nowhere to sleep yet");
     lines.push("");
   });
 
@@ -336,6 +359,10 @@ const cardFields = {
       reference: z.string().max(80).optional(),
       url: z.string().max(500).optional(),
       price: z.string().max(60).optional(),
+      status: z
+        .enum(["confirmed", "pending", "todo"])
+        .optional()
+        .describe("confirmed; pending = paid or requested but not confirmed yet; todo = still to book"),
     })
     .optional(),
 };
@@ -689,7 +716,7 @@ server.registerTool(
       requireItem(t, a.from_item_id);
       requireItem(t, a.to_item_id);
       const key = legKey(a.from_item_id, a.to_item_id);
-      return { ...t, legs: { ...t.legs, [key]: { ...t.legs[key], mode: a.mode, manualMin: a.minutes } } };
+      return { ...t, legs: { ...t.legs, [key]: { ...t.legs[key], mode: a.mode, manualMin: a.minutes, auto: false } } };
     });
     return `Leg set to ${MODE_LABEL[a.mode]}${a.minutes != null ? ` (${a.minutes} min)` : ""}.`;
   }),
@@ -781,7 +808,8 @@ server.registerTool(
     const located = items.filter((i) => i.location);
     if (located.length < 2) return "Need at least two cards with a location on that day.";
     const base = findBase(trip, dayIndex);
-    const mode = a.mode ?? trip.defaultMode;
+    // Without a mode: how this day gets around by default (by scooter only once it is picked up).
+    const mode = a.mode ?? defaultModeTo(trip, day.itemIds.at(-1) ?? "");
     const nodes = [...(base?.location ? [base] : []), ...located].map((i) => ({
       id: i.id,
       at: i.location!,

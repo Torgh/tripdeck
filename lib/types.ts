@@ -119,11 +119,29 @@ export const RENTAL_VEHICLE_ICON: Record<RentalVehicle, string> = {
   bicycle: "🚲",
 };
 
+/** Where a booking stands: done, paid but not confirmed yet, or still to be booked. */
+export type BookingStatus = "confirmed" | "pending" | "todo";
+
+export const BOOKING_STATUSES: BookingStatus[] = ["confirmed", "pending", "todo"];
+
+export const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
+  confirmed: "Confirmed",
+  pending: "Waiting for confirmation",
+  todo: "To book",
+};
+
+export const BOOKING_STATUS_ICON: Record<BookingStatus, string> = {
+  confirmed: "✅",
+  pending: "⏳",
+  todo: "📝",
+};
+
 export interface Booking {
   provider?: string;
   reference?: string;
   url?: string;
   price?: string;
+  status?: BookingStatus;
 }
 
 export interface AiTips {
@@ -210,6 +228,12 @@ export interface RouteResult {
 
 export interface Leg {
   mode: TravelMode;
+  /**
+   * The mode follows the default (`defaultModeTo`) rather than being picked for this leg, so it changes
+   * when the default does – e.g. a scooter rental moved to another day. Stored only to cache the route.
+   * Legs saved before this existed count as following the default when they use the trip's default mode.
+   */
+  auto?: boolean;
   /** Duration for manual modes (ferry, boat, flight). */
   manualMin?: number;
   result?: RouteResult;

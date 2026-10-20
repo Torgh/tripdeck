@@ -5,6 +5,7 @@ import { postJSON } from "@/lib/api";
 import type { OptMetrics } from "@/lib/optimize";
 import { useStore } from "@/lib/store";
 import { dayDate, formatDuration, formatHm, isoDate } from "@/lib/time";
+import { defaultModeTo } from "@/lib/rentals";
 import { durationOf, findBase, manualLegMinutes } from "@/lib/timeline";
 import { itemIcon, legKey, MANUAL_MODES, MODE_LABEL, ROUTABLE_MODES, type TravelMode, type Trip } from "@/lib/types";
 import { Modal, Spinner } from "./Modal";
@@ -37,7 +38,8 @@ export function OptimizeDialog({
   const located = items.filter((i) => i.location);
   const unlocated = items.filter((i) => !i.location);
 
-  const [mode, setMode] = useState<TravelMode>(trip.defaultMode);
+  // How this day gets around by default (by scooter only once it is picked up).
+  const [mode, setMode] = useState<TravelMode>(() => defaultModeTo(trip, day.itemIds.at(-1) ?? ""));
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();

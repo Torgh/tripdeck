@@ -242,6 +242,56 @@ describe.skipIf(!bun)("MCP server", () => {
     );
   });
 
+  it("lists what is still to sort out and where each night is spent", async () => {
+    const created = await ok("create_trip", { name: "North", destination: "Thailand", start_date: "2027-01-14", days: 3 });
+    const tripId = idIn(created, /trip_id ([\w-]+)/);
+    const add = async (day: number, args: Record<string, unknown>) =>
+      idIn(await ok("add_item", { trip_id: tripId, day, ...args }), /\[([\w-]+)\]/);
+    await add(1, { type: "stay", title: "Hongkhao Village", lat: 18.76, lng: 99.0, stay_nights: 1 });
+    const dives = await add(2, { type: "activity", title: "Big Blue Best-Of", booking: { provider: "Big Blue", status: "pending" } });
+    await add(2, { type: "transport", title: "Ferry", transport: { kind: "ferry" }, booking: { status: "todo" } });
+
+    const plan = await ok("get_trip", { trip_id: tripId });
+    expect(plan).toContain(
+      "## To sort out\n- Big Blue Best-Of (day 2): waiting for confirmation\n- Ferry (day 2): to book\n",
+    );
+    expect(plan).toMatch(/Night: Hongkhao Village \[[\w-]+\] \(night 1 of 1\)/);
+    // Day 2 ends on the ferry, so its night is on the way; nothing is missing.
+    expect(plan).toMatch(/Night: on the way – Ferry/);
+    expect(plan).toContain("status: ⏳ Waiting for confirmation");
+
+    await ok("update_item", { trip_id: tripId, item_id: dives, booking: { status: "confirmed" } });
+    expect(await ok("get_trip", { trip_id: tripId })).not.toContain("Big Blue Best-Of (day 2)");
+  });
+
+  it("rides a rented scooter only while it is rented", async () => {
+    const created = await ok("create_trip", {
+      name: "Loop",
+      destination: "Thailand",
+      start_date: "2027-01-14",
+      days: 2,
+      default_mode: "TWO_WHEELER",
+    });
+    const tripId = idIn(created, /trip_id ([\w-]+)/);
+    await ok("add_item", { trip_id: tripId, day: 1, type: "place", title: "Airport", lat: 18.77, lng: 98.97 });
+    await ok("add_item", { trip_id: tripId, day: 1, type: "stay", title: "Hotel", lat: 18.76, lng: 99.0 });
+    await ok("add_item", {
+      trip_id: tripId,
+      day: 1,
+      type: "rental",
+      title: "Scooter",
+      lat: 18.76,
+      lng: 99.0,
+      start_time: "18:00",
+      rental: { vehicle: "scooter", days: 1 },
+    });
+    await ok("add_item", { trip_id: tripId, day: 2, type: "place", title: "Waterfall", lat: 19.11, lng: 98.77 });
+    const plan = await ok("get_trip", { trip_id: tripId });
+    expect(plan).toContain("default travel: 🛵 Scooter while rented, 🚗 Car otherwise");
+    expect(plan).toMatch(/↓ 🚗 Car [^\n]*\n2\. 🏨 Hotel/); // landed, no scooter yet
+    expect(plan).toMatch(/↓ 🛵 Scooter [^\n]*\n1\. 📍 Waterfall/);
+  });
+
   it("reports invalid requests as tool errors instead of crashing", async () => {
     const missing = await call("get_trip", { trip_id: "does-not-exist" });
     expect(missing.isError).toBe(true);

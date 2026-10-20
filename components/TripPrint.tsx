@@ -11,7 +11,7 @@ import { dayColor } from "@/lib/mapLayers";
 import { useTrip } from "@/lib/store";
 import { dayDate, formatDayLabel, formatDuration, formatHm } from "@/lib/time";
 import { computeTripTimeline, getLeg, type Issue } from "@/lib/timeline";
-import { itemIcon, MODE_LABEL, type Item } from "@/lib/types";
+import { BOOKING_STATUS_ICON, BOOKING_STATUS_LABEL, itemIcon, MODE_LABEL, type Item } from "@/lib/types";
 import { TripMap } from "./TripMap";
 
 /** Printable itinerary; the browser's print dialog saves it as a PDF. */
@@ -138,7 +138,14 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
                       {itemIcon(item)} {item.title}
                     </td>
                     <td>{item.booking?.provider ?? "–"}</td>
-                    <td className="mono">{item.booking?.reference ?? "–"}</td>
+                    <td className="mono">
+                      {item.booking?.reference ?? "–"}
+                      {item.booking?.status && item.booking.status !== "confirmed" && (
+                        <div className="nowrap">
+                          {BOOKING_STATUS_ICON[item.booking.status]} {BOOKING_STATUS_LABEL[item.booking.status]}
+                        </div>
+                      )}
+                    </td>
                     <td>{item.booking?.price ?? "–"}</td>
                   </tr>
                 ))}

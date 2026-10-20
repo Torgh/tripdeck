@@ -67,13 +67,13 @@ export function useRouteLegs(trip: Trip | undefined) {
       inFlight.add(attempt);
       const k = legKey(from.id, to.id);
       postJSON<{ route: RouteOut }>("/api/route", { origin, destination: to.location, mode: leg.mode, time })
-        .then(({ route }) => setLeg(trip.id, k, { mode: leg.mode, result: { key, at, ...route }, error: undefined }))
+        .then(({ route }) => setLeg(trip.id, k, { mode: leg.mode, auto: leg.auto, result: { key, at, ...route }, error: undefined }))
         .catch((err: Error) => {
           if (isUnavailable(err)) googleUnavailable = true;
           // Remember only a genuine "no route between these points"; transient errors are retried.
           else if (err instanceof ApiError && err.status === 404) {
             noRoute.add(attempt);
-            setLeg(trip.id, k, { mode: leg.mode, result: undefined, error: { key, message: err.message } });
+            setLeg(trip.id, k, { mode: leg.mode, auto: leg.auto, result: undefined, error: { key, message: err.message } });
           }
         })
         .finally(() => inFlight.delete(attempt));

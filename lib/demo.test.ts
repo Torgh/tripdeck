@@ -3,6 +3,7 @@ import { demoTrip } from "./demo";
 import { rentalsOf } from "./rentals";
 import { nightsOf } from "./stays";
 import { computeTripTimeline, freshRoute } from "./timeline";
+import { todoLabel, tripTodos } from "./todo";
 
 describe("demo trip", () => {
   const trip = demoTrip();
@@ -69,5 +70,14 @@ describe("demo trip travel", () => {
     const { item: valletta, entry } = entryOf("Valletta old town");
     expect(entry.legEstimated).toBe(false);
     expect(freshRoute(trip, hotel, valletta)?.transit?.[0]).toMatchObject({ line: "TD13", from: "Spinola", to: "Valletta" });
+  });
+});
+
+describe("demo trip to-do list", () => {
+  it("has a dive day waiting for confirmation and one still to book", () => {
+    expect(tripTodos(demoTrip()).map(todoLabel)).toEqual([
+      "Cirkewwa – Rozi & P29 wrecks (day 3): waiting for confirmation",
+      "Wied iż-Żurrieq shore dives (day 6): to book",
+    ]);
   });
 });

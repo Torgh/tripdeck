@@ -14,7 +14,11 @@ import {
   ITEM_TYPE_ICON,
   itemIcon,
   ITEM_TYPE_LABEL,
+  BOOKING_STATUS_ICON,
+  BOOKING_STATUS_LABEL,
+  BOOKING_STATUSES,
   type AiTips,
+  type BookingStatus,
   type ContainerId,
   type Gas,
   type Item,
@@ -565,6 +569,10 @@ export function ItemEditor({
                     onChange={(e) => set({ booking: { ...draft.booking, price: e.target.value || undefined } })}
                   />
                 </label>
+                <BookingStatusField
+                  value={draft.booking?.status}
+                  onChange={(status) => set({ booking: { ...draft.booking, status } })}
+                />
               </div>
               <div className="small muted">
                 {rentalSummary(trip, draft, dayIndex >= 0 ? dayIndex : trip.days.findIndex((d) => d.id === container))}. Put the
@@ -649,6 +657,10 @@ export function ItemEditor({
                   onChange={(e) => set({ booking: { ...draft.booking, price: e.target.value || undefined } })}
                 />
               </label>
+              <BookingStatusField
+                value={draft.booking?.status}
+                onChange={(status) => set({ booking: { ...draft.booking, status } })}
+              />
             </div>
           </fieldset>}
 
@@ -659,6 +671,29 @@ export function ItemEditor({
         </>
       )}
     </Modal>
+  );
+}
+
+/** Confirmed, waiting for confirmation, or still to book – the last two show up in the trip's to-do list. */
+function BookingStatusField({
+  value,
+  onChange,
+}: {
+  value?: BookingStatus;
+  onChange: (status: BookingStatus | undefined) => void;
+}) {
+  return (
+    <label>
+      Status
+      <select value={value ?? ""} onChange={(e) => onChange((e.target.value || undefined) as BookingStatus | undefined)}>
+        <option value="">Not set</option>
+        {BOOKING_STATUSES.map((s) => (
+          <option key={s} value={s}>
+            {BOOKING_STATUS_ICON[s]} {BOOKING_STATUS_LABEL[s]}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

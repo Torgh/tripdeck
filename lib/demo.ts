@@ -92,7 +92,7 @@ export function demoTrip(): Trip {
         type: "stay",
         title: "Hotel in St Julian's",
         stay: { nights: 3, checkIn: "15:00", checkOut: "11:00" },
-        booking: { provider: "Booking.com", reference: "DEMO-1234", price: "€420" },
+        booking: { provider: "Booking.com", reference: "DEMO-1234", price: "€420", status: "confirmed" },
         location: { lat: 35.9187, lng: 14.4898, address: "St Julian's, Malta" },
       },
       {
@@ -166,7 +166,7 @@ export function demoTrip(): Trip {
         startTime: "08:30",
         durationMin: 240,
         dive: { dives: 2, maxDepthM: 30, gas: "nitrox", center: "Local dive centre", site: "Cirkewwa" },
-        booking: { provider: "Dive centre", reference: "DEMO-DIVE1", price: "€110" },
+        booking: { provider: "Dive centre", reference: "DEMO-DIVE1", price: "€110", status: "pending" },
         location: { lat: 35.9886, lng: 14.3289, address: "Cirkewwa, Malta" },
       },
       {
@@ -230,7 +230,7 @@ export function demoTrip(): Trip {
         type: "stay",
         title: "Gozo farmhouse",
         stay: { nights: 2, checkIn: "14:00", checkOut: "10:00" },
-        booking: { provider: "Airbnb", reference: "DEMO-HM42", price: "€260" },
+        booking: { provider: "Airbnb", reference: "DEMO-HM42", price: "€260", status: "confirmed" },
         location: { lat: 36.0601, lng: 14.2353, address: "Għarb road, Gozo" },
       },
       {
@@ -249,7 +249,7 @@ export function demoTrip(): Trip {
         title: "Comino Blue Lagoon boat trip",
         startTime: "10:00",
         durationMin: 300,
-        booking: { provider: "GetYourGuide", reference: "GYG-DEMO", price: "€35" },
+        booking: { provider: "GetYourGuide", reference: "GYG-DEMO", price: "€35", status: "confirmed" },
         location: { lat: 36.013, lng: 14.3227, address: "Blue Lagoon, Comino" },
       },
     ],
@@ -276,6 +276,7 @@ export function demoTrip(): Trip {
         startTime: "09:30",
         durationMin: 240,
         dive: { dives: 2, maxDepthM: 20, gas: "nitrox", site: "Um El Faroud" },
+        booking: { provider: "Dive centre", status: "todo" },
         location: { lat: 35.8195, lng: 14.4567, address: "Wied iż-Żurrieq" },
       },
       {
@@ -297,7 +298,7 @@ export function demoTrip(): Trip {
         type: "stay",
         title: "Airport hotel, Luqa",
         stay: { nights: 1, checkIn: "14:00", checkOut: "04:00" },
-        booking: { provider: "Booking.com", reference: "DEMO-5678", price: "€95" },
+        booking: { provider: "Booking.com", reference: "DEMO-5678", price: "€95", status: "confirmed" },
         location: { lat: 35.8594, lng: 14.4866, address: "Luqa, Malta" },
       },
     ],

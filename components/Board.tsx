@@ -36,6 +36,8 @@ import { formatDayLabel, formatDistance, formatDuration, formatHm } from "@/lib/
 import { freshRoute, getLeg, type DayTimeline, type Issue, type TimelineEntry } from "@/lib/timeline";
 import { transitStepLine, vehicleIcon } from "@/lib/transit";
 import {
+  BOOKING_STATUS_ICON,
+  BOOKING_STATUS_LABEL,
   IDEAS,
   isRoutable,
   itemIcon,
@@ -583,6 +585,12 @@ function ItemCard({
           </span>
         )}
         {item.booking?.provider && <span className="badge">{item.booking.provider}</span>}
+        {item.booking?.status && (
+          <span className={`badge status-${item.booking.status}`} title={BOOKING_STATUS_LABEL[item.booking.status]}>
+            {BOOKING_STATUS_ICON[item.booking.status]}
+            {item.booking.status !== "confirmed" && ` ${BOOKING_STATUS_LABEL[item.booking.status]}`}
+          </span>
+        )}
         {!item.location && <span title="No location – add one to get routes">📍?</span>}
       </div>
       {item.aiReason && <div className="small muted">✨ {item.aiReason}</div>}
@@ -624,7 +632,7 @@ function LegRow({ trip, entry }: { trip: Trip; entry: TimelineEntry }) {
     <div className="leg" onPointerDown={(e) => e.stopPropagation()}>
       <select
         value={leg.mode}
-        onChange={(e) => setLeg(trip.id, key, { mode: e.target.value as TravelMode })}
+        onChange={(e) => setLeg(trip.id, key, { mode: e.target.value as TravelMode, auto: false })}
         aria-label="How you get there"
       >
         {[...ROUTABLE_MODES, ...MANUAL_MODES].map((m) => (

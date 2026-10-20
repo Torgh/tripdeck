@@ -8,6 +8,7 @@ import { useElevations, useHydrated, useRouteLegs } from "@/lib/hooks";
 import { useTrip } from "@/lib/store";
 import { dayDate, formatDayLabel } from "@/lib/time";
 import { computeTripTimeline } from "@/lib/timeline";
+import { tripTodos } from "@/lib/todo";
 import type { ContainerId } from "@/lib/types";
 import { Board } from "./Board";
 import { ExportMenu } from "./ExportMenu";
@@ -17,6 +18,7 @@ import { OptimizeDialog } from "./OptimizeDialog";
 import { Splitter, useMapWidth } from "./Splitter";
 import { SuggestDialog } from "./SuggestDialog";
 import { SyncBadge } from "./SyncAgent";
+import { TodoDialog } from "./TodoDialog";
 import { TripMap } from "./TripMap";
 import { TripSettings } from "./TripSettings";
 
@@ -25,7 +27,8 @@ type Dialog =
   | { kind: "suggest"; container: ContainerId; anchorItemId?: string }
   | { kind: "optimize"; dayId: string }
   | { kind: "import" }
-  | { kind: "settings" };
+  | { kind: "settings" }
+  | { kind: "todo" };
 
 export function TripView({ tripId }: { tripId: string | null }) {
   const hydrated = useHydrated();
@@ -42,6 +45,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
 
   const timelines = useMemo(() => (trip ? computeTripTimeline(trip) : []), [trip]);
   const warnings = useMemo(() => (trip ? computeDiveWarnings(trip, timelines) : new Map()), [trip, timelines]);
+  const todos = useMemo(() => (trip ? tripTodos(trip) : []), [trip]);
 
   if (!hydrated) return <main className="home muted">Loading…</main>;
   if (!trip) {
@@ -77,6 +81,14 @@ export function TripView({ tripId }: { tripId: string | null }) {
             {trip.destination} · {formatDayLabel(dayDate(trip.startDate, 0))} –{" "}
             {formatDayLabel(dayDate(trip.startDate, trip.days.length - 1))}
             {warningCount > 0 && <span style={{ color: "var(--warn)" }}> · ⚠️ {warningCount} dive-safety warning(s)</span>}
+            {todos.length > 0 && (
+              <>
+                {" · "}
+                <button className="linklike" onClick={() => setDialog({ kind: "todo" })}>
+                  📝 {todos.length} to sort out
+                </button>
+              </>
+            )}
           </div>
         </div>
         <div className="mobile-tabs">
@@ -153,6 +165,15 @@ export function TripView({ tripId }: { tripId: string | null }) {
       {dialog?.kind === "optimize" && <OptimizeDialog trip={trip} dayId={dialog.dayId} ai={ai} onClose={close} />}
       {dialog?.kind === "import" && <ImportDialog trip={trip} ai={ai} onClose={close} />}
       {dialog?.kind === "settings" && <TripSettings trip={trip} onClose={close} />}
+      {dialog?.kind === "todo" && (
+        <TodoDialog
+          trip={trip}
+          todos={todos}
+          onEdit={(itemId) => setDialog({ kind: "editor", target: { kind: "edit", itemId } })}
+          onAddStay={(dayId) => setDialog({ kind: "editor", target: { kind: "new", container: dayId, type: "stay" } })}
+          onClose={close}
+        />
+      )}
     </div>
   );
 }

@@ -517,6 +517,37 @@ label {
   background: var(--accent-soft);
   color: var(--text);
 }
+.badge.status-pending {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.badge.status-todo {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.linklike {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--info);
+  cursor: pointer;
+}
+.linklike:hover {
+  text-decoration: underline;
+}
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.todo-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
 .issue {
   font-size: 12px;
   border-radius: 6px;

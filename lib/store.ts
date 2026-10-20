@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { defaultModeTo } from "./rentals";
 import * as ops from "./tripOps";
 import type { ContainerId, Day, Item, Leg, Trip } from "./types";
 
@@ -84,7 +85,7 @@ export const useStore = create<State>()(
           mutate(tripId, (t) => ({ ...t, days: t.days.map((d) => (d.id === dayId ? { ...d, ...patch } : d)) })),
         setLeg: (tripId, key, patch) =>
           mutate(tripId, (t) => {
-            const current = t.legs[key] ?? { mode: t.defaultMode };
+            const current = t.legs[key] ?? { mode: defaultModeTo(t, key.split(">")[1]) };
             return { ...t, legs: { ...t.legs, [key]: { ...current, ...patch } } };
           }),
 

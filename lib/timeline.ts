@@ -1,4 +1,5 @@
 import { estimateMinutes, routeKey } from "./geo";
+import { defaultModeTo } from "./rentals";
 import { dayDate, formatHm, parseHm } from "./time";
 import {
   DEFAULT_DURATION_MIN,
@@ -55,7 +56,9 @@ export function durationOf(item: Item): number {
 }
 
 export function getLeg(trip: Trip, fromId: string, toId: string): Leg {
-  return trip.legs[legKey(fromId, toId)] ?? { mode: trip.defaultMode };
+  const leg = trip.legs[legKey(fromId, toId)];
+  if (leg && !(leg.auto ?? leg.mode === trip.defaultMode)) return leg;
+  return { ...leg, mode: defaultModeTo(trip, toId), auto: true };
 }
 
 /**
