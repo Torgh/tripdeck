@@ -11,6 +11,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { computeClockNotes, mergeIssues } from "../lib/clock";
 import { computeDiveWarnings } from "../lib/diveSafety";
 import { centroid } from "../lib/geo";
 import { bestOrder, evaluate, travelMatrix, type OptInput } from "../lib/optimize";
@@ -24,6 +25,7 @@ import {
   OSM_CATEGORIES,
   routeMatrix,
   searchPlaces,
+  timeZone,
   type PlaceResult,
 } from "../lib/server/maps";
 import { saveIfUnchanged } from "../lib/server/tripLock";
@@ -68,7 +70,7 @@ How to work:
 - Booking status: booking.status "confirmed", "pending" (paid or requested, not confirmed yet) or "todo" (still to book). get_trip lists the pending and to-book ones, and nights with nowhere to sleep, under "To sort out" – mention them.
 - Rentals (car, scooter, motorbike, bicycle): one card of type rental on the pick-up day, start_time = pick-up time, rental.days = days until the return. The board then shows it on every day up to the return. Do not use transport car_rental for new rentals.
 - Organised tours (type activity): the card's place is the pick-up / meeting point (travel times go there); list the places the tour visits in tour_stops so they show on the map.
-- Flights, ferries, trains (type transport): place_query = where it departs, transport.to_place_query = where it arrives, start_time = departure, duration_min = arrival minus departure in local clock times. The route to the next card then starts at the arrival, so no flight leg is needed.
+- Flights, ferries, trains (type transport): place_query = where it departs, transport.to_place_query = where it arrives, start_time = departure and transport.arrival_time = arrival, both in local time as on the ticket (arrival_next_day when it lands the next day). The route to the next card then starts at the arrival, so no flight leg is needed. get_trip notes when the clocks change and how long the journey really takes.
 - Public transport (leg mode TRANSIT): the board plans it for the time in the plan and get_trip lists the lines under the leg ("via 🚆 ARL: … → 🚇 …"). Suggest it from airports and stations; if it says no public transport at that time (night flights), suggest a car instead.
 - Dives: get_trip reports no-fly and altitude warnings (DAN guidance: ≥12 h after a single no-deco dive, ≥18 h after repetitive or multi-day diving). Point them out, but they are planning hints, not a substitute for the diver's computer or training.
 - Answer in the user's language. Keep card titles short; the app UI is in English.`;
@@ -197,7 +199,7 @@ function itemLine(item: Item): string {
 
 function renderTrip(trip: Trip): string {
   const timelines = computeTripTimeline(trip);
-  const diveWarnings = computeDiveWarnings(trip, timelines);
+  const diveWarnings = mergeIssues(computeDiveWarnings(trip, timelines), computeClockNotes(trip, timelines));
   const rentals = rentalsOf(trip);
   const lines: string[] = [];
   const last = dayDate(trip.startDate, trip.days.length - 1);
@@ -325,6 +327,10 @@ const cardFields = {
         .describe("Where it arrives, e.g. 'Don Mueang Airport'. The card's own place is the departure."),
       to_lat: z.number().min(-90).max(90).optional(),
       to_lng: z.number().min(-180).max(180).optional(),
+      arrival_time: hhmm
+        .optional()
+        .describe("Local arrival time as on the ticket; sets the card's length from start_time"),
+      arrival_next_day: z.boolean().optional().describe("It arrives the day after it leaves"),
     })
     .optional(),
   stay_nights: z.number().int().min(1).max(60).optional(),
@@ -400,7 +406,7 @@ async function applyCard(trip: Trip, base: Item, a: CardArgs): Promise<{ item: I
     };
   } else if (item.type === "dive" && !item.dive) item.dive = { dives: 2, gas: "air" };
   if (a.transport) {
-    const { to_place_query, to_lat, to_lng, ...details } = a.transport;
+    const { to_place_query, to_lat, to_lng, arrival_time, arrival_next_day, ...details } = a.transport;
     let toLocation: Location | undefined = item.transport?.toLocation;
     if (to_place_query) {
       const [place] = await searchPlaces(to_place_query, { bias: tripCenter(trip), maxResults: 1 });
@@ -408,6 +414,12 @@ async function applyCard(trip: Trip, base: Item, a: CardArgs): Promise<{ item: I
       toLocation = { lat: place.lat, lng: place.lng, address: place.address, placeId: place.placeId };
     } else if (to_lat != null && to_lng != null) toLocation = { lat: to_lat, lng: to_lng };
     item.transport = { ...details, toLocation };
+    if (arrival_time) {
+      const leaves = parseHm(item.startTime);
+      if (leaves === undefined) throw new HttpError(400, "arrival_time needs the departure as start_time.");
+      item.durationMin = parseHm(arrival_time)! + (arrival_next_day ? 1440 : 0) - leaves;
+      if (item.durationMin < 0) throw new HttpError(400, "It arrives before it leaves – set arrival_next_day.");
+    }
   } else if (item.type === "transport" && !item.transport) item.transport = { kind: "other" };
   if (a.stay_nights || a.stay_check_in || a.stay_check_out) {
     item.stay = {
@@ -449,6 +461,19 @@ async function applyCard(trip: Trip, base: Item, a: CardArgs): Promise<{ item: I
     } catch {
       // the board retries elevation later
     }
+  }
+  // Time zones show when the clocks change on a journey (best-effort, needs Google).
+  if (item.type === "transport") {
+    const zone = async (loc?: Location) => {
+      if (!loc || loc.timeZone !== undefined) return loc;
+      try {
+        return { ...loc, timeZone: await timeZone(loc) };
+      } catch {
+        return loc; // the board looks it up later
+      }
+    };
+    item.location = await zone(item.location);
+    if (item.transport?.toLocation) item.transport = { ...item.transport, toLocation: await zone(item.transport.toLocation) };
   }
   return { item, matched };
 }

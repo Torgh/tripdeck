@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { computeClockNotes, mergeIssues } from "@/lib/clock";
 import { computeDiveWarnings } from "@/lib/diveSafety";
 import { defaultDayIndex, todayIndex } from "@/lib/itinerary";
 import { buildLayers, type Marker } from "@/lib/mapLayers";
@@ -41,7 +42,10 @@ export function TripScreen({ trip, now, onBack }: Props) {
   const today = todayIndex(trip, now);
 
   const timelines = useMemo(() => computeTripTimeline(trip), [trip]);
-  const warnings = useMemo(() => computeDiveWarnings(trip, timelines), [trip, timelines]);
+  const warnings = useMemo(
+    () => mergeIssues(computeDiveWarnings(trip, timelines), computeClockNotes(trip, timelines)),
+    [trip, timelines],
+  );
   const nights = useMemo(() => nightsOf(trip), [trip]);
   const rentals = useMemo(() => rentalsOf(trip), [trip]);
 

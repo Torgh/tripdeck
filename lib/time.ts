@@ -40,23 +40,38 @@ export function dayDate(startDate: string, index: number): Date {
 /** The instant a local wall-clock time ("YYYY-MM-DD", "HH:MM") happens in an IANA time zone. */
 export function zonedTimeToUtc(date: string, time: string, timeZone: string): Date {
   const wall = dayDate(date, 0).getTime() + (parseHm(time) ?? 0) * 60_000;
-  const format = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-  });
-  // How far the zone's clock is ahead of UTC at instant t.
-  const offset = (t: number) => {
-    const p = Object.fromEntries(format.formatToParts(t).map((x) => [x.type, Number(x.value)]));
-    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - Math.floor(t / 60_000) * 60_000;
-  };
+  const offset = (t: number) => utcOffsetMin(timeZone, new Date(t)) * 60_000;
   // A second pass settles times next to a daylight-saving change.
   const guess = wall - offset(wall);
   return new Date(wall - offset(guess));
+}
+
+/** How many minutes an IANA time zone's clock is ahead of UTC at instant `at` (negative west of Greenwich). */
+export function utcOffsetMin(timeZone: string, at: Date): number {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+    })
+      .formatToParts(at)
+      .map((x) => [x.type, Number(x.value)]),
+  );
+  const t = Math.floor(at.getTime() / 60_000) * 60_000;
+  return Math.round((Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - t) / 60_000);
+}
+
+/** "+4 h", "−1 h", "+5 h 30 min" – a difference between two clocks. */
+export function formatShift(minutes: number): string {
+  const sign = minutes < 0 ? "−" : "+";
+  const abs = Math.abs(minutes);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return `${sign}${h ? `${h} h` : ""}${h && m ? " " : ""}${m ? `${m} min` : ""}`;
 }
 
 /** "HH:MM" on the clock of an IANA time zone at instant `at`. */

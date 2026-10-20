@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useConfig } from "@/lib/config";
+import { computeClockNotes, mergeIssues } from "@/lib/clock";
 import { computeDiveWarnings } from "@/lib/diveSafety";
-import { useElevations, useHydrated, useRouteLegs } from "@/lib/hooks";
+import { useElevations, useHydrated, useRouteLegs, useTimeZones } from "@/lib/hooks";
 import { useTrip } from "@/lib/store";
 import { dayDate, formatDayLabel } from "@/lib/time";
 import { computeTripTimeline } from "@/lib/timeline";
@@ -42,9 +43,13 @@ export function TripView({ tripId }: { tripId: string | null }) {
 
   useRouteLegs(trip);
   useElevations(trip);
+  useTimeZones(trip);
 
   const timelines = useMemo(() => (trip ? computeTripTimeline(trip) : []), [trip]);
-  const warnings = useMemo(() => (trip ? computeDiveWarnings(trip, timelines) : new Map()), [trip, timelines]);
+  const warnings = useMemo(
+    () => (trip ? mergeIssues(computeDiveWarnings(trip, timelines), computeClockNotes(trip, timelines)) : new Map()),
+    [trip, timelines],
+  );
   const todos = useMemo(() => (trip ? tripTodos(trip) : []), [trip]);
 
   if (!hydrated) return <main className="home muted">Loading…</main>;
@@ -80,7 +85,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
           <div className="small muted">
             {trip.destination} · {formatDayLabel(dayDate(trip.startDate, 0))} –{" "}
             {formatDayLabel(dayDate(trip.startDate, trip.days.length - 1))}
-            {warningCount > 0 && <span style={{ color: "var(--warn)" }}> · ⚠️ {warningCount} dive-safety warning(s)</span>}
+            {warningCount > 0 && <span style={{ color: "var(--warn)" }}> · ⚠️ {warningCount} warning(s)</span>}
             {todos.length > 0 && (
               <>
                 {" · "}

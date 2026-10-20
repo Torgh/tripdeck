@@ -9,6 +9,8 @@ import {
   isoDate,
   parseHm,
   zonedTimeToUtc,
+  utcOffsetMin,
+  formatShift,
 } from "./time";
 
 describe("parseHm", () => {
@@ -54,4 +56,19 @@ describe("zonedTimeToUtc", () => {
     ["2027-01-10", "14:40", "Europe/Warsaw", "2027-01-10T13:40:00.000Z"],
     ["2027-07-01", "14:40", "Europe/Warsaw", "2027-07-01T12:40:00.000Z"],
   ])("%s %s in %s", (date, time, zone, utc) => expect(zonedTimeToUtc(date, time, zone).toISOString()).toBe(utc));
+});
+
+describe("utcOffsetMin and formatShift", () => {
+  it("knows daylight saving and half-hour zones", () => {
+    expect(utcOffsetMin("Europe/Warsaw", new Date("2027-01-10T12:00:00Z"))).toBe(60);
+    expect(utcOffsetMin("Europe/Warsaw", new Date("2027-07-10T12:00:00Z"))).toBe(120);
+    expect(utcOffsetMin("America/Mexico_City", new Date("2027-02-13T12:00:00Z"))).toBe(-360);
+    expect(utcOffsetMin("Asia/Kolkata", new Date("2027-01-10T12:00:00Z"))).toBe(330);
+  });
+  it.each([
+    [240, "+4 h"],
+    [-60, "−1 h"],
+    [330, "+5 h 30 min"],
+    [-45, "−45 min"],
+  ])("%i min → %s", (min, text) => expect(formatShift(min)).toBe(text));
 });

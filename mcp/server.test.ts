@@ -292,6 +292,40 @@ describe.skipIf(!bun)("MCP server", () => {
     expect(plan).toMatch(/↓ 🛵 Scooter [^\n]*\n1\. 📍 Waterfall/);
   });
 
+  it("takes the local arrival time from the ticket", async () => {
+    const created = await ok("create_trip", { name: "Fly", destination: "Thailand", start_date: "2027-01-10", days: 2 });
+    const tripId = idIn(created, /trip_id ([\w-]+)/);
+    const flight = idIn(
+      await ok("add_item", {
+        trip_id: tripId,
+        day: 2,
+        type: "transport",
+        title: "QR 834",
+        lat: 25.27,
+        lng: 51.6,
+        start_time: "02:00",
+        transport: { kind: "flight", to_lat: 13.69, to_lng: 100.75, arrival_time: "12:15" },
+      }),
+      /\[([\w-]+)\]/,
+    );
+    expect(await ok("get_trip", { trip_id: tripId })).toMatch(/QR 834 \[[\w-]+\] 🔒02:00–12:15/);
+
+    await ok("update_item", {
+      trip_id: tripId,
+      item_id: flight,
+      start_time: "21:00",
+      transport: { kind: "flight", arrival_time: "06:00", arrival_next_day: true },
+    });
+    expect(await ok("get_trip", { trip_id: tripId })).toMatch(/🔒21:00–06:00 \+1/);
+
+    const backwards = await call("update_item", {
+      trip_id: tripId,
+      item_id: flight,
+      transport: { kind: "flight", arrival_time: "20:00" },
+    });
+    expect(backwards).toMatchObject({ isError: true, text: expect.stringMatching(/arrival_next_day/) });
+  });
+
   it("reports invalid requests as tool errors instead of crashing", async () => {
     const missing = await call("get_trip", { trip_id: "does-not-exist" });
     expect(missing.isError).toBe(true);

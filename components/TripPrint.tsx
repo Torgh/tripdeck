@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo } from "react";
+import { computeClockNotes, mergeIssues } from "@/lib/clock";
 import { computeDiveWarnings } from "@/lib/diveSafety";
 import { focusItems, mercatorAspect } from "@/lib/geo";
 import { useHydrated } from "@/lib/hooks";
@@ -19,7 +20,10 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
   const hydrated = useHydrated();
   const trip = useTrip(tripId);
   const timelines = useMemo(() => (trip ? computeTripTimeline(trip) : []), [trip]);
-  const warnings = useMemo(() => (trip ? computeDiveWarnings(trip, timelines) : new Map()), [trip, timelines]);
+  const warnings = useMemo(
+    () => (trip ? mergeIssues(computeDiveWarnings(trip, timelines), computeClockNotes(trip, timelines)) : new Map()),
+    [trip, timelines],
+  );
   const nights = useMemo(() => (trip ? nightsOf(trip) : []), [trip]);
   const rentals = useMemo(() => (trip ? rentalsOf(trip) : []), [trip]);
   const focus = useMemo(() => {
