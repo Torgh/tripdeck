@@ -12,8 +12,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { computeDiveWarnings } from "../lib/diveSafety";
-import { centroid, estimateMinutes } from "../lib/geo";
-import { bestOrder, evaluate, type OptInput } from "../lib/optimize";
+import { centroid } from "../lib/geo";
+import { bestOrder, evaluate, travelMatrix, type OptInput } from "../lib/optimize";
 import { guessType, itemFieldsFromPlace } from "../lib/places";
 import { rentalsOf } from "../lib/rentals";
 import { HttpError } from "../lib/server/errors";
@@ -28,13 +28,14 @@ import {
 } from "../lib/server/maps";
 import { tripStore } from "../lib/server/tripStore";
 import { dayDate, daysBetween, formatDayLabel, formatDuration, formatHm, isoDate, parseHm } from "../lib/time";
-import { computeTripTimeline, durationOf, findBase, getLeg } from "../lib/timeline";
+import { computeTripTimeline, durationOf, findBase, getLeg, manualLegMinutes } from "../lib/timeline";
 import * as ops from "../lib/tripOps";
 import {
   IDEAS,
   isRoutable,
   ITEM_TYPE_LABEL,
   itemIcon,
+  leavesFrom,
   legKey,
   MANUAL_MODES,
   MODE_LABEL,
@@ -43,6 +44,7 @@ import {
   type ContainerId,
   type Item,
   type LatLng,
+  type Location,
   type RentalVehicle,
   type TourStop,
   type Trip,
@@ -58,6 +60,7 @@ How to work:
 - Booking confirmations: if you have Gmail (or another mail) tools, search for confirmations (Booking.com, GetYourGuide, Viator, Airbnb, airlines, ferries, car / scooter rentals, dive centres), then add one card per booking on the right day with provider, reference, times and price. Never invent booking numbers.
 - Rentals (car, scooter, motorbike, bicycle): one card of type rental on the pick-up day, start_time = pick-up time, rental.days = days until the return. The board then shows it on every day up to the return. Do not use transport car_rental for new rentals.
 - Organised tours (type activity): the card's place is the pick-up / meeting point (travel times go there); list the places the tour visits in tour_stops so they show on the map.
+- Flights, ferries, trains (type transport): place_query = where it departs, transport.to_place_query = where it arrives, start_time = departure, duration_min = arrival minus departure in local clock times. The route to the next card then starts at the arrival, so no flight leg is needed.
 - Dives: get_trip reports no-fly and altitude warnings (DAN guidance: ≥12 h after a single no-deco dive, ≥18 h after repetitive or multi-day diving). Point them out, but they are planning hints, not a substitute for the diver's computer or training.
 - Answer in the user's language. Keep card titles short; the app UI is in English.`;
 
@@ -146,8 +149,9 @@ function itemLine(item: Item): string {
     );
   }
   if (item.transport) {
+    const to = item.transport.toLocation;
     bits.push(
-      `${item.transport.kind}${item.transport.number ? ` ${item.transport.number}` : ""}${item.transport.from || item.transport.to ? ` ${item.transport.from ?? "?"} → ${item.transport.to ?? "?"}` : ""}`,
+      `${item.transport.kind}${item.transport.number ? ` ${item.transport.number}` : ""}${item.transport.from || item.transport.to ? ` ${item.transport.from ?? "?"} → ${item.transport.to ?? "?"}` : ""}${to ? ` · arrives at ${to.address ?? ""} (${to.lat.toFixed(5)}, ${to.lng.toFixed(5)})` : ""}`,
     );
   }
   if (item.stay) {
@@ -261,7 +265,10 @@ const cardFields = {
     .describe('Find the location by name, e.g. "Blue Grotto, Malta". The best match sets the coordinates.'),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
-  start_time: hhmm.optional().describe("Fixed start time (HH:MM). Omit to flow after the previous card."),
+  start_time: hhmm
+    .or(z.literal(""))
+    .optional()
+    .describe('Fixed start time (HH:MM). Omit to flow after the previous card; "" removes a fixed time.'),
   duration_min: z.number().int().min(0).max(1440).optional(),
   notes: z.string().max(2000).optional(),
   dive: z
@@ -279,6 +286,13 @@ const cardFields = {
       from: z.string().max(80).optional(),
       to: z.string().max(80).optional(),
       number: z.string().max(40).optional(),
+      to_place_query: z
+        .string()
+        .max(200)
+        .optional()
+        .describe("Where it arrives, e.g. 'Don Mueang Airport'. The card's own place is the departure."),
+      to_lat: z.number().min(-90).max(90).optional(),
+      to_lng: z.number().min(-180).max(180).optional(),
     })
     .optional(),
   stay_nights: z.number().int().min(1).max(60).optional(),
@@ -349,8 +363,16 @@ async function applyCard(trip: Trip, base: Item, a: CardArgs): Promise<{ item: I
       center: a.dive.center,
     };
   } else if (item.type === "dive" && !item.dive) item.dive = { dives: 2, gas: "air" };
-  if (a.transport) item.transport = { ...a.transport };
-  else if (item.type === "transport" && !item.transport) item.transport = { kind: "other" };
+  if (a.transport) {
+    const { to_place_query, to_lat, to_lng, ...details } = a.transport;
+    let toLocation: Location | undefined = item.transport?.toLocation;
+    if (to_place_query) {
+      const [place] = await searchPlaces(to_place_query, { bias: tripCenter(trip), maxResults: 1 });
+      if (!place) throw new HttpError(404, `No place found for arrival "${to_place_query}".`);
+      toLocation = { lat: place.lat, lng: place.lng, address: place.address, placeId: place.placeId };
+    } else if (to_lat != null && to_lng != null) toLocation = { lat: to_lat, lng: to_lng };
+    item.transport = { ...details, toLocation };
+  } else if (item.type === "transport" && !item.transport) item.transport = { kind: "other" };
   if (a.stay_nights || a.stay_check_in || a.stay_check_out) {
     item.stay = {
       ...item.stay,
@@ -751,26 +773,20 @@ server.registerTool(
     if (located.length < 2) return "Need at least two cards with a location on that day.";
     const base = findBase(trip, dayIndex);
     const mode = a.mode ?? trip.defaultMode;
-    const points: LatLng[] = [...(base?.location ? [base.location] : []), ...located.map((i) => i.location!)];
-
-    let matrix: (number | null)[][] | undefined;
-    let estimated = true;
-    if (isRoutable(mode)) {
-      try {
-        matrix = await routeMatrix(points, mode);
-        estimated = false;
-      } catch {
-        // straight-line estimates below
-      }
-    }
-    const minutes = points.map((p, i) =>
-      points.map((q, j) => matrix?.[i]?.[j] ?? (i === j ? 0 : estimateMinutes(p, q, mode))),
+    const nodes = [...(base?.location ? [base] : []), ...located].map((i) => ({
+      id: i.id,
+      at: i.location!,
+      leavesFrom: i.transport?.toLocation && leavesFrom(i),
+    }));
+    const { minutes, estimated } = await travelMatrix(nodes, mode, routeMatrix, (from, to) =>
+      manualLegMinutes(trip, from, to),
     );
     const input: OptInput = {
       stops: located.map((i) => ({
         id: i.id,
         durationMin: durationOf(i),
-        fixedStart: parseHm(i.startTime),
+        // A stay's time is the earliest check-in, not an appointment to be on time for.
+        fixedStart: i.type === "stay" ? undefined : parseHm(i.startTime),
         periods: i.place?.openingPeriods,
       })),
       matrix: minutes,
@@ -796,7 +812,7 @@ server.registerTool(
       .join("\n");
     const unlocated = items.filter((i) => !i.location);
     return [
-      `Day ${a.day}, ${MODE_LABEL[mode]}${estimated ? " (straight-line estimates – no routing available)" : ""}. Day starts ${day.startTime}.`,
+      `Day ${a.day}, ${MODE_LABEL[mode]}${estimated ? " (straight-line estimates – no routing available)" : ""}; ferry, boat and flight legs you set keep their minutes. Day starts ${day.startTime}.`,
       `Current order:\n  ${fmt(current)}`,
       `Fastest order:\n  ${fmt(best)}`,
       `Travel minutes:\n${table}`,

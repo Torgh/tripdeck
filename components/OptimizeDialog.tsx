@@ -5,8 +5,8 @@ import { postJSON } from "@/lib/api";
 import type { OptMetrics } from "@/lib/optimize";
 import { useStore } from "@/lib/store";
 import { dayDate, formatDuration, formatHm, isoDate } from "@/lib/time";
-import { durationOf, findBase } from "@/lib/timeline";
-import { itemIcon, MANUAL_MODES, MODE_LABEL, ROUTABLE_MODES, type TravelMode, type Trip } from "@/lib/types";
+import { durationOf, findBase, manualLegMinutes } from "@/lib/timeline";
+import { itemIcon, legKey, MANUAL_MODES, MODE_LABEL, ROUTABLE_MODES, type TravelMode, type Trip } from "@/lib/types";
 import { Modal, Spinner } from "./Modal";
 
 interface OptimizeResult {
@@ -43,6 +43,19 @@ export function OptimizeDialog({
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<OptimizeResult>();
 
+  /** Ferry, boat and flight legs entered between any two of the day's points – the router can't know them. */
+  const manualLegs = () => {
+    const ids = [...(base?.location ? [base.id] : []), ...located.map((i) => i.id)];
+    const legs: Record<string, number> = {};
+    for (const from of ids) {
+      for (const to of ids) {
+        const min = from === to ? undefined : manualLegMinutes(trip, from, to);
+        if (min != null) legs[legKey(from, to)] = min;
+      }
+    }
+    return legs;
+  };
+
   const run = async () => {
     setLoading(true);
     setError(undefined);
@@ -54,7 +67,7 @@ export function OptimizeDialog({
           date: isoDate(dayDate(trip.startDate, dayIndex)),
           dayStartTime: day.startTime,
           mode,
-          base: base?.location && { lat: base.location.lat, lng: base.location.lng, title: base.title },
+          base: base?.location && { id: base.id, lat: base.location.lat, lng: base.location.lng, title: base.title },
           items: located.map((i) => ({
             id: i.id,
             title: i.title,
@@ -62,10 +75,13 @@ export function OptimizeDialog({
             lat: i.location!.lat,
             lng: i.location!.lng,
             durationMin: durationOf(i),
-            fixedStart: i.startTime,
+            // A stay's time is the earliest check-in, not an appointment to be on time for.
+            fixedStart: i.type === "stay" ? undefined : i.startTime,
             openingPeriods: i.place?.openingPeriods,
             notes: i.notes,
+            leavesFrom: i.transport?.toLocation && { lat: i.transport.toLocation.lat, lng: i.transport.toLocation.lng },
           })),
+          manualLegs: manualLegs(),
           note: note || undefined,
         }),
       );

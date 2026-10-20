@@ -1,5 +1,49 @@
+import { estimateMinutes } from "./geo";
 import { isOpenDuring } from "./timeline";
-import type { OpeningPeriod } from "./types";
+import { isRoutable, type LatLng, type OpeningPeriod, type RoutableMode, type TravelMode } from "./types";
+
+/** A point in the travel matrix: the day's start (the stay you woke up in) or a stop. */
+export interface MatrixNode {
+  id: string;
+  at: LatLng;
+  /** Where you set off from afterwards, when that differs from `at` (a flight's arrival airport). */
+  leavesFrom?: LatLng;
+}
+
+/**
+ * Travel minutes from every node to every other one: routed when `route` can, a straight-line estimate
+ * otherwise. `manual` returns the minutes of a ferry, boat or flight leg the user entered for a pair –
+ * those are kept as they are, since a router can't know them.
+ */
+export async function travelMatrix(
+  nodes: MatrixNode[],
+  mode: TravelMode,
+  route: (points: LatLng[], mode: RoutableMode) => Promise<(number | null)[][]>,
+  manual: (fromId: string, toId: string) => number | undefined = () => undefined,
+): Promise<{ minutes: number[][]; estimated: boolean }> {
+  // Arrival points that differ from a node's own place go after the nodes, so one matrix covers both.
+  const points: LatLng[] = nodes.map((n) => n.at);
+  const originIdx = nodes.map((n, i) => (n.leavesFrom ? points.push(n.leavesFrom) - 1 : i));
+  let matrix: (number | null)[][] | undefined;
+  if (isRoutable(mode)) {
+    try {
+      matrix = await route(points, mode);
+    } catch {
+      // straight-line estimates below
+    }
+  }
+  const minutes = nodes.map((from, i) =>
+    nodes.map((to, j) => {
+      if (i === j) return 0;
+      return (
+        manual(from.id, to.id) ??
+        matrix?.[originIdx[i]]?.[j] ??
+        estimateMinutes(from.leavesFrom ?? from.at, to.at, mode)
+      );
+    }),
+  );
+  return { minutes, estimated: !matrix };
+}
 
 export interface OptStop {
   id: string;

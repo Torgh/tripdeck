@@ -177,6 +177,41 @@ describe.skipIf(!bun)("MCP server", () => {
     expect(await ok("get_trip", { trip_id: tripId })).not.toContain("tour visits");
   });
 
+  it("clears a fixed time, keeps a flight's arrival and the legs entered by hand", async () => {
+    const created = await ok("create_trip", { name: "Islands", destination: "Thailand", start_date: "2027-01-29", days: 1 });
+    const tripId = idIn(created, /trip_id ([\w-]+)/);
+    const add = async (args: Record<string, unknown>) =>
+      idIn(await ok("add_item", { trip_id: tripId, day: 1, ...args }), /\[([\w-]+)\]/);
+    const flight = await add({
+      type: "transport",
+      title: "Flight URT → DMK",
+      lat: 9.134,
+      lng: 99.143,
+      start_time: "13:25",
+      duration_min: 75,
+      transport: { kind: "flight", number: "FD 3240", to_lat: 13.918, to_lng: 100.601 },
+    });
+    const hotel = await add({ type: "stay", title: "Hotel", lat: 13.743, lng: 100.53, start_time: "14:00" });
+
+    let plan = await ok("get_trip", { trip_id: tripId });
+    expect(plan).toContain("arrives at  (13.91800, 100.60100)");
+    expect(plan).not.toMatch(/after the fixed start/); // a stay's time is a check-in, not an appointment
+
+    // Changing other transport details keeps the arrival; "" removes a fixed time.
+    await ok("update_item", { trip_id: tripId, item_id: flight, transport: { kind: "flight", number: "FD 3241" } });
+    await ok("update_item", { trip_id: tripId, item_id: hotel, start_time: "" });
+    const saved = JSON.parse(fs.readFileSync(path.join(home, "trips", `${tripId}.json`), "utf8"));
+    expect(saved.items[flight].transport).toMatchObject({ number: "FD 3241", toLocation: { lat: 13.918, lng: 100.601 } });
+    expect(saved.items[hotel].startTime).toBeUndefined();
+    plan = await ok("get_trip", { trip_id: tripId });
+    expect(plan).toContain("Hotel [");
+    expect(plan).not.toMatch(/Hotel \[[\w-]+\] 🔒/);
+
+    await ok("set_leg", { trip_id: tripId, from_item_id: flight, to_item_id: hotel, mode: "BOAT", minutes: 33 });
+    const optimized = await ok("optimize_day", { trip_id: tripId, day: 1, mode: "FERRY" });
+    expect(optimized).toMatch(/Flight URT → DMK: Hotel 33m/);
+  });
+
   it("reports invalid requests as tool errors instead of crashing", async () => {
     const missing = await call("get_trip", { trip_id: "does-not-exist" });
     expect(missing.isError).toBe(true);

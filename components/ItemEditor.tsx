@@ -466,6 +466,43 @@ export function ItemEditor({
                   />
                 </label>
               </div>
+              <div className="small">Arrives at (airport, port, station)</div>
+              <PlaceSearch
+                bias={draft.transport?.toLocation ?? draft.location ?? tripCenter(trip)}
+                onPick={(p) =>
+                  set({
+                    transport: {
+                      kind: "other",
+                      ...draft.transport,
+                      to: draft.transport?.to || p.name,
+                      toLocation: { lat: p.lat, lng: p.lng, address: p.address, placeId: p.placeId },
+                    },
+                  })
+                }
+                onCoordinates={(p) =>
+                  set({ transport: { kind: "other", ...draft.transport, toLocation: { lat: p.lat, lng: p.lng } } })
+                }
+              />
+              {draft.transport?.toLocation ? (
+                <div className="row small">
+                  <span className="grow">
+                    📍{" "}
+                    {draft.transport.toLocation.address ??
+                      `${draft.transport.toLocation.lat.toFixed(5)}, ${draft.transport.toLocation.lng.toFixed(5)}`}
+                  </span>
+                  <button
+                    className="btn small ghost"
+                    onClick={() => set({ transport: { kind: "other", ...draft.transport, toLocation: undefined } })}
+                  >
+                    Clear
+                  </button>
+                </div>
+              ) : (
+                <div className="small muted">
+                  Optional. With it, the card&apos;s place is the departure, its length is the journey (local clock
+                  times) and the next card&apos;s route starts from the arrival.
+                </div>
+              )}
             </fieldset>
           )}
 

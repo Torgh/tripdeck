@@ -3,6 +3,7 @@ import { dayDate, formatHm, parseHm } from "./time";
 import {
   DEFAULT_DURATION_MIN,
   isRoutable,
+  leavesFrom,
   legKey,
   type Item,
   type Leg,
@@ -57,15 +58,22 @@ export function getLeg(trip: Trip, fromId: string, toId: string): Leg {
  */
 export function legMinutes(trip: Trip, from: Item, to: Item): { minutes?: number; estimated: boolean } {
   const leg = getLeg(trip, from.id, to.id);
+  const origin = leavesFrom(from);
   if (!isRoutable(leg.mode)) {
     if (leg.manualMin != null) return { minutes: leg.manualMin, estimated: false };
-  } else if (from.location && to.location && leg.result?.key === routeKey(leg.mode, from.location, to.location)) {
+  } else if (origin && to.location && leg.result?.key === routeKey(leg.mode, origin, to.location)) {
     return { minutes: leg.result.durationSec / 60, estimated: false };
   }
-  if (from.location && to.location) {
-    return { minutes: estimateMinutes(from.location, to.location, leg.mode), estimated: true };
+  if (origin && to.location) {
+    return { minutes: estimateMinutes(origin, to.location, leg.mode), estimated: true };
   }
   return { estimated: true };
+}
+
+/** The minutes of a ferry, boat or flight leg the user entered between two cards, if there is one. */
+export function manualLegMinutes(trip: Trip, fromId: string, toId: string): number | undefined {
+  const leg = trip.legs[legKey(fromId, toId)];
+  return leg && !isRoutable(leg.mode) ? leg.manualMin : undefined;
 }
 
 /**
@@ -149,6 +157,13 @@ export function computeDayTimeline(trip: Trip, dayIndex: number): DayTimeline {
     if (fixedStart != null && entries.length === 0) {
       // The first appointment of the day sets when you leave, whatever the usual start time.
       start = fixedStart;
+    } else if (item.type === "stay") {
+      // A stay's time (older cards kept the check-in as a fixed start) is the earliest check-in, not
+      // an appointment: arriving later is fine, arriving earlier is worth knowing.
+      const checkIn = parseHm(item.stay?.checkIn) ?? fixedStart;
+      if (checkIn != null && cursor < checkIn - LATE_TOLERANCE_MIN) {
+        issues.push({ level: "info", message: `Arrives ~${formatHm(cursor)}, check-in from ${formatHm(checkIn)}.` });
+      }
     } else if (fixedStart != null) {
       if (cursor > fixedStart + LATE_TOLERANCE_MIN) {
         issues.push({

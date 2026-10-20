@@ -38,6 +38,7 @@ import {
   IDEAS,
   isRoutable,
   itemIcon,
+  leavesFrom,
   legKey,
   MANUAL_MODES,
   MODE_LABEL,
@@ -569,7 +570,7 @@ function ItemCard({
           </span>
         ) : null}
         {item.transport && (item.transport.from || item.transport.to) && (
-          <span>
+          <span title={item.transport.toLocation?.address && `Arrives at ${item.transport.toLocation.address}`}>
             {item.transport.from ?? "?"} → {item.transport.to ?? "?"}
           </span>
         )}
@@ -608,16 +609,14 @@ function LegRow({ trip, entry }: { trip: Trip; entry: TimelineEntry }) {
   const key = legKey(from.id, to.id);
   const leg = getLeg(trip, from.id, to.id);
   const routed = isRoutable(leg.mode);
+  const origin = leavesFrom(from);
   const fresh =
-    routed && from.location && to.location && leg.result?.key === routeKey(leg.mode, from.location, to.location)
-      ? leg.result
-      : undefined;
-  const failed =
-    routed && from.location && to.location && leg.error?.key === routeKey(leg.mode, from.location, to.location);
+    routed && origin && to.location && leg.result?.key === routeKey(leg.mode, origin, to.location) ? leg.result : undefined;
+  const failed = routed && origin && to.location && leg.error?.key === routeKey(leg.mode, origin, to.location);
 
   const directions =
-    from.location && to.location && GMAPS_MODE[leg.mode]
-      ? `https://www.google.com/maps/dir/?api=1&origin=${from.location.lat},${from.location.lng}&destination=${to.location.lat},${to.location.lng}&travelmode=${GMAPS_MODE[leg.mode]}`
+    origin && to.location && GMAPS_MODE[leg.mode]
+      ? `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${to.location.lat},${to.location.lng}&travelmode=${GMAPS_MODE[leg.mode]}`
       : undefined;
 
   return (

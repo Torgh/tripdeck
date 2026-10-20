@@ -51,6 +51,23 @@ describe("buildLayers", () => {
     ]);
   });
 
+  it("pins where a flight lands and routes the next card from there", () => {
+    const t = trip();
+    const landing = { lat: 20.5, lng: -86.9 };
+    t.items.f = {
+      id: "f",
+      type: "transport",
+      title: "Flight",
+      location: { lat: 19.43, lng: -99.07 },
+      transport: { kind: "flight", to: "Cozumel", toLocation: landing },
+    };
+    t.days[1].itemIds = ["f", "t"];
+    const { markers, lines } = buildLayers(t, "d2");
+    expect(markers.find((m) => m.key === "f#to")).toMatchObject({ label: "1→", position: landing, stop: true });
+    expect(lines.find((l) => l.key === "f-to")?.path).toEqual([t.items.f.location, landing]);
+    expect(lines.find((l) => l.key === "1-f-t")?.path[0]).toEqual(landing);
+  });
+
   it("leaves out the morning's hotel pin when a card is picked up right there", () => {
     expect(buildLayers(trip(), "d2").markers.some((m) => m.label === "🏨")).toBe(false);
 
