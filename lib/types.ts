@@ -164,12 +164,48 @@ export interface Day {
   startTime: string;
 }
 
+/** One ride on a public-transport route (the walks between rides are only counted in `walkMin`). */
+export interface TransitStep {
+  /** Google's vehicle type, e.g. SUBWAY, HEAVY_RAIL, BUS, FERRY. */
+  vehicle: string;
+  line: string;
+  /** Line colours as "#rrggbb", when the operator publishes them. */
+  color?: string;
+  textColor?: string;
+  from: string;
+  to: string;
+  stops?: number;
+  /** Local "HH:MM" at the stops. */
+  departs?: string;
+  arrives?: string;
+  headsign?: string;
+  polyline?: string;
+}
+
+/** When a public-transport route is planned for: leave at, or (arriveBy) be there by, a local date and time. */
+export interface RouteTime {
+  date: string;
+  time: string;
+  arriveBy?: boolean;
+}
+
 export interface RouteResult {
   /** Cache key: mode + both endpoints. A changed location invalidates the result. */
   key: string;
   durationSec: number;
   distanceM: number;
   polyline?: string;
+  /** Public transport: the rides, in order. */
+  transit?: TransitStep[];
+  /** Public transport: minutes on foot, to, between and from the stops. */
+  walkMin?: number;
+  /** Public transport: the time it was planned for (`routeTimeKey`); a new time in the plan fetches it again. */
+  at?: string;
+  /**
+   * Public transport: the trip's timetable isn't published yet, so this is the same weekday and time
+   * on this date ("YYYY-MM-DD") – a typical week rather than the actual day.
+   */
+  sampledOn?: string;
 }
 
 export interface Leg {
@@ -199,6 +235,10 @@ export interface Trip {
 
 export const IDEAS = "ideas";
 export type ContainerId = string; // IDEAS or a day id
+
+export function routeTimeKey(t: RouteTime): string {
+  return `${t.arriveBy ? "by " : ""}${t.date} ${t.time}`;
+}
 
 export function legKey(fromId: string, toId: string): string {
   return `${fromId}>${toId}`;

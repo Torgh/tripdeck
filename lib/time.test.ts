@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { dayDate, daysBetween, formatDayLabel, formatDistance, formatDuration, formatHm, isoDate, parseHm } from "./time";
+import {
+  dayDate,
+  daysBetween,
+  formatDayLabel,
+  formatDistance,
+  formatDuration,
+  formatHm,
+  isoDate,
+  parseHm,
+  zonedTimeToUtc,
+} from "./time";
 
 describe("parseHm", () => {
   it.each([
@@ -35,4 +45,13 @@ describe("dates", () => {
     expect(daysBetween("2026-11-21", "2026-11-21")).toBe(0);
     expect(formatDayLabel(dayDate("2026-11-21", 0))).toBe("Sat 21 Nov");
   });
+});
+
+describe("zonedTimeToUtc", () => {
+  it.each([
+    ["2027-01-11", "12:45", "Asia/Bangkok", "2027-01-11T05:45:00.000Z"],
+    ["2027-02-13", "19:20", "America/Mexico_City", "2027-02-14T01:20:00.000Z"],
+    ["2027-01-10", "14:40", "Europe/Warsaw", "2027-01-10T13:40:00.000Z"],
+    ["2027-07-01", "14:40", "Europe/Warsaw", "2027-07-01T12:40:00.000Z"],
+  ])("%s %s in %s", (date, time, zone, utc) => expect(zonedTimeToUtc(date, time, zone).toISOString()).toBe(utc));
 });

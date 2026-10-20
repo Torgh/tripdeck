@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { ApiError, postJSON } from "./api";
 import { routeKey } from "./geo";
-import { findBase, getLeg } from "./timeline";
+import { isoDate } from "./time";
+import { computeTripTimeline, getLeg } from "./timeline";
+import { legRouteTime } from "./transit";
 import { useStore } from "./store";
-import { isRoutable, leavesFrom, legKey, type Item, type Trip } from "./types";
+import { isRoutable, leavesFrom, legKey, routeTimeKey, type Item, type RouteTime, type Trip } from "./types";
 import type { RouteOut } from "./server/google";
 
 let hydration: Promise<void> | undefined;
@@ -30,19 +32,21 @@ const noRoute = new Set<string>();
 let googleUnavailable = false;
 const isUnavailable = (err: unknown) => err instanceof ApiError && (err.status === 503 || err.status === 0);
 
-/** Every consecutive pair on the board that needs a route, including the hop from the morning's stay. */
-function legPairs(trip: Trip): [Item, Item][] {
-  const pairs: [Item, Item][] = [];
-  trip.days.forEach((day, i) => {
-    let prev = findBase(trip, i);
-    for (const id of day.itemIds) {
-      const item = trip.items[id];
-      if (!item) continue;
-      if (prev && prev.id !== item.id) pairs.push([prev, item]);
-      prev = item;
-    }
-  });
-  return pairs;
+/**
+ * Every consecutive pair on the board that needs a route, including the hop from the morning's stay,
+ * with when public transport should be planned for (the time in the plan, not right now).
+ */
+function legsToRoute(trip: Trip): { from: Item; to: Item; time?: RouteTime }[] {
+  const today = isoDate(new Date());
+  return computeTripTimeline(trip).flatMap((tl) =>
+    tl.entries.flatMap((e) => {
+      const from = e.fromId ? trip.items[e.fromId] : undefined;
+      const to = trip.items[e.itemId];
+      if (!from || !to) return [];
+      const transit = getLeg(trip, from.id, to.id).mode === "TRANSIT";
+      return [{ from, to, time: transit ? legRouteTime(trip.startDate, tl.dayIndex, e, today) : undefined }];
+    }),
+  );
 }
 
 /** Fetches Google routes for legs that have no up-to-date result yet. */
@@ -50,26 +54,29 @@ export function useRouteLegs(trip: Trip | undefined) {
   const setLeg = useStore((s) => s.setLeg);
   useEffect(() => {
     if (!trip || googleUnavailable) return;
-    for (const [from, to] of legPairs(trip)) {
+    for (const { from, to, time } of legsToRoute(trip)) {
       const origin = leavesFrom(from);
       if (!origin || !to.location) continue;
       const leg = getLeg(trip, from.id, to.id);
       if (!isRoutable(leg.mode)) continue;
       const key = routeKey(leg.mode, origin, to.location);
-      if (leg.result?.key === key || noRoute.has(key) || inFlight.has(key)) continue;
-      inFlight.add(key);
+      const at = time && routeTimeKey(time);
+      const attempt = at ? `${key}@${at}` : key;
+      const upToDate = leg.result?.key === key && leg.result.at === at;
+      if (upToDate || noRoute.has(attempt) || inFlight.has(attempt)) continue;
+      inFlight.add(attempt);
       const k = legKey(from.id, to.id);
-      postJSON<{ route: RouteOut }>("/api/route", { origin, destination: to.location, mode: leg.mode })
-        .then(({ route }) => setLeg(trip.id, k, { mode: leg.mode, result: { key, ...route }, error: undefined }))
+      postJSON<{ route: RouteOut }>("/api/route", { origin, destination: to.location, mode: leg.mode, time })
+        .then(({ route }) => setLeg(trip.id, k, { mode: leg.mode, result: { key, at, ...route }, error: undefined }))
         .catch((err: Error) => {
           if (isUnavailable(err)) googleUnavailable = true;
           // Remember only a genuine "no route between these points"; transient errors are retried.
           else if (err instanceof ApiError && err.status === 404) {
-            noRoute.add(key);
-            setLeg(trip.id, k, { mode: leg.mode, error: { key, message: err.message } });
+            noRoute.add(attempt);
+            setLeg(trip.id, k, { mode: leg.mode, result: undefined, error: { key, message: err.message } });
           }
         })
-        .finally(() => inFlight.delete(key));
+        .finally(() => inFlight.delete(attempt));
     }
   }, [trip, setLeg]);
 }

@@ -1,4 +1,4 @@
-import type { LatLng, RoutableMode } from "../types";
+import type { LatLng, RoutableMode, RouteTime } from "../types";
 import { readConfig } from "./config";
 import { HttpError } from "./errors";
 import * as google from "./google";
@@ -67,9 +67,10 @@ export function placeDetails(placeId: string) {
   return google.placeDetails(placeId);
 }
 
-export function computeRoute(origin: LatLng, destination: LatLng, mode: RoutableMode) {
+/** `time` plans public transport for a given departure (or arrival); OpenStreetMap has no timetables and ignores it. */
+export function computeRoute(origin: LatLng, destination: LatLng, mode: RoutableMode, time?: RouteTime) {
   return withFallback(
-    () => google.computeRoute(origin, destination, mode),
+    () => google.computeRoute(origin, destination, mode, time),
     () => osm.osmRoute(origin, destination, mode),
   );
 }

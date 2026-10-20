@@ -212,6 +212,36 @@ describe.skipIf(!bun)("MCP server", () => {
     expect(optimized).toMatch(/Flight URT → DMK: Hotel 33m/);
   });
 
+  it("lists the public-transport lines the board found for a leg", async () => {
+    const created = await ok("create_trip", { name: "Bangkok", destination: "Thailand", start_date: "2027-01-11", days: 1 });
+    const tripId = idIn(created, /trip_id ([\w-]+)/);
+    const add = async (args: Record<string, unknown>) =>
+      idIn(await ok("add_item", { trip_id: tripId, day: 1, ...args }), /\[([\w-]+)\]/);
+    const airport = await add({ type: "transport", title: "Landed", lat: 13.6819, lng: 100.74687, start_time: "12:15", duration_min: 30 });
+    const hotel = await add({ type: "stay", title: "Hotel", lat: 13.71842, lng: 100.52195 });
+    await ok("set_leg", { trip_id: tripId, from_item_id: airport, to_item_id: hotel, mode: "TRANSIT" });
+
+    // The board saves routes it fetched into the trip; do the same here.
+    const file = path.join(home, "trips", `${tripId}.json`);
+    const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+    saved.legs[`${airport}>${hotel}`].result = {
+      key: "TRANSIT|13.68190,100.74687|13.71842,100.52195",
+      at: "2027-01-11 12:45",
+      durationSec: 4200,
+      distanceM: 32000,
+      walkMin: 12,
+      transit: [
+        { vehicle: "HEAVY_RAIL", line: "ARL", from: "Suvarnabhumi", to: "Phaya Thai", stops: 7, departs: "12:53" },
+        { vehicle: "SUBWAY", line: "Silom", from: "Siam", to: "Surasak", stops: 5 },
+      ],
+    };
+    fs.writeFileSync(file, JSON.stringify(saved));
+
+    expect(await ok("get_trip", { trip_id: tripId })).toContain(
+      "via 12:53 🚆 ARL: Suvarnabhumi → Phaya Thai (7 stops) → 🚇 Silom: Siam → Surasak (5 stops) · 🚶 12 min on foot · timetable for 2027-01-11 12:45",
+    );
+  });
+
   it("reports invalid requests as tool errors instead of crashing", async () => {
     const missing = await call("get_trip", { trip_id: "does-not-exist" });
     expect(missing.isError).toBe(true);

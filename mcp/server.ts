@@ -28,7 +28,8 @@ import {
 } from "../lib/server/maps";
 import { tripStore } from "../lib/server/tripStore";
 import { dayDate, daysBetween, formatDayLabel, formatDuration, formatHm, isoDate, parseHm } from "../lib/time";
-import { computeTripTimeline, durationOf, findBase, getLeg, manualLegMinutes } from "../lib/timeline";
+import { computeTripTimeline, durationOf, findBase, freshRoute, getLeg, manualLegMinutes } from "../lib/timeline";
+import { transitStepLine } from "../lib/transit";
 import * as ops from "../lib/tripOps";
 import {
   IDEAS,
@@ -61,6 +62,7 @@ How to work:
 - Rentals (car, scooter, motorbike, bicycle): one card of type rental on the pick-up day, start_time = pick-up time, rental.days = days until the return. The board then shows it on every day up to the return. Do not use transport car_rental for new rentals.
 - Organised tours (type activity): the card's place is the pick-up / meeting point (travel times go there); list the places the tour visits in tour_stops so they show on the map.
 - Flights, ferries, trains (type transport): place_query = where it departs, transport.to_place_query = where it arrives, start_time = departure, duration_min = arrival minus departure in local clock times. The route to the next card then starts at the arrival, so no flight leg is needed.
+- Public transport (leg mode TRANSIT): the board plans it for the time in the plan and get_trip lists the lines under the leg ("via 🚆 ARL: … → 🚇 …"). Suggest it from airports and stations; if it says no public transport at that time (night flights), suggest a car instead.
 - Dives: get_trip reports no-fly and altitude warnings (DAN guidance: ≥12 h after a single no-deco dive, ≥18 h after repetitive or multi-day diving). Point them out, but they are planning hints, not a substitute for the diver's computer or training.
 - Answer in the user's language. Keep card titles short; the app UI is in English.`;
 
@@ -211,6 +213,13 @@ function renderTrip(trip: Trip): string {
       if (e.fromId && e.legMin != null) {
         const leg = getLeg(trip, e.fromId, e.itemId);
         lines.push(`   ↓ ${MODE_LABEL[leg.mode]} ${formatDuration(e.legMin)}${e.legEstimated ? " (estimate)" : ""}`);
+        const from = trip.items[e.fromId];
+        const rides = from && freshRoute(trip, from, item);
+        if (rides?.transit?.length) {
+          lines.push(
+            `     via ${rides.transit.map(transitStepLine).join(" → ")}${rides.walkMin ? ` · 🚶 ${rides.walkMin} min on foot` : ""}${rides.at ? ` · timetable for ${rides.at}` : ""}${rides.sampledOn ? ` (not published yet – same weekday on ${rides.sampledOn})` : ""}`,
+          );
+        }
       }
       lines.push(
         `${n + 1}. ${itemIcon(item)} ${item.title} [${item.id}] ${e.fixed ? "🔒" : "~"}${formatHm(e.start)}–${formatHm(e.end)} · ${ITEM_TYPE_LABEL[item.type]} · ${itemLine(item)}`,
