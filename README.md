@@ -1,6 +1,6 @@
 # TripDeck
 
-**A trip planner for people who want to see the whole trip at once – and plan it together with Claude or ChatGPT.** Each day is a column and each place is a card. Drag cards between days or move whole days. TripDeck works out how you get from one stop to the next, and flags dive-safety problems such as flying too soon after diving. An MCP server lets Claude (Claude Code / Desktop) or ChatGPT (Codex) work on the same plan using **your own subscription, no API key needed**.
+**A trip planner for people who want to see the whole trip at once – and plan it together with Claude or ChatGPT.** Each day is a column and each place is a card. Drag cards between days or move whole days. TripDeck works out how you get from one stop to the next – including public transport lines and clock changes on flights – keeps a list of what is still to book, and flags dive-safety problems such as flying too soon after diving. An MCP server lets Claude (Claude Code / Desktop) or ChatGPT (Codex) work on the same plan using **your own subscription, no API key needed**.
 
 ![TripDeck board](docs/screenshot.png)
 
@@ -17,8 +17,8 @@
 - **Rentals: car, scooter, motorbike or bicycle.** A rental card sits on the pick-up day and holds the vehicle, the rental company, the order number and price, the pick-up place and time, the number of days, and the return time and place (when it goes back somewhere else). Like a stay, it then shows at the top of every day you have it, and the return day says, for example, “Return today by 17:00 at Gozo farmhouse”. Booking import recognises rental confirmations. When the trip's default way of getting around is a vehicle you rent (a scooter, say), legs use it only from the pick-up card until it goes back – before and after, they default to a car (taxi), so you don't ride a scooter from the airport you just landed at.
 - **Booking status and a to-do list.** Mark a booking ✅ *Confirmed*, ⏳ *Waiting for confirmation* or 📝 *To book*. The trip header shows “📝 3 to sort out”: the bookings still to make or confirm and the nights with nowhere to sleep, each one click from its card or a new stay. The status also shows on the card, in the printable itinerary and on the phone.
 - **Dive planning.** Dive cards hold site, centre, number of dives, depth and gas. TripDeck warns about flights less than 12 h after a single dive or 18 h after repetitive diving (DAN guidance), about going above 300 m altitude in that window, and suggests a rest day after long dive streaks.
-- **Plan with Claude or ChatGPT (MCP).** Ask in plain language, for example “plan day 3 around Gozo”, “what's worth seeing near my hotel?” or “find my Booking.com and GetYourGuide confirmations in Gmail and add them”. The cards appear on the board within seconds.
-- **No keys needed for maps.** OpenStreetMap powers the map (OpenFreeMap tiles), search (Photon), nearby places (Overpass, with a Wikipedia fallback), routing (OSRM) and elevation (Open-Meteo). If you add Google Maps keys, TripDeck uses Google's richer data and falls back to OSM if a Google API fails.
+- **Plan with Claude or ChatGPT (MCP).** Ask in plain language, for example “plan day 3 around Gozo”, “what's worth seeing near my hotel?” or “find my Booking.com and GetYourGuide confirmations in Gmail and add them”. The cards appear on the board within seconds. Changes made on the board at the same time are merged with Claude's, not lost.
+- **No keys needed for maps.** OpenStreetMap powers the map (OpenFreeMap tiles), search (Photon), nearby places (Overpass, with a Wikipedia fallback), routing (OSRM) and elevation (Open-Meteo). If you add Google Maps keys, TripDeck uses Google's richer data and falls back to OSM if a Google API fails. Public-transport lines and time zones need Google; without it, public transport is estimated and journeys show no clock changes.
 - **Your choice of storage: this PC, OneDrive or Google Drive.** Trips start in `~/.tripdeck/trips`. Choose OneDrive and they go into a visible **TripDeck** folder in OneDrive, synced by the OneDrive app, with no sign-in needed. Choose Google and they go into *My Drive › TripDeck*; TripDeck can't see your other Drive files. Each trip is one `Name (id).tripdeck.json` file, the same format as *Export → JSON*. Switch in *Settings* at any time; your trips are copied to the new place.
 - **Optional in-app AI.** With an Anthropic API key, the ✨ buttons give AI suggestions, an AI day optimizer, visiting tips and booking import (paste an email or upload a PDF or screenshot) directly in the app.
 - **Export as PDF or JSON.** *Export → PDF* opens a printable itinerary to save as a PDF: a map zoomed on the trip's area (flights more than 1000 km from all your stops, such as the flights from home, are left out), an overview of days and nights, a table of every booking with references and prices, and a day-by-day plan. *Export → JSON* downloads a backup you can import again.
@@ -95,9 +95,9 @@ Environment variables still work and take precedence over Settings: `GOOGLE_CLIE
 `mobile/` is a small Android app for the road: it shows your trips offline, with nothing to host and no account. It shares the trip logic in `lib/` with the desktop app.
 
 - **Getting a trip onto the phone:** in a trip on the PC choose **Export → JSON**, then on the phone tap **Import trip file** and pick the `.tripdeck.json` from OneDrive, Google Drive, Downloads or an email. Importing a newer export of the same trip replaces it.
-- **Day view:** opens on today's day during the trip. Swipe left or right to change days. It shows times, travel between stops (with the public-transport lines, stops and departure times, offline too), where you wake up and sleep, rentals in use and when they go back, booking status, references and prices, opening-hours and dive-safety warnings, plus the Ideas list.
+- **Day view:** opens on today's day during the trip. Swipe left or right to change days. It shows times, travel between stops (with the public-transport lines, stops and departure times, offline too), clock changes on flights, where you wake up and sleep, rentals in use and when they go back, booking status, references and prices, opening-hours and dive-safety warnings, plus the Ideas list.
 - **Keep the app and the file in step:** the phone shows the trip as it was when you exported it, worked out by the app's own copy of `lib/`. After updating TripDeck, build and install the phone app again before importing newer exports – an older app doesn't know, for example, where a flight lands.
-- **🧭 Navigate:** opens the Google Maps app with directions to the card, in the trip's travel mode.
+- **🧭 Navigate:** opens the Google Maps app with directions to the card, in the leg's travel mode (a rented scooter only while you have it).
 - **Map:** each day shows its pins and route above the plan; hide it or open it full screen. Tapping a pin finds its card and the other way round. Routes come from the trip file, so without network you still see pins and routes on a plain background.
 - **Google or free map tiles:** when you build the APK with `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in `.env.local` (and the Map Tiles API enabled for that key), the map shows Google's tiles; otherwise OpenFreeMap. The key is then inside the APK, so keep such a build to yourself and don't publish it.
 
@@ -131,7 +131,7 @@ app/
   api/trips/                   trip storage (this PC, OneDrive folder or Google Drive) used by the browser sync
   api/storage                  switch storage and copy the trips over
   api/config, api/auth/[provider]  settings + Google OAuth (PKCE)
-  api/places|route|elevation   maps facade: Google when configured, OSM otherwise
+  api/places|route|elevation|timezone  maps facade: Google when configured, OSM otherwise
   api/ai/*                     optional in-app AI (Claude API)
 mcp/server.ts                  MCP server (stdio) – same storage and maps facade
 mobile/
@@ -141,12 +141,14 @@ lib/
   tripOps.ts                   pure trip operations (shared by browser and MCP)
   timeline.ts, diveSafety.ts   arrival times, opening hours, no-fly / altitude rules
   stays.ts                     where each night is spent, stay colours
+  rentals.ts                   rental days, and a rented vehicle as the default only while you have it
   todo.ts                      bookings to make or confirm, nights without a bed
   itinerary.ts                 today's day, trip status and Google Maps directions links (phone app)
   optimize.ts                  travel-time matrix, exact (≤ 8 stops) or 2-opt day ordering
   transit.ts                   when to plan a public-transport leg, line labels
   clock.ts                     clock changes, real journey times and jet lag on flights, ferries and trains
-  sync.ts                      browser ⇄ server sync (newest updatedAt wins per trip, polls every 15 s)
+  mapLayers.ts                 map pins, routes and zoom, shared by the desktop and the phone
+  sync.ts, merge.ts            browser ⇄ server sync (polls every 15 s); edits made in both places are merged per card and leg
   server/osm.ts, google.ts     map providers
   server/tripStore.ts          local / OneDrive folder, Google Drive; server/cloudAuth.ts – OAuth tokens
   server/tripLock.ts           one save at a time per trip across the web app and the MCP server
