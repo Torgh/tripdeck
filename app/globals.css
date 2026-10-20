@@ -553,6 +553,40 @@ label {
   padding: 1px 4px;
   font-size: 12px;
 }
+.leg {
+  flex-wrap: wrap;
+}
+.leg .transit {
+  flex-basis: 100%;
+}
+
+/* Public-transport lines of a leg: coloured chips, opening to the rides. */
+.transit summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  list-style: none;
+}
+.transit summary::-webkit-details-marker {
+  display: none;
+}
+.transit-line {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--border);
+  color: var(--text);
+  font-weight: 600;
+}
+.transit ol {
+  margin: 4px 0;
+  padding-left: 18px;
+}
 
 .map-pane {
   position: relative;

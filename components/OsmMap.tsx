@@ -4,7 +4,7 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 import type { LatLng } from "@/lib/types";
-import { pinClass, type MapLayers } from "@/lib/mapLayers";
+import { fitPoints, pinClass, type MapLayers } from "@/lib/mapLayers";
 
 /** Free vector tiles, no key needed. */
 const STYLE = "https://tiles.openfreemap.org/styles/liberty";
@@ -116,7 +116,7 @@ export function OsmMap({
   // Fit to the visible stops when the selection changes
   useEffect(() => {
     const map = mapRef.current;
-    const pts = layers.markers.map((m) => m.position);
+    const pts = fitPoints(layers.markers);
     if (!map || !pts.length) return;
     if (pts.length === 1) {
       map.easeTo({ center: toLngLat(pts[0]), zoom: 13, duration: staticView ? 0 : undefined });

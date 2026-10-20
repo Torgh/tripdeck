@@ -4,7 +4,8 @@ import type { RentalDay } from "@/lib/rentals";
 import { rentalSummary } from "@/lib/rentals";
 import type { Night } from "@/lib/stays";
 import { formatDayLabel, formatDuration, formatHm } from "@/lib/time";
-import { getLeg, type DayTimeline, type Issue, type TimelineEntry } from "@/lib/timeline";
+import { freshRoute, getLeg, type DayTimeline, type Issue, type TimelineEntry } from "@/lib/timeline";
+import { vehicleIcon } from "@/lib/transit";
 import { itemIcon, MODE_LABEL, RENTAL_VEHICLE_LABEL, type Item, type Trip } from "@/lib/types";
 
 interface DayProps {
@@ -142,11 +143,34 @@ function nightLabel(night: Night): string {
 
 function LegRow({ trip, entry, from }: { trip: Trip; entry: TimelineEntry; from?: string }) {
   const mode = getLeg(trip, entry.fromId!, entry.itemId).mode;
+  const origin = trip.items[entry.fromId!];
+  const target = trip.items[entry.itemId];
+  // Saved with the trip, so the lines and stops are there offline too.
+  const route = origin && target ? freshRoute(trip, origin, target) : undefined;
+  const transit = route?.transit;
   return (
     <div className="leg">
       {MODE_LABEL[mode]} · {entry.legEstimated ? "~" : ""}
       {formatDuration(entry.legMin!)}
       {from && <> from {from}</>}
+      {transit?.length ? (
+        <ol className="transit">
+          {transit.map((s, i) => (
+            <li key={i}>
+              <span
+                className="transit-line"
+                style={s.color ? { background: s.color, color: s.textColor ?? "#fff" } : undefined}
+              >
+                {vehicleIcon(s.vehicle)} {s.line}
+              </span>{" "}
+              {s.departs && <strong>{s.departs} </strong>}
+              {s.from} → {s.to}
+              {s.stops ? ` · ${s.stops} stop${s.stops > 1 ? "s" : ""}` : ""}
+            </li>
+          ))}
+          {route?.sampledOn && <li>Times from a typical week – check them closer to the day.</li>}
+        </ol>
+      ) : null}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { demoTrip } from "./demo";
 import { rentalsOf } from "./rentals";
 import { nightsOf } from "./stays";
-import { computeTripTimeline } from "./timeline";
+import { computeTripTimeline, freshRoute } from "./timeline";
 
 describe("demo trip", () => {
   const trip = demoTrip();
@@ -40,5 +40,34 @@ describe("demo trip", () => {
     ]);
     const scooter = Object.values(trip.items).find((i) => i.title === "Scooter for Gozo")!;
     expect(scooter.rental?.returnPlace).toBe("Gozo farmhouse");
+  });
+});
+
+describe("demo trip travel", () => {
+  const trip = demoTrip();
+  const timelines = computeTripTimeline(trip);
+  const entryOf = (title: string) => {
+    const item = Object.values(trip.items).find((i) => i.title === title)!;
+    return { item, entry: timelines.flatMap((d) => d.entries).find((e) => e.itemId === item.id)! };
+  };
+
+  it("flies in from Kraków and drives on from where it lands", () => {
+    const { item } = entryOf("Flight to Malta");
+    expect(item.transport?.toLocation?.address).toBe("Malta International Airport");
+    // Collecting the car right after landing (11:35), not hours of driving from Kraków.
+    expect(entryOf("Rental car").entry.start).toBeLessThan(12 * 60);
+  });
+
+  it("arrives at the hotel before check-in and says so", () => {
+    expect(entryOf("Hotel in St Julian's").entry.issues.map((i) => i.message)).toEqual([
+      expect.stringMatching(/check-in from 15:00/),
+    ]);
+  });
+
+  it("takes a real bus line into Valletta", () => {
+    const hotel = entryOf("Hotel in St Julian's").item;
+    const { item: valletta, entry } = entryOf("Valletta old town");
+    expect(entry.legEstimated).toBe(false);
+    expect(freshRoute(trip, hotel, valletta)?.transit?.[0]).toMatchObject({ line: "TD13", from: "Spinola", to: "Valletta" });
   });
 });

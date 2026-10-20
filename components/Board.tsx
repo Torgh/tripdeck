@@ -33,7 +33,8 @@ import { rentalsOf, type RentalDay } from "@/lib/rentals";
 import { nightsOf, stayColorIndex, type Night } from "@/lib/stays";
 import { containersOf, useStore } from "@/lib/store";
 import { formatDayLabel, formatDistance, formatDuration, formatHm } from "@/lib/time";
-import { getLeg, type DayTimeline, type Issue, type TimelineEntry } from "@/lib/timeline";
+import { freshRoute, getLeg, type DayTimeline, type Issue, type TimelineEntry } from "@/lib/timeline";
+import { transitStepLine, vehicleIcon } from "@/lib/transit";
 import {
   IDEAS,
   isRoutable,
@@ -45,6 +46,7 @@ import {
   ROUTABLE_MODES,
   type ContainerId,
   type Item,
+  type RouteResult,
   type TravelMode,
   type Trip,
 } from "@/lib/types";
@@ -610,8 +612,7 @@ function LegRow({ trip, entry }: { trip: Trip; entry: TimelineEntry }) {
   const leg = getLeg(trip, from.id, to.id);
   const routed = isRoutable(leg.mode);
   const origin = leavesFrom(from);
-  const fresh =
-    routed && origin && to.location && leg.result?.key === routeKey(leg.mode, origin, to.location) ? leg.result : undefined;
+  const fresh = freshRoute(trip, from, to);
   const failed = routed && origin && to.location && leg.error?.key === routeKey(leg.mode, origin, to.location);
 
   const directions =
@@ -662,6 +663,42 @@ function LegRow({ trip, entry }: { trip: Trip; entry: TimelineEntry }) {
           ↗
         </a>
       )}
+      {fresh?.transit?.length ? <TransitRoute route={fresh} /> : null}
     </div>
+  );
+}
+
+/** The lines of a public-transport leg as coloured chips; opens to the rides with their stops and times. */
+function TransitRoute({ route }: { route: RouteResult }) {
+  return (
+    <details className="transit">
+      <summary>
+        {route.transit!.map((s, i) => (
+          <span
+            key={i}
+            className="transit-line"
+            style={s.color ? { background: s.color, color: s.textColor ?? "#fff" } : undefined}
+            title={`${s.from} → ${s.to}`}
+          >
+            {vehicleIcon(s.vehicle)} {s.line}
+          </span>
+        ))}
+        {route.walkMin ? <span>🚶 {route.walkMin} min</span> : null}
+      </summary>
+      <ol>
+        {route.transit!.map((s, i) => (
+          <li key={i}>
+            {transitStepLine(s)}
+            {s.headsign ? ` · towards ${s.headsign}` : ""}
+          </li>
+        ))}
+      </ol>
+      {route.at && (
+        <div className="muted">
+          Timetable for {route.at.replace(/^by /, "arriving by ")}
+          {route.sampledOn && ` – not published yet, so this is the same weekday on ${route.sampledOn}`}
+        </div>
+      )}
+    </details>
   );
 }

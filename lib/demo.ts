@@ -1,8 +1,34 @@
 import { createTrip, newId } from "./tripOps";
 import { isoDate } from "./time";
-import { legKey, type Item, type Leg, type OpeningPeriod, type Trip } from "./types";
+import { routeKey } from "./geo";
+import { legKey, type Item, type Leg, type OpeningPeriod, type RouteResult, type Trip } from "./types";
 
 type Draft = Omit<Item, "id"> & { key: string };
+
+/** Google's public-transport route from the St Julian's hotel to Valletta on a Sunday morning. */
+const BUS_TO_VALLETTA: Omit<RouteResult, "key"> = {
+  durationSec: 1726,
+  distanceM: 7072,
+  walkMin: 13,
+  polyline:
+    "mjfzEi`mwAGWMOUCSHGFw@BGCBOCNFBx@CNMVARLFX?LpAz@pAf@dAf@tAfAn@l@v@|@VFb@`@p@bAd@hAXnAL`AJ`@NRpCMnOeAfD_@dA[z@i@f@e@h@w@j@cAvAoDhAyCVkBLQDEl@Ed@D^Oh@IhAAZBhAb@n@h@d@j@\\l@r@xA|@xAxAfBv@n@rAv@fCfAtJhDHC|Ab@bEzAb@X`@`@XPRFp@BPGE@\\?j@Tl@@VEr@]n@o@^o@j@qAr@qBtBuEb@k@f@_@h@Oh@CfAN\\JH?HEd@sBO{AMw@@]JUVS`Bc@\\QVSP]Pi@?EHg@FkBCa@gBeIsB_HmAaDM{@Cw@BeEBQFQLQXM^?rC^zALpG~@nAFPCRSLUBg@XWPIZBz@V`Ar@h@Lj@?b@KZWXc@\\wAhBwJ@c@d@mCBo@Gm@cAmC]m@Mk@IgBUuEK{@Uq@W_@i@RY^_@n@W~@KNMJMHm@GWW_@y@wBsDmHiLo@cAuAkCC@BAGY@Wa@B?]MWWKU@MFs@kAyBcEi@mAuAkCeEeIsBuDmAsBfAgAMU",
+  transit: [
+    {
+      vehicle: "BUS",
+      line: "TD13",
+      color: "#1515f2",
+      textColor: "#ffffff",
+      from: "Spinola",
+      to: "Valletta",
+      stops: 5,
+      departs: "09:07",
+      arrives: "09:23",
+      headsign: "Valletta",
+      polyline:
+        "qnfzEsamwACNFBx@CNMVARLFX?LpAz@pAf@dAf@tAfAn@l@v@|@VFb@`@p@bAd@hAXnAL`AJ`@NRpCMnOeAfD_@dA[z@i@f@e@h@w@j@cAvAoDhAyCVkBLQDEl@Ed@D^Oh@IhAAZBhAb@n@h@d@j@\\l@r@xA|@xAxAfBv@n@rAv@fCfAtJhDHC|Ab@bEzAb@X`@`@XPRFp@BPGE@\\?j@Tl@@VEr@]n@o@^o@j@qAr@qBtBuEb@k@f@_@h@Oh@CfAN\\JH?HEd@sBO{AMw@@]JUVS`Bc@\\QVSP]Pi@?EHg@FkBCa@gBeIsB_HmAaDM{@Cw@BeEBQFQLQXM^?rC^zALpG~@nAFPCRSLUBg@XWPIZBz@V`Ar@h@Lj@?b@KZWXc@\\wAhBwJ@c@d@mCBo@Gm@cAmC]m@Mk@IgBUuEK{@Uq@W_@i@RY^_@n@W~@KNMJMHm@GWW_@y@wBsDmHiLo@cAuAkCC@",
+    },
+  ],
+};
 
 const mapsSearch = (q: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 
@@ -14,9 +40,10 @@ const monToSat = (open: [number, number], close: [number, number]): OpeningPerio
   }));
 
 /**
- * A sample Malta & Gozo dive week that shows off every card type, two stays with check-in/out
- * times, every travel mode, bookings with prices, opening hours, AI tips and suggestions – plus a
- * few deliberate problems: a no-fly warning, a place closed on Sunday and a late arrival.
+ * A sample Malta & Gozo dive week that shows off every card type, three stays with check-in/out
+ * times, every travel mode (with a real bus line), flights and ferries that know where they land,
+ * bookings with prices, opening hours, AI tips and suggestions – plus a few deliberate problems:
+ * a no-fly warning, a place closed on Sunday and a late arrival.
  */
 export function demoTrip(): Trip {
   // Start on a Saturday about a month from now, so day 2 is always a Sunday.
@@ -33,17 +60,23 @@ export function demoTrip(): Trip {
   });
 
   const days: Draft[][] = [
-    // Day 1 (Saturday): arrive, pick up the car, check in.
+    // Day 1 (Saturday): fly in from Kraków, pick up the car, reach the hotel before check-in.
     [
       {
         key: "arrive",
         type: "transport",
         title: "Flight to Malta",
-        startTime: "11:30",
-        durationMin: 45,
-        transport: { kind: "flight", from: "KRK", to: "MLA", number: "TD 101" },
+        startTime: "09:00",
+        durationMin: 155,
+        transport: {
+          kind: "flight",
+          from: "KRK",
+          to: "MLA",
+          number: "TD 101",
+          toLocation: { lat: 35.8575, lng: 14.4775, address: "Malta International Airport" },
+        },
         booking: { reference: "DEMO-FL1", price: "€189" },
-        location: { lat: 35.8575, lng: 14.4775, address: "Malta International Airport" },
+        location: { lat: 50.0777, lng: 19.7848, address: "Kraków Airport" },
       },
       {
         key: "car",
@@ -71,7 +104,7 @@ export function demoTrip(): Trip {
         location: { lat: 35.9199, lng: 14.4893, address: "Spinola Bay, St Julian's" },
       },
     ],
-    // Day 2 (Sunday): Valletta – the cathedral is closed on Sundays and the noon gun is missed.
+    // Day 2 (Sunday): bus to Valletta – the cathedral is closed on Sundays and the noon gun is missed.
     [
       {
         key: "valletta",
@@ -158,8 +191,13 @@ export function demoTrip(): Trip {
         type: "transport",
         title: "Gozo Channel ferry",
         startTime: "08:15",
-        durationMin: 15,
-        transport: { kind: "ferry", from: "Ċirkewwa", to: "Mġarr (Gozo)" },
+        durationMin: 25,
+        transport: {
+          kind: "ferry",
+          from: "Ċirkewwa",
+          to: "Mġarr (Gozo)",
+          toLocation: { lat: 36.0247, lng: 14.2995, address: "Mġarr harbour, Gozo" },
+        },
         location: { lat: 35.9889, lng: 14.3286, address: "Ċirkewwa ferry terminal" },
       },
       {
@@ -222,8 +260,13 @@ export function demoTrip(): Trip {
         type: "transport",
         title: "Ferry back to Malta",
         startTime: "08:00",
-        durationMin: 15,
-        transport: { kind: "ferry", from: "Mġarr (Gozo)", to: "Ċirkewwa" },
+        durationMin: 25,
+        transport: {
+          kind: "ferry",
+          from: "Mġarr (Gozo)",
+          to: "Ċirkewwa",
+          toLocation: { lat: 35.9889, lng: 14.3286, address: "Ċirkewwa ferry terminal" },
+        },
         location: { lat: 36.0247, lng: 14.2995, address: "Mġarr ferry terminal, Gozo" },
       },
       {
@@ -266,7 +309,13 @@ export function demoTrip(): Trip {
         title: "Flight home",
         startTime: "06:00",
         durationMin: 180,
-        transport: { kind: "flight", from: "MLA", to: "KRK", number: "TD 102" },
+        transport: {
+          kind: "flight",
+          from: "MLA",
+          to: "KRK",
+          number: "TD 102",
+          toLocation: { lat: 50.0777, lng: 19.7848, address: "Kraków Airport" },
+        },
         location: { lat: 35.8575, lng: 14.4775, address: "Malta International Airport" },
       },
     ],
@@ -283,16 +332,20 @@ export function demoTrip(): Trip {
   });
   trip.days[6].startTime = "04:30";
 
+  const hotel = trip.items[ids.get("hotel")!].location!;
+  const valletta = trip.items[ids.get("valletta")!].location!;
   const legs: [string, string, Leg][] = [
     ["hotel", "dinner1", { mode: "WALK" }],
+    // A real Google answer, kept so the bus line shows without a Google key; with one, the board
+    // asks again for the trip's own date.
+    ["hotel", "valletta", { mode: "TRANSIT", result: { key: routeKey("TRANSIT", hotel, valletta), ...BUS_TO_VALLETTA } }],
     ["valletta", "cathedral", { mode: "WALK" }],
     ["cathedral", "noongun", { mode: "WALK" }],
     ["noongun", "lunch", { mode: "WALK" }],
-    ["ferry", "scooter", { mode: "FERRY", manualMin: 55 }],
+    ["ferry", "scooter", { mode: "WALK" }],
     ["scooter", "bluehole", { mode: "TWO_WHEELER" }],
     ["farmhouse", "victoria", { mode: "TWO_WHEELER" }],
     ["farmhouse", "comino", { mode: "BOAT", manualMin: 30 }],
-    ["ferryback", "zurrieq", { mode: "FERRY", manualMin: 70 }],
     ["mdina", "dingli", { mode: "BICYCLE" }],
   ];
   for (const [a, b, leg] of legs) trip.legs[legKey(ids.get(a)!, ids.get(b)!)] = leg;
