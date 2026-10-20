@@ -1,11 +1,10 @@
 import { z } from "zod";
-import { estimateMinutes } from "@/lib/geo";
-import { bestOrder, evaluate, type OptInput, type OptMetrics } from "@/lib/optimize";
+import { bestOrder, evaluate, travelMatrix, type OptInput, type OptMetrics } from "@/lib/optimize";
 import { aiConfigured, structured } from "@/lib/server/claude";
 import { routeMatrix } from "@/lib/server/maps";
 import { handle, HttpError, latLngSchema, readBody } from "@/lib/server/http";
 import { dayDate, formatHm, parseHm } from "@/lib/time";
-import { isRoutable, ROUTABLE_MODES, MANUAL_MODES, type LatLng, type OpeningPeriod } from "@/lib/types";
+import { legKey, ROUTABLE_MODES, MANUAL_MODES, type OpeningPeriod } from "@/lib/types";
 
 export const maxDuration = 120;
 
@@ -17,7 +16,7 @@ const schema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   dayStartTime: z.string().regex(/^\d{1,2}:\d{2}$/),
   mode: z.enum([...ROUTABLE_MODES, ...MANUAL_MODES]),
-  base: latLngSchema.extend({ title: z.string().max(200) }).optional(),
+  base: latLngSchema.extend({ id: z.string().max(50).optional(), title: z.string().max(200) }).optional(),
   items: z
     .array(
       latLngSchema.extend({
@@ -31,10 +30,14 @@ const schema = z.object({
           .max(30)
           .optional(),
         notes: z.string().max(500).optional(),
+        /** Where you set off from afterwards (a flight's arrival airport). */
+        leavesFrom: latLngSchema.optional(),
       }),
     )
     .min(2)
     .max(12),
+  /** Ferry, boat and flight legs the user entered, keyed "fromId>toId". */
+  manualLegs: z.record(z.string().max(110), z.number().min(0).max(2000)).optional(),
   note: z.string().max(500).optional(),
 });
 
@@ -66,21 +69,14 @@ export const POST = handle(async (req) => {
   const ids = new Set(input.items.map((i) => i.id));
   if (ids.size !== input.items.length) throw new HttpError(400, "Stop ids must be unique.");
 
-  const points: LatLng[] = [...(input.base ? [input.base] : []), ...input.items];
   const weekday = dayDate(input.date, 0).getUTCDay();
-
-  let matrix: (number | null)[][] | undefined;
-  let estimated = true;
-  if (isRoutable(input.mode)) {
-    try {
-      matrix = await routeMatrix(points, input.mode);
-      estimated = false;
-    } catch {
-      // No Google key or quota problem: fall back to straight-line estimates below.
-    }
-  }
-  const minutes = points.map((a, i) =>
-    points.map((b, j) => matrix?.[i]?.[j] ?? (i === j ? 0 : estimateMinutes(a, b, input.mode))),
+  const nodes = [
+    ...(input.base ? [{ id: input.base.id ?? "START", at: input.base }] : []),
+    ...input.items.map((it) => ({ id: it.id, at: it, leavesFrom: it.leavesFrom })),
+  ];
+  // Without a Google key (or over quota) the matrix falls back to straight-line estimates.
+  const { minutes, estimated } = await travelMatrix(nodes, input.mode, routeMatrix, (from, to) =>
+    input.manualLegs?.[legKey(from, to)],
   );
 
   const optInput: OptInput = {

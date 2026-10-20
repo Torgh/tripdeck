@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { routeKey } from "./geo";
 import { tripWith } from "./testUtils";
 import { computeDayTimeline, findBase, isOpenDuring } from "./timeline";
 import { legKey, type Item } from "./types";
@@ -57,6 +58,45 @@ describe("computeDayTimeline", () => {
     const tl = computeDayTimeline(trip, 1);
     expect(tl.entries[0].fromId).toBe("h");
     expect(tl.entries[0].legEstimated).toBe(true);
+  });
+
+  it("treats a stay's time as the earliest check-in, not an appointment", () => {
+    const tour: Item = { id: "t", type: "activity", title: "Tour", startTime: "13:00", durationMin: 60 };
+    const late: Item = { id: "s", type: "stay", title: "Resort", startTime: "14:00", stay: { nights: 1 } };
+    const trip = tripWith([[tour, late]]);
+    trip.legs[legKey("t", "s")] = { mode: "BOAT", manualMin: 40 };
+    const arrival = computeDayTimeline(trip, 0).entries[1];
+    expect(arrival.start).toBe(14 * 60 + 40); // arrives 14:40, no waiting and no lateness warning
+    expect(arrival.issues).toHaveLength(0);
+
+    trip.items.s = { ...late, startTime: undefined, stay: { nights: 1, checkIn: "15:00" } };
+    expect(computeDayTimeline(trip, 0).entries[1].issues).toEqual([
+      { level: "info", message: "Arrives ~14:40, check-in from 15:00." },
+    ]);
+  });
+
+  it("routes onwards from where a flight lands", () => {
+    const flight: Item = {
+      id: "f",
+      type: "transport",
+      title: "Flight",
+      startTime: "13:25",
+      durationMin: 75,
+      location: { lat: 9.134, lng: 99.143 },
+      transport: { kind: "flight", toLocation: { lat: 13.918, lng: 100.601 } },
+    };
+    const hotel: Item = { id: "h", type: "stay", title: "Hotel", location: { lat: 13.743, lng: 100.53 } };
+    const trip = tripWith([[flight, hotel]]);
+    const near = computeDayTimeline(trip, 0).entries[1];
+    expect(near.start).toBeGreaterThan(14 * 60 + 40);
+    expect(near.start).toBeLessThan(15 * 60 + 40); // ~20 km across Bangkok, not ~550 km from Surat Thani
+
+    // A routed result counts only for the leg from the arrival point.
+    trip.legs[legKey("f", "h")] = {
+      mode: "TWO_WHEELER",
+      result: { key: routeKey("TWO_WHEELER", flight.transport!.toLocation!, hotel.location!), durationSec: 2400, distanceM: 22000 },
+    };
+    expect(computeDayTimeline(trip, 0).entries[1]).toMatchObject({ start: 14 * 60 + 40 + 40, legEstimated: false });
   });
 
   it("warns when a place is closed that weekday", () => {

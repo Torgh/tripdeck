@@ -5,7 +5,7 @@ import { ApiError, postJSON } from "./api";
 import { routeKey } from "./geo";
 import { findBase, getLeg } from "./timeline";
 import { useStore } from "./store";
-import { isRoutable, legKey, type Item, type Trip } from "./types";
+import { isRoutable, leavesFrom, legKey, type Item, type Trip } from "./types";
 import type { RouteOut } from "./server/google";
 
 let hydration: Promise<void> | undefined;
@@ -51,14 +51,15 @@ export function useRouteLegs(trip: Trip | undefined) {
   useEffect(() => {
     if (!trip || googleUnavailable) return;
     for (const [from, to] of legPairs(trip)) {
-      if (!from.location || !to.location) continue;
+      const origin = leavesFrom(from);
+      if (!origin || !to.location) continue;
       const leg = getLeg(trip, from.id, to.id);
       if (!isRoutable(leg.mode)) continue;
-      const key = routeKey(leg.mode, from.location, to.location);
+      const key = routeKey(leg.mode, origin, to.location);
       if (leg.result?.key === key || noRoute.has(key) || inFlight.has(key)) continue;
       inFlight.add(key);
       const k = legKey(from.id, to.id);
-      postJSON<{ route: RouteOut }>("/api/route", { origin: from.location, destination: to.location, mode: leg.mode })
+      postJSON<{ route: RouteOut }>("/api/route", { origin, destination: to.location, mode: leg.mode })
         .then(({ route }) => setLeg(trip.id, k, { mode: leg.mode, result: { key, ...route }, error: undefined }))
         .catch((err: Error) => {
           if (isUnavailable(err)) googleUnavailable = true;

@@ -65,6 +65,8 @@ export interface TransportDetails {
   from?: string;
   to?: string;
   number?: string;
+  /** Where it arrives (airport, port, station). The card's own location is the departure; travel to the next card starts here. */
+  toLocation?: Location;
 }
 
 export interface StayDetails {
@@ -252,6 +254,11 @@ const TRANSPORT_ICON: Record<TransportKind, string> = {
   boat: "🚤",
   other: "🧭",
 };
+
+/** Where you set off from after a card: the arrival point of a flight, ferry or train, otherwise the card's place. */
+export function leavesFrom(item: Pick<Item, "location" | "transport">): Location | undefined {
+  return item.transport?.toLocation ?? item.location;
+}
 
 export function itemIcon(item: Pick<Item, "type" | "transport" | "rental">): string {
   if (item.type === "transport" && item.transport) return TRANSPORT_ICON[item.transport.kind];

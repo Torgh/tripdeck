@@ -1,6 +1,6 @@
 import { decodePolyline, haversineM, routeKey } from "./geo";
 import { findBase, getLeg } from "./timeline";
-import { isRoutable, type Item, type LatLng, type Trip } from "./types";
+import { isRoutable, leavesFrom, type Item, type LatLng, type Trip } from "./types";
 
 /** What the trip maps draw – shared by the desktop board and the phone app. */
 
@@ -37,6 +37,27 @@ export type MapLayers = ReturnType<typeof buildLayers>;
 
 function cardMarker(item: Item, position: LatLng, label: string, color: string): Marker {
   return { key: item.id, item, position, label, color, title: `${label}. ${item.title}` };
+}
+
+/** A pin where a flight, ferry or train arrives, joined to its departure by a dashed line. */
+function arrivalLayers(item: Item, label: string, color: string): { markers: Marker[]; lines: Line[] } {
+  const to = item.transport?.toLocation;
+  if (!to || !item.location) return { markers: [], lines: [] };
+  return {
+    markers: [
+      {
+        key: `${item.id}#to`,
+        item,
+        position: to,
+        label: `${label}→`,
+        color,
+        title: `${item.transport?.to ?? to.address ?? "Arrival"} · ${item.title}`,
+        stop: true,
+        stopName: item.transport?.to ?? to.address,
+      },
+    ],
+    lines: [{ key: `${item.id}-to`, path: [item.location, to], color, dashed: true }],
+  };
 }
 
 /** Small pins for the places an organised tour visits, and a dashed line from its pick-up point through them. */
@@ -80,17 +101,19 @@ export function buildLayers(trip: Trip, selectedDayId: string | null, onlyItemId
       if (!shown.has(id)) {
         const label = item.type === "stay" ? "🏨" : String(n);
         const tour = tourLayers(item, item.location, label, color);
-        markers.push(cardMarker(item, item.location, label, color), ...tour.markers);
-        lines.push(...tour.lines);
+        const arrival = arrivalLayers(item, label, color);
+        markers.push(cardMarker(item, item.location, label, color), ...tour.markers, ...arrival.markers);
+        lines.push(...tour.lines, ...arrival.lines);
         shown.add(id);
       }
-      if (prev?.location && prev.id !== item.id && visible(prev.id)) {
+      const origin = prev && leavesFrom(prev);
+      if (prev && origin && prev.id !== item.id && visible(prev.id)) {
         const leg = getLeg(trip, prev.id, item.id);
         const fresh =
-          isRoutable(leg.mode) && leg.result?.key === routeKey(leg.mode, prev.location, item.location) && leg.result.polyline;
+          isRoutable(leg.mode) && leg.result?.key === routeKey(leg.mode, origin, item.location) && leg.result.polyline;
         lines.push({
           key: `${d}-${prev.id}-${item.id}`,
-          path: fresh ? decodePolyline(fresh) : [prev.location, item.location],
+          path: fresh ? decodePolyline(fresh) : [origin, item.location],
           color,
           dashed: !fresh,
         });
