@@ -150,6 +150,7 @@ lib/
   mapLayers.ts                 map pins, routes and zoom, shared by the desktop and the phone
   sync.ts, merge.ts            browser ⇄ server sync (polls every 15 s); edits made in both places are merged per card and leg
   server/osm.ts, google.ts     map providers
+  server/cache.ts              Google answers (routes, elevations, time zones) kept in ~/.tripdeck/cache, so none is paid for twice
   server/tripStore.ts          local / OneDrive folder, Google Drive; server/cloudAuth.ts – OAuth tokens
   server/tripLock.ts           one save at a time per trip across the web app and the MCP server
 ```

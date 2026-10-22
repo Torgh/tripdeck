@@ -1,5 +1,6 @@
 import { hmInZone, isoDate, zonedTimeToUtc } from "../time";
 import type { LatLng, OpeningPeriod, RoutableMode, RouteTime, TransitStep } from "../types";
+import { DAY_MS, DiskCache } from "./cache";
 import { readConfig } from "./config";
 import { HttpError } from "./errors";
 
@@ -235,30 +236,31 @@ export function transitSteps(steps: RawStep[]): { transit: TransitStep[]; walkMi
   return { transit, walkMin: Math.round(walkSec / 60) };
 }
 
-/** IANA time zones by rounded location – they rarely change within ~10 km, and each lookup is billed. */
-const zoneCache = new Map<string, Promise<string>>();
+/** Each Google lookup is billed, so answers are kept (lib/server/cache.ts) for as long as they hold. */
+const zoneCache = new DiskCache<string>("timezones", 180 * DAY_MS);
+const elevationCache = new DiskCache<number>("elevations", 365 * DAY_MS);
+/** Routes ignore traffic, so they change only with the roads; timetables change more often. */
+const routeCache = new DiskCache<RouteOut>("routes", 30 * DAY_MS);
+const transitCache = new DiskCache<RouteOut>("transit", 7 * DAY_MS);
+const matrixCache = new DiskCache<(number | null)[][]>("matrices", 30 * DAY_MS);
 
+const at = (p: LatLng, digits = 5) => `${p.lat.toFixed(digits)},${p.lng.toFixed(digits)}`;
+
+/** IANA time zones by rounded location – they rarely change within ~10 km. */
 export function timeZoneAt(point: LatLng): Promise<string> {
-  const k = `${point.lat.toFixed(1)},${point.lng.toFixed(1)}`;
-  let zone = zoneCache.get(k);
-  if (!zone) {
-    zone = (async () => {
-      const url = new URL("https://maps.googleapis.com/maps/api/timezone/json");
-      url.searchParams.set("location", `${point.lat},${point.lng}`);
-      url.searchParams.set("timestamp", String(Math.floor(Date.now() / 1000)));
-      url.searchParams.set("key", apiKey());
-      const res = await fetch(url, { cache: "no-store" });
-      const data = (await res.json()) as { status: string; timeZoneId?: string; errorMessage?: string };
-      if (data.status !== "OK" || !data.timeZoneId) {
-        const status = data.status === "REQUEST_DENIED" ? 503 : 502;
-        throw new HttpError(status, data.errorMessage ?? `Time Zone API: ${data.status}`);
-      }
-      return data.timeZoneId;
-    })();
-    zone.catch(() => zoneCache.delete(k));
-    zoneCache.set(k, zone);
-  }
-  return zone;
+  return zoneCache.getOrFetch(at(point, 1), async () => {
+    const url = new URL("https://maps.googleapis.com/maps/api/timezone/json");
+    url.searchParams.set("location", `${point.lat},${point.lng}`);
+    url.searchParams.set("timestamp", String(Math.floor(Date.now() / 1000)));
+    url.searchParams.set("key", apiKey());
+    const res = await fetch(url, { cache: "no-store" });
+    const data = (await res.json()) as { status: string; timeZoneId?: string; errorMessage?: string };
+    if (data.status !== "OK" || !data.timeZoneId) {
+      const status = data.status === "REQUEST_DENIED" ? 503 : 502;
+      throw new HttpError(status, data.errorMessage ?? `Time Zone API: ${data.status}`);
+    }
+    return data.timeZoneId;
+  });
 }
 
 type RawRoute = {
@@ -277,15 +279,19 @@ export function sameWeekdaySoon(date: string, today: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export async function computeRoute(
-  origin: LatLng,
-  destination: LatLng,
-  mode: RoutableMode,
-  time?: RouteTime,
-): Promise<RouteOut> {
+export function computeRoute(origin: LatLng, destination: LatLng, mode: RoutableMode, time?: RouteTime): Promise<RouteOut> {
+  const ask = () => fetchRoute(origin, destination, mode, time);
+  const key = `${mode}|${at(origin)}|${at(destination)}`;
+  if (mode !== "TRANSIT") return routeCache.getOrFetch(key, ask);
+  // Public transport "right now" depends on when it is asked; only planned times are kept.
+  if (!time) return ask();
+  return transitCache.getOrFetch(`${key}|${time.date} ${time.time}${time.arriveBy ? " arrive" : ""}`, ask);
+}
+
+async function fetchRoute(origin: LatLng, destination: LatLng, mode: RoutableMode, time?: RouteTime): Promise<RouteOut> {
   const transit = mode === "TRANSIT";
   const zone = transit && time ? await timeZoneAt(time.arriveBy ? destination : origin) : undefined;
-  const fetchRoute = async (date?: string) => {
+  const fetchOn = async (date?: string) => {
     const when =
       time && zone && date
         ? { [time.arriveBy ? "arrivalTime" : "departureTime"]: zonedTimeToUtc(date, time.time, zone).toISOString() }
@@ -306,13 +312,13 @@ export async function computeRoute(
     return data.routes?.[0];
   };
 
-  let route = await fetchRoute(time?.date);
+  let route = await fetchOn(time?.date);
   let sampledOn: string | undefined;
   if (!route && zone && time) {
     // Google only plans as far ahead as timetables are published (a few weeks to months). For a
     // later trip, use the same weekday and time next week: it shows the lines and whether they run then.
     sampledOn = sameWeekdaySoon(time.date, isoDate(new Date()));
-    if (sampledOn < time.date) route = await fetchRoute(sampledOn);
+    if (sampledOn < time.date) route = await fetchOn(sampledOn);
   }
   if (!route) {
     throw new HttpError(
@@ -335,7 +341,12 @@ export async function computeRoute(
  * Travel-time matrix in minutes. Unreachable pairs are `null` so callers can fall back to an
  * estimate. The diagonal is 0.
  */
-export async function routeMatrix(points: LatLng[], mode: RoutableMode): Promise<(number | null)[][]> {
+export function routeMatrix(points: LatLng[], mode: RoutableMode): Promise<(number | null)[][]> {
+  const ask = () => fetchMatrix(points, mode);
+  return mode === "TRANSIT" ? ask() : matrixCache.getOrFetch(`${mode}|${points.map((p) => at(p)).join("|")}`, ask);
+}
+
+async function fetchMatrix(points: LatLng[], mode: RoutableMode): Promise<(number | null)[][]> {
   const n = points.length;
   const matrix: (number | null)[][] = Array.from({ length: n }, (_, i) =>
     Array.from({ length: n }, (_, j) => (i === j ? 0 : null)),
@@ -362,14 +373,23 @@ export async function routeMatrix(points: LatLng[], mode: RoutableMode): Promise
   return matrix;
 }
 
-export async function elevation(point: LatLng): Promise<number> {
-  const url = new URL("https://maps.googleapis.com/maps/api/elevation/json");
-  url.searchParams.set("locations", `${point.lat},${point.lng}`);
-  url.searchParams.set("key", apiKey());
-  const res = await fetch(url, { cache: "no-store" });
-  const data = (await res.json()) as { status: string; results?: { elevation: number }[]; error_message?: string };
-  if (data.status !== "OK" || !data.results?.length) {
-    throw new HttpError(502, data.error_message ?? `Elevation API: ${data.status}`);
+/** Elevations in metres, in the order of `points`. The ones not cached yet are asked in one request. */
+export async function elevations(points: LatLng[]): Promise<number[]> {
+  const keys = points.map((p) => at(p, 4));
+  const out = keys.map((k) => elevationCache.get(k));
+  const missing = [...new Set(keys.filter((_, i) => out[i] === undefined))];
+  if (missing.length) {
+    const url = new URL("https://maps.googleapis.com/maps/api/elevation/json");
+    url.searchParams.set("locations", missing.join("|"));
+    url.searchParams.set("key", apiKey());
+    const res = await fetch(url, { cache: "no-store" });
+    const data = (await res.json()) as { status: string; results?: { elevation: number }[]; error_message?: string };
+    if (data.status !== "OK" || data.results?.length !== missing.length) {
+      throw new HttpError(502, data.error_message ?? `Elevation API: ${data.status}`);
+    }
+    const found = new Map(missing.map((k, i) => [k, data.results![i].elevation]));
+    found.forEach((m, k) => elevationCache.set(k, m));
+    keys.forEach((k, i) => (out[i] ??= found.get(k)));
   }
-  return data.results[0].elevation;
+  return out as number[];
 }
