@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { computeTripTimeline } from "./timeline";
 import { IDEAS, type ContainerId, type Day, type Item, type TravelMode, type Trip } from "./types";
 
 /** Pure trip operations shared by the browser store and the MCP server. */
@@ -139,4 +140,36 @@ export function reorderDay(trip: Trip, dayId: string, itemIds: string[]): Trip {
     throw new Error("item_ids must list every card of that day exactly once.");
   }
   return withContainers(trip, { [dayId]: itemIds });
+}
+
+/**
+ * Forgets what was stored for pairs of cards that are no longer one after the other: the route (with
+ * its line and public-transport rides) and any routing error, and the whole leg when it only followed
+ * the default mode. A mode or minutes picked for the leg stay, in case the cards come together again;
+ * the route then comes back from the server's cache (lib/server/cache.ts) without asking Google.
+ * Without this, every reordering left a route behind and the trip file kept growing.
+ */
+export function pruneLegs(trip: Trip): Trip {
+  const used = new Set(
+    computeTripTimeline(trip).flatMap((tl) => tl.entries.flatMap((e) => (e.fromId ? [`${e.fromId}>${e.itemId}`] : []))),
+  );
+  let changed = false;
+  const legs: Trip["legs"] = {};
+  for (const [key, leg] of Object.entries(trip.legs)) {
+    if (used.has(key)) {
+      legs[key] = leg;
+      continue;
+    }
+    const chosen = !(leg.auto ?? leg.mode === trip.defaultMode) || leg.manualMin != null;
+    if (chosen && !leg.result && !leg.error) {
+      legs[key] = leg;
+      continue;
+    }
+    changed = true;
+    if (chosen) {
+      const { result: _result, error: _error, ...kept } = leg;
+      legs[key] = kept;
+    }
+  }
+  return changed ? { ...trip, legs } : trip;
 }

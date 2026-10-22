@@ -6,6 +6,7 @@ import {
   createTrip,
   moveDay,
   moveItem,
+  pruneLegs,
   removeItem,
   reorderDay,
   setDayCount,
@@ -142,5 +143,51 @@ describe("touch", () => {
   it("bumps updatedAt so sync sees the change", () => {
     const trip = { ...tripWith([[]]), updatedAt: "2000-01-01T00:00:00.000Z" };
     expect(touch(trip).updatedAt > trip.updatedAt).toBe(true);
+  });
+});
+
+describe("pruneLegs", () => {
+  const route = { key: "k", durationSec: 600, distanceM: 5000, polyline: "abc" };
+
+  it("keeps legs between cards that follow each other and forgets routes of the others", () => {
+    const trip = tripWith([[card("a"), card("b"), card("c")]]);
+    trip.legs = {
+      [legKey("a", "b")]: { mode: "DRIVE", auto: true, result: route },
+      [legKey("b", "c")]: { mode: "WALK", auto: false, result: route },
+      // a and c are no longer next to each other:
+      [legKey("a", "c")]: { mode: "DRIVE", auto: true, result: route },
+      // c and a neither, but the user picked a ferry there:
+      [legKey("c", "a")]: { mode: "FERRY", auto: false, manualMin: 45 },
+      [legKey("b", "a")]: { mode: "WALK", auto: false, result: route, error: { key: "k", message: "no route" } },
+    };
+    const next = pruneLegs(trip);
+    expect(next.legs).toEqual({
+      [legKey("a", "b")]: trip.legs[legKey("a", "b")],
+      [legKey("b", "c")]: trip.legs[legKey("b", "c")],
+      [legKey("c", "a")]: { mode: "FERRY", auto: false, manualMin: 45 },
+      [legKey("b", "a")]: { mode: "WALK", auto: false },
+    });
+  });
+
+  it("keeps the leg from the morning's stay to the first card", () => {
+    const hotel = { id: "h", title: "Hotel", type: "stay", stay: { nights: 2 } } as unknown as Item;
+    const trip = tripWith([[hotel], [card("a")]]);
+    trip.legs = { [legKey("h", "a")]: { mode: "DRIVE", auto: true, result: route } };
+    expect(pruneLegs(trip)).toBe(trip);
+  });
+
+  it("returns the same trip when there is nothing to forget", () => {
+    const trip = tripWith([[card("a"), card("b")]]);
+    trip.legs = { [legKey("b", "a")]: { mode: "BOAT", auto: false, manualMin: 30 } };
+    expect(pruneLegs(trip)).toBe(trip);
+  });
+
+  it("treats older legs without `auto` as following the default when they use the trip's mode", () => {
+    const trip = tripWith([[card("a"), card("b")]]);
+    trip.legs = {
+      [legKey("b", "a")]: { mode: trip.defaultMode, result: route },
+      [legKey("c", "a")]: { mode: "TRANSIT", result: route },
+    };
+    expect(pruneLegs(trip).legs).toEqual({ [legKey("c", "a")]: { mode: "TRANSIT" } });
   });
 });
