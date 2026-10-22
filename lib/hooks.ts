@@ -107,24 +107,35 @@ function patchPlace(tripId: string, itemId: string, arrival: boolean, at: LatLng
 
 const elevationTried = new Set<string>();
 
-/** Looks up elevation for located items (used by the dive altitude checks). */
+/** Places per elevation request (the server's limit). */
+const ELEVATION_BATCH = 100;
+
+/** Looks up elevation for located items (used by the dive altitude checks), many places per request. */
 export function useElevations(trip: Trip | undefined) {
   useEffect(() => {
     if (!trip || googleUnavailable) return;
     const hasDives = Object.values(trip.items).some((i) => i.type === "dive");
     if (!hasDives) return;
+    const todo: { itemId: string; loc: Location }[] = [];
     for (const item of Object.values(trip.items)) {
       const loc = item.location;
       if (!loc || loc.elevationM !== undefined) continue;
       const k = `${item.id}|${loc.lat},${loc.lng}`;
       if (elevationTried.has(k)) continue;
       elevationTried.add(k);
-      postJSON<{ elevationM: number }>("/api/elevation", { lat: loc.lat, lng: loc.lng })
-        .then(({ elevationM }) => patchPlace(trip.id, item.id, false, loc, { elevationM }))
+      todo.push({ itemId: item.id, loc });
+    }
+    for (let i = 0; i < todo.length; i += ELEVATION_BATCH) {
+      const batch = todo.slice(i, i + ELEVATION_BATCH);
+      const points = batch.map(({ loc }) => ({ lat: loc.lat, lng: loc.lng }));
+      postJSON<{ elevations: number[] }>("/api/elevation", { points })
+        .then(({ elevations }) =>
+          batch.forEach(({ itemId, loc }, j) => patchPlace(trip.id, itemId, false, loc, { elevationM: elevations[j] })),
+        )
         .catch((err) => {
-          // Only remember a failure for this place when the lookup itself failed.
+          // Only remember a failure for these places when the lookup itself failed.
           if (isUnavailable(err)) googleUnavailable = true;
-          else patchPlace(trip.id, item.id, false, loc, { elevationM: null });
+          else batch.forEach(({ itemId, loc }) => patchPlace(trip.id, itemId, false, loc, { elevationM: null }));
         });
     }
   }, [trip]);

@@ -250,10 +250,13 @@ export async function osmMatrix(points: LatLng[], mode: RoutableMode): Promise<(
 
 // ---------- Elevation (Open-Meteo) ----------
 
-export async function osmElevation(point: LatLng): Promise<number> {
+/** Elevations in metres, in the order of `points` (up to 100 at a time). */
+export async function osmElevations(points: LatLng[]): Promise<number[]> {
+  const latitude = points.map((p) => p.lat).join(",");
+  const longitude = points.map((p) => p.lng).join(",");
   const data = await getJson<{ elevation?: number[] }>(
-    `https://api.open-meteo.com/v1/elevation?latitude=${point.lat}&longitude=${point.lng}`,
+    `https://api.open-meteo.com/v1/elevation?latitude=${latitude}&longitude=${longitude}`,
   );
-  if (!data.elevation?.length) throw new HttpError(502, "Elevation unavailable.");
-  return data.elevation[0];
+  if (data.elevation?.length !== points.length) throw new HttpError(502, "Elevation unavailable.");
+  return data.elevation;
 }

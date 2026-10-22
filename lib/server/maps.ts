@@ -88,9 +88,14 @@ export function timeZone(point: LatLng): Promise<string> {
   return google.timeZoneAt(point);
 }
 
-export function elevation(point: LatLng) {
+/** Elevations in metres for up to 100 points, in their order. */
+export function elevations(points: LatLng[]) {
   return withFallback(
-    () => google.elevation(point),
-    () => osm.osmElevation(point),
+    () => google.elevations(points),
+    () => osm.osmElevations(points),
   );
+}
+
+export async function elevation(point: LatLng) {
+  return (await elevations([point]))[0];
 }

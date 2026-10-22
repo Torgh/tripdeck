@@ -9,7 +9,7 @@ vi.mock("./google", () => ({
   placeDetails: vi.fn(),
   computeRoute: vi.fn(),
   routeMatrix: vi.fn(),
-  elevation: vi.fn(),
+  elevations: vi.fn(),
 }));
 vi.mock("./osm", () => ({
   OSM_CATEGORIES: [],
@@ -17,7 +17,7 @@ vi.mock("./osm", () => ({
   osmNearby: vi.fn(async () => ["osm nearby"]),
   osmRoute: vi.fn(async () => "osm route"),
   osmMatrix: vi.fn(async () => "osm matrix"),
-  osmElevation: vi.fn(async () => 42),
+  osmElevations: vi.fn(async () => [42]),
 }));
 
 const google = await import("./google");
@@ -45,7 +45,7 @@ describe("maps facade", () => {
 
   it.each([502, 503])("falls back to OpenStreetMap when Google answers %i", async (status) => {
     config.googleMapsServerKey = "key";
-    vi.mocked(google.elevation).mockRejectedValue(new HttpError(status, "API not enabled"));
+    vi.mocked(google.elevations).mockRejectedValue(new HttpError(status, "API not enabled"));
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     await expect(maps.elevation({ lat: 35.9, lng: 14.5 })).resolves.toBe(42);
     expect(warn).toHaveBeenCalled();

@@ -1,8 +1,11 @@
+import fs from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./config", () => ({ readConfig: () => ({ googleMapsServerKey: "key" }) }));
+/** Where the answers are cached; emptied after each test. */
+const home = vi.hoisted(() => `${process.env.TMPDIR ?? process.env.TEMP ?? "/tmp"}/tripdeck-google-test-${process.pid}`);
+vi.mock("./config", () => ({ DATA_DIR: home, readConfig: () => ({ googleMapsServerKey: "key" }) }));
 
-const { computeRoute } = await import("./google");
+const { computeRoute, elevations, routeMatrix } = await import("./google");
 
 const airport = { lat: 13.6819, lng: 100.74687 };
 const hotel = { lat: 13.71842, lng: 100.52195 };
@@ -22,7 +25,10 @@ function mockGoogle(routes: unknown[]) {
   return sent;
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  fs.rmSync(home, { recursive: true, force: true });
+});
 
 describe("computeRoute with public transport", () => {
   it("plans for the local time in the plan and lists the rides", async () => {
@@ -124,5 +130,65 @@ describe("computeRoute with public transport", () => {
     expect(route).toEqual({ durationSec: 600, distanceM: 5000, polyline: undefined });
     expect(sent[0].body).not.toHaveProperty("departureTime");
     expect(sent[0].fieldMask).not.toContain("transitDetails");
+  });
+});
+
+describe("cached answers", () => {
+  it("asks Google once for the same route, and again for another mode", async () => {
+    const sent = mockGoogle([{ duration: "600s", distanceMeters: 5000 }]);
+    await computeRoute(airport, hotel, "DRIVE");
+    await computeRoute(airport, hotel, "DRIVE");
+    expect(sent).toHaveLength(1);
+    await computeRoute(airport, hotel, "WALK");
+    expect(sent).toHaveLength(2);
+  });
+
+  it("keeps public transport only for a planned time", async () => {
+    const sent = mockGoogle([{ duration: "600s" }]);
+    const at = { date: "2027-01-11", time: "12:45" };
+    await computeRoute(airport, hotel, "TRANSIT", at);
+    await computeRoute(airport, hotel, "TRANSIT", at);
+    expect(sent).toHaveLength(1);
+    await computeRoute(airport, hotel, "TRANSIT", { ...at, arriveBy: true });
+    await computeRoute(airport, hotel, "TRANSIT");
+    await computeRoute(airport, hotel, "TRANSIT");
+    expect(sent).toHaveLength(4);
+  });
+
+  it("does not keep a route that wasn't found", async () => {
+    const sent = mockGoogle([]);
+    await expect(computeRoute(airport, hotel, "DRIVE")).rejects.toMatchObject({ status: 404 });
+    await expect(computeRoute(airport, hotel, "DRIVE")).rejects.toMatchObject({ status: 404 });
+    expect(sent).toHaveLength(2);
+  });
+
+  it("caches travel-time matrices by mode and points", async () => {
+    const fetch = vi.fn(async () => Response.json([{ originIndex: 0, destinationIndex: 1, duration: "120s", condition: "ROUTE_EXISTS" }]));
+    vi.stubGlobal("fetch", fetch);
+    expect(await routeMatrix([airport, hotel], "DRIVE")).toEqual([
+      [0, 2],
+      [null, 0],
+    ]);
+    await routeMatrix([airport, hotel], "DRIVE");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await routeMatrix([hotel, airport], "DRIVE");
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks for the elevations it doesn't know yet in one request", async () => {
+    const asked: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const locations = new URL(String(url)).searchParams.get("locations")!.split("|");
+        asked.push(...locations);
+        return Response.json({ status: "OK", results: locations.map((l) => ({ elevation: Math.round(Number(l.split(",")[0])) })) });
+      }),
+    );
+    const peak = { lat: 27.98, lng: 86.92 };
+    expect(await elevations([airport, peak, airport])).toEqual([14, 28, 14]);
+    expect(asked).toEqual(["13.6819,100.7469", "27.9800,86.9200"]);
+    expect(await elevations([hotel, peak])).toEqual([14, 28]);
+    expect(asked).toHaveLength(3);
   });
 });
