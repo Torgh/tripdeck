@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { postJSON } from "@/lib/api";
 import { centroid } from "@/lib/geo";
+import { formatMoney, parsePrice } from "@/lib/money";
 import { rentalSummary } from "@/lib/rentals";
 import { guessType, itemFieldsFromPlace } from "@/lib/places";
 import { newId, useStore } from "@/lib/store";
@@ -18,6 +19,7 @@ import {
   BOOKING_STATUS_LABEL,
   BOOKING_STATUSES,
   type AiTips,
+  type Booking,
   type BookingStatus,
   type ContainerId,
   type Gas,
@@ -567,13 +569,7 @@ export function ItemEditor({
                     onChange={(e) => set({ booking: { ...draft.booking, reference: e.target.value || undefined } })}
                   />
                 </label>
-                <label>
-                  Price
-                  <input
-                    value={draft.booking?.price ?? ""}
-                    onChange={(e) => set({ booking: { ...draft.booking, price: e.target.value || undefined } })}
-                  />
-                </label>
+                <PriceField booking={draft.booking} onChange={(booking) => set({ booking })} />
                 <BookingStatusField
                   value={draft.booking?.status}
                   onChange={(status) => set({ booking: { ...draft.booking, status } })}
@@ -655,13 +651,7 @@ export function ItemEditor({
                   onChange={(e) => set({ booking: { ...draft.booking, url: e.target.value || undefined } })}
                 />
               </label>
-              <label>
-                Price
-                <input
-                  value={draft.booking?.price ?? ""}
-                  onChange={(e) => set({ booking: { ...draft.booking, price: e.target.value || undefined } })}
-                />
-              </label>
+              <PriceField booking={draft.booking} onChange={(booking) => set({ booking })} />
               <BookingStatusField
                 value={draft.booking?.status}
                 onChange={(status) => set({ booking: { ...draft.booking, status } })}
@@ -713,6 +703,46 @@ function ArrivalField({ draft, onDuration }: { draft: Item; onDuration: (min: nu
         />
         Next day
       </label>
+    </div>
+  );
+}
+
+/** The price as written, how the budget reads it, and whether it is paid. */
+function PriceField({ booking, onChange }: { booking?: Booking; onChange: (booking: Booking) => void }) {
+  const price = parsePrice(booking?.price);
+  const hint = !booking?.price
+    ? "With its currency, e.g. 1 500 THB"
+    : !price
+      ? "No amount – not in the budget"
+      : price.currency
+        ? `Budget: ${formatMoney(price.amount, price.currency)}`
+        : price.amount
+          ? "Add the currency, e.g. 1 500 THB"
+          : "Budget: free";
+  return (
+    <div style={{ display: "grid", gap: 4 }}>
+      <label>
+        Price
+        <input
+          value={booking?.price ?? ""}
+          placeholder="€189"
+          onChange={(e) => onChange({ ...booking, price: e.target.value || undefined })}
+        />
+      </label>
+      <div className="row small">
+        <span className="grow muted" style={{ color: price && !price.currency && price.amount ? "var(--warn)" : undefined }}>
+          {hint}
+        </span>
+        <label className="row" style={{ gap: 4 }}>
+          <input
+            type="checkbox"
+            style={{ width: "auto" }}
+            checked={!!booking?.paid}
+            onChange={(e) => onChange({ ...booking, paid: e.target.checked || undefined })}
+          />
+          Paid
+        </label>
+      </div>
     </div>
   );
 }

@@ -142,8 +142,11 @@ export interface Booking {
   provider?: string;
   reference?: string;
   url?: string;
+  /** As written, with its currency: "€189", "1 500 THB". The budget reads the amount from it. */
   price?: string;
   status?: BookingStatus;
+  /** Already paid – the budget splits paid from still to pay. */
+  paid?: boolean;
 }
 
 export interface AiTips {
@@ -242,6 +245,12 @@ export interface Leg {
   error?: { key: string; message: string };
 }
 
+export interface TripBudget {
+  /** ISO 4217 code, one of `RATE_CURRENCIES`. */
+  currency?: string;
+  limit?: number;
+}
+
 export interface Trip {
   id: string;
   name: string;
@@ -251,6 +260,8 @@ export interface Trip {
   /** Free text the AI uses to tailor suggestions, e.g. "snorkeling, viewpoints, local food". */
   interests: string;
   defaultMode: TravelMode;
+  /** The currency the trip's costs add up in, and an optional spending limit in it. */
+  budget?: TripBudget;
   days: Day[];
   ideas: string[];
   items: Record<string, Item>;

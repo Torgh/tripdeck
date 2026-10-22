@@ -126,6 +126,24 @@ describe.skipIf(!bun)("MCP server", () => {
     expect(await ok("list_trips")).toMatch(/Malta test.*2 days · 2 cards/);
   });
 
+  it("adds up the prices under Budget, paid apart, against a limit", async () => {
+    const tripId = idIn(
+      await ok("create_trip", { name: "Gozo budget", destination: "Malta", start_date: "2027-05-01", days: 2 }),
+      /\[trip_id ([\w-]+)\]/,
+    );
+    await ok("add_item", { trip_id: tripId, day: 1, type: "stay", title: "Farmhouse", booking: { price: "€420", paid: true } });
+    await ok("add_item", { trip_id: tripId, day: 2, type: "food", title: "Dinner", booking: { price: "40 EUR" } });
+    await ok("add_item", { trip_id: tripId, day: 2, type: "activity", title: "Kayak", booking: { price: "1500" } });
+    await ok("update_trip", { trip_id: tripId, budget_limit: 400 });
+
+    const plan = await ok("get_trip", { trip_id: tripId });
+    expect(plan).toContain("## Budget");
+    expect(plan).toContain("Total €460 · €420 paid · €40 to pay · €60 over €400 (EUR)");
+    expect(plan).toContain("Per day: day 1 €420, day 2 €40");
+    expect(plan).toMatch(/Price without a currency, not counted: Kayak .* "1500"/);
+    expect(plan).toContain("booked: €420 (paid)");
+  });
+
   it("adds a scooter rental that shows on every day until it goes back", async () => {
     const created = await ok("create_trip", { name: "Chiang Mai", destination: "Thailand", start_date: "2027-01-14", days: 4 });
     const tripId = idIn(created, /trip_id ([\w-]+)/);

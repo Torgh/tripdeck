@@ -6,7 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useConfig } from "@/lib/config";
 import { computeClockNotes, mergeIssues } from "@/lib/clock";
 import { computeDiveWarnings } from "@/lib/diveSafety";
-import { useElevations, useHydrated, useRouteLegs, useTimeZones } from "@/lib/hooks";
+import { useElevations, useHydrated, useRouteLegs, useTimeZones, useTripBudget } from "@/lib/hooks";
+import { formatMoney } from "@/lib/money";
 import { useTrip } from "@/lib/store";
 import { dayDate, formatDayLabel } from "@/lib/time";
 import { computeTripTimeline } from "@/lib/timeline";
@@ -27,6 +28,7 @@ const dialogs = {
   import: () => import("./ImportDialog").then((m) => m.ImportDialog),
   settings: () => import("./TripSettings").then((m) => m.TripSettings),
   todo: () => import("./TodoDialog").then((m) => m.TodoDialog),
+  budget: () => import("./BudgetDialog").then((m) => m.BudgetDialog),
 };
 const ItemEditor = dynamic(dialogs.editor, { ssr: false });
 const SuggestDialog = dynamic(dialogs.suggest, { ssr: false });
@@ -34,6 +36,7 @@ const OptimizeDialog = dynamic(dialogs.optimize, { ssr: false });
 const ImportDialog = dynamic(dialogs.import, { ssr: false });
 const TripSettings = dynamic(dialogs.settings, { ssr: false });
 const TodoDialog = dynamic(dialogs.todo, { ssr: false });
+const BudgetDialog = dynamic(dialogs.budget, { ssr: false });
 
 /**
  * With the offline service worker running, fetch the dialogs once the board is idle: it keeps what
@@ -58,7 +61,8 @@ type Dialog =
   | { kind: "optimize"; dayId: string }
   | { kind: "import" }
   | { kind: "settings" }
-  | { kind: "todo" };
+  | { kind: "todo" }
+  | { kind: "budget" };
 
 export function TripView({ tripId }: { tripId: string | null }) {
   const hydrated = useHydrated();
@@ -81,6 +85,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
     [trip, timelines],
   );
   const todos = useMemo(() => (trip ? tripTodos(trip) : []), [trip]);
+  const budget = useTripBudget(trip);
 
   // Stable, so the board's cards (memoised) don't re-render because of new handlers.
   const onEdit = useCallback(
@@ -136,6 +141,22 @@ export function TripView({ tripId }: { tripId: string | null }) {
                 {" · "}
                 <button className="linklike" onClick={() => setDialog({ kind: "todo" })}>
                   📝 {todos.length} to sort out
+                </button>
+              </>
+            )}
+            {budget && (
+              <>
+                {" · "}
+                <button
+                  className="linklike"
+                  style={budget.limit && budget.total > budget.limit ? { color: "var(--warn)" } : undefined}
+                  onClick={() => setDialog({ kind: "budget" })}
+                >
+                  💰{" "}
+                  {budget.lines.length || budget.limit
+                    ? formatMoney(budget.total, budget.currency) +
+                      (budget.limit ? ` of ${formatMoney(budget.limit, budget.currency)}` : "")
+                    : "Budget"}
                 </button>
               </>
             )}
@@ -215,6 +236,14 @@ export function TripView({ tripId }: { tripId: string | null }) {
       {dialog?.kind === "optimize" && <OptimizeDialog trip={trip} dayId={dialog.dayId} ai={ai} onClose={close} />}
       {dialog?.kind === "import" && <ImportDialog trip={trip} ai={ai} onClose={close} />}
       {dialog?.kind === "settings" && <TripSettings trip={trip} onClose={close} />}
+      {dialog?.kind === "budget" && budget && (
+        <BudgetDialog
+          trip={trip}
+          budget={budget}
+          onEdit={(itemId) => setDialog({ kind: "editor", target: { kind: "edit", itemId } })}
+          onClose={close}
+        />
+      )}
       {dialog?.kind === "todo" && (
         <TodoDialog
           trip={trip}
