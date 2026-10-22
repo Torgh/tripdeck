@@ -26,9 +26,11 @@ interface DayProps {
   /** The card picked on the map (or tapped here), highlighted in the list. */
   highlightId?: string;
   onSelect: (itemId: string) => void;
+  /** What the day's bookings cost, in the trip's budget currency. */
+  spent?: string;
 }
 
-export function DayView({ trip, timeline, warnings, night, rentals, isToday, highlightId, onSelect }: DayProps) {
+export function DayView({ trip, timeline, warnings, night, rentals, isToday, highlightId, onSelect, spent }: DayProps) {
   const { dayIndex, base, entries } = timeline;
   // Rentals picked up today have their own card; the others are reminders.
   const ongoing = rentals.filter((r) => r.phase !== "pickup");
@@ -44,6 +46,7 @@ export function DayView({ trip, timeline, warnings, night, rentals, isToday, hig
         {timeline.travelMin > 0 && (
           <span className="muted small">{formatDuration(timeline.travelMin)} on the road</span>
         )}
+        {spent && <span className="muted small">💰 {spent}</span>}
       </div>
 
       {base && (
@@ -280,7 +283,7 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect }
                   b.status && `${BOOKING_STATUS_ICON[b.status]} ${BOOKING_STATUS_LABEL[b.status]}`,
                   b.provider,
                   b.reference && `#${b.reference}`,
-                  b.price,
+                  b.price && (b.paid ? `${b.price} ✓ paid` : b.price),
                 ]
                   .filter(Boolean)
                   .join(" · ")}

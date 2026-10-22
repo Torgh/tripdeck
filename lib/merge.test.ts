@@ -27,6 +27,17 @@ function base(): Trip {
 const clone = (t: Trip): Trip => structuredClone(t);
 
 describe("mergeTrips", () => {
+  it("keeps a budget set on the board while Claude changed something else", () => {
+    const b = base();
+    const local = clone(b);
+    local.budget = { currency: "THB", limit: 50000 };
+    const remote = clone(b);
+    remote.name = "Mexico 2027";
+    const merged = mergeTrips(b, local, remote);
+    expect(merged.budget).toEqual({ currency: "THB", limit: 50000 });
+    expect(merged.name).toBe("Mexico 2027");
+  });
+
   it("keeps a card Claude added while the board computed a route (the lost-update bug)", () => {
     const b = base();
     const local = clone(b);

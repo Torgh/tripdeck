@@ -18,6 +18,8 @@ import { bestOrder, evaluate, travelMatrix, type OptInput } from "../lib/optimiz
 import { guessType, itemFieldsFromPlace } from "../lib/places";
 import { defaultModeTo, rentalsOf, VEHICLE_MODE } from "../lib/rentals";
 import { HttpError } from "../lib/server/errors";
+import { exchangeRates } from "../lib/server/rates";
+import { budgetCurrency, budgetSummary, foreignCurrencies, formatMoney, RATE_CURRENCIES, tripBudget, type Budget } from "../lib/money";
 import {
   elevation,
   mapsProvider,
@@ -68,6 +70,7 @@ How to work:
 - Before reordering a day, call optimize_day for real travel times, then decide (meals, sunset, heat, opening hours) and apply with reorder_day. Explain your reasoning briefly.
 - Booking confirmations: if you have Gmail (or another mail) tools, search for confirmations (Booking.com, GetYourGuide, Viator, Airbnb, airlines, ferries, car / scooter rentals, dive centres), then add one card per booking on the right day with provider, reference, times and price. Never invent booking numbers.
 - Booking status: booking.status "confirmed", "pending" (paid or requested, not confirmed yet) or "todo" (still to book). get_trip lists the pending and to-book ones, and nights with nowhere to sleep, under "To sort out" – mention them.
+- Prices: booking.price as written on the confirmation, always with its currency ("€189", "1 500 THB"); booking.paid when it is already paid. get_trip adds them up under "Budget" in the trip's currency (update_trip budget_currency / budget_limit) – mention prices without a currency and a budget that is over its limit.
 - Rentals (car, scooter, motorbike, bicycle): one card of type rental on the pick-up day, start_time = pick-up time, rental.days = days until the return. The board then shows it on every day up to the return. Do not use transport car_rental for new rentals.
 - Organised tours (type activity): the card's place is the pick-up / meeting point (travel times go there); list the places the tour visits in tour_stops so they show on the map.
 - Flights, ferries, trains (type transport): place_query = where it departs, transport.to_place_query = where it arrives, start_time = departure and transport.arrival_time = arrival, both in local time as on the ticket (arrival_next_day when it lands the next day). The route to the next card then starts at the arrival, so no flight leg is needed. get_trip notes when the clocks change and how long the journey really takes.
@@ -182,9 +185,9 @@ function itemLine(item: Item): string {
     );
   }
   if (item.tour?.stops.length) bits.push(`tour visits: ${item.tour.stops.map((s) => s.name).join(" → ")}`);
-  if (item.booking?.provider || item.booking?.reference) {
+  if (item.booking?.provider || item.booking?.reference || item.booking?.price) {
     bits.push(
-      `booked: ${[item.booking.provider, item.booking.reference, item.booking.price].filter(Boolean).join(" ")}`,
+      `booked: ${[item.booking.provider, item.booking.reference, item.booking.price].filter(Boolean).join(" ")}${item.booking.paid ? " (paid)" : ""}`,
     );
   }
   if (item.booking?.status) bits.push(`status: ${BOOKING_STATUS_ICON[item.booking.status]} ${BOOKING_STATUS_LABEL[item.booking.status]}`);
@@ -197,7 +200,26 @@ function itemLine(item: Item): string {
   return bits.join(" · ");
 }
 
-function renderTrip(trip: Trip): string {
+function budgetLines(b: Budget): string[] {
+  if (!b.lines.length && !b.noCurrency.length && !b.limit) return [];
+  const m = (n: number) => formatMoney(n, b.currency);
+  const lines = ["## Budget", `Total ${budgetSummary(b)} (${b.currency}${b.ratesDate ? `, ECB rates of ${b.ratesDate}` : ""})`];
+  const days = b.byDay.map((n, i) => (n > 0 ? `day ${i + 1} ${m(n)}` : "")).filter(Boolean);
+  if (days.length) lines.push(`Per day: ${days.join(", ")}`);
+  if (b.unconverted.length) lines.push(`⚠️ Not in the total – no exchange rate for ${b.unconverted.join(", ")}`);
+  for (const { item } of b.noCurrency) lines.push(`⚠️ Price without a currency, not counted: ${item.title} [${item.id}] "${item.booking?.price}"`);
+  if (b.ideas.length) lines.push(`Ideas with a price (not counted): ${b.ideas.map((l) => `${l.item.title} ${l.item.booking?.price}`).join(", ")}`);
+  return [...lines, ""];
+}
+
+/** Today's rates for the trip's budget when it has prices in other currencies; without them, those aren't converted. */
+async function budgetOf(trip: Trip): Promise<Budget> {
+  const base = budgetCurrency(trip);
+  const rates = foreignCurrencies(trip, base).length ? await exchangeRates(base).catch(() => undefined) : undefined;
+  return tripBudget(trip, rates);
+}
+
+function renderTrip(trip: Trip, budget?: Budget): string {
   const timelines = computeTripTimeline(trip);
   const diveWarnings = mergeIssues(computeDiveWarnings(trip, timelines), computeClockNotes(trip, timelines));
   const rentals = rentalsOf(trip);
@@ -214,6 +236,7 @@ function renderTrip(trip: Trip): string {
   );
   const todos = tripTodos(trip);
   if (todos.length) lines.push("## To sort out", ...todos.map((t) => `- ${todoLabel(t)}`), "");
+  if (budget) lines.push(...budgetLines(budget));
   const nights = nightsOf(trip);
 
   timelines.forEach((tl, d) => {
@@ -364,7 +387,8 @@ const cardFields = {
       provider: z.string().max(60).optional(),
       reference: z.string().max(80).optional(),
       url: z.string().max(500).optional(),
-      price: z.string().max(60).optional(),
+      price: z.string().max(60).optional().describe('As written, with the currency: "€189", "1 500 THB"'),
+      paid: z.boolean().optional().describe("Already paid"),
       status: z
         .enum(["confirmed", "pending", "todo"])
         .optional()
@@ -523,7 +547,10 @@ server.registerTool(
     inputSchema: { trip_id: tripId },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
-  tool(async ({ trip_id }) => renderTrip(await loadTrip(trip_id))),
+  tool(async ({ trip_id }) => {
+    const trip = await loadTrip(trip_id);
+    return renderTrip(trip, await budgetOf(trip));
+  }),
 );
 
 server.registerTool(
@@ -562,7 +589,7 @@ server.registerTool(
   "update_trip",
   {
     title: "Update trip",
-    description: "Changes trip details, changes the date range (end_date adds or removes days at the end; cards from removed days move to Ideas), adds days at the end, or sets the start time of a day.",
+    description: "Changes trip details, changes the date range (end_date adds or removes days at the end; cards from removed days move to Ideas), adds days at the end, sets the start time of a day, or sets the budget currency and spending limit.",
     inputSchema: {
       trip_id: tripId,
       name: z.string().max(120).optional(),
@@ -579,6 +606,8 @@ server.registerTool(
       interests: z.string().max(300).optional(),
       default_mode: z.enum(ROUTABLE_MODES).optional(),
       add_days: z.number().int().min(1).max(30).optional(),
+      budget_currency: z.enum(RATE_CURRENCIES).optional().describe("The currency the trip's prices add up in"),
+      budget_limit: z.number().min(0).optional().describe("Spending limit in the budget currency; 0 removes it"),
       day_start: z
         .object({ day: z.number().int().min(1), time: hhmm })
         .optional()
@@ -596,6 +625,13 @@ server.registerTool(
         interests: a.interests ?? t.interests,
         defaultMode: a.default_mode ?? t.defaultMode,
       };
+      if (a.budget_currency || a.budget_limit !== undefined) {
+        next.budget = {
+          ...t.budget,
+          currency: a.budget_currency ?? budgetCurrency(t),
+          ...(a.budget_limit !== undefined && { limit: a.budget_limit > 0 ? a.budget_limit : undefined }),
+        };
+      }
       if (a.end_date) {
         const count = daysBetween(next.startDate, a.end_date) + 1;
         if (count < 1 || count > 60) throw new HttpError(400, "end_date must be on or after the first day, at most 60 days later");

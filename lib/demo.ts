@@ -42,7 +42,7 @@ const monToSat = (open: [number, number], close: [number, number]): OpeningPerio
 /**
  * A sample Malta & Gozo dive week that shows off every card type, three stays with check-in/out
  * times, every travel mode (with a real bus line), flights and ferries that know where they land,
- * bookings with prices, opening hours, AI tips and suggestions – plus a few deliberate problems:
+ * bookings with prices (some paid) against a €1,500 budget, opening hours, AI tips and suggestions – plus a few deliberate problems:
  * a no-fly warning, a place closed on Sunday and a late arrival.
  */
 export function demoTrip(): Trip {
@@ -58,6 +58,7 @@ export function demoTrip(): Trip {
     interests: "scuba diving, snorkeling, history, viewpoints, local food",
     defaultMode: "DRIVE",
   });
+  trip.budget = { currency: "EUR", limit: 1500 };
 
   const days: Draft[][] = [
     // Day 1 (Saturday): fly in from Kraków, pick up the car, reach the hotel before check-in.
@@ -75,7 +76,7 @@ export function demoTrip(): Trip {
           number: "TD 101",
           toLocation: { lat: 35.8575, lng: 14.4775, address: "Malta International Airport" },
         },
-        booking: { reference: "DEMO-FL1", price: "€189" },
+        booking: { reference: "DEMO-FL1", price: "€189", paid: true },
         location: { lat: 50.0777, lng: 19.7848, address: "Kraków Airport" },
       },
       {
@@ -92,7 +93,7 @@ export function demoTrip(): Trip {
         type: "stay",
         title: "Hotel in St Julian's",
         stay: { nights: 3, checkIn: "15:00", checkOut: "11:00" },
-        booking: { provider: "Booking.com", reference: "DEMO-1234", price: "€420", status: "confirmed" },
+        booking: { provider: "Booking.com", reference: "DEMO-1234", price: "€420", status: "confirmed", paid: true },
         location: { lat: 35.9187, lng: 14.4898, address: "St Julian's, Malta" },
       },
       {

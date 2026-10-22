@@ -3,17 +3,28 @@ import { computeClockNotes, mergeIssues } from "@/lib/clock";
 import { computeDiveWarnings } from "@/lib/diveSafety";
 import { defaultDayIndex, todayIndex } from "@/lib/itinerary";
 import { buildLayers, type Marker } from "@/lib/mapLayers";
+import { formatMoney, ratesUrl, toRates, type Rates } from "@/lib/money";
 import { rentalsOf } from "@/lib/rentals";
 import { nightsOf } from "@/lib/stays";
 import { dayDate, formatHm } from "@/lib/time";
 import { computeTripTimeline } from "@/lib/timeline";
 import { itemIcon, type Trip } from "@/lib/types";
+import { useTripBudgetFrom } from "@/lib/useRates";
+import { BudgetView } from "./BudgetView";
 import { DayView, IdeasView } from "./DayView";
 
 // The map library is big; load it only once a trip is open so the trip list starts instantly.
 const MapView = lazy(() => import("./MapView").then((m) => ({ default: m.MapView })));
 
 const IDEAS_TAB = -1;
+const BUDGET_TAB = -2;
+
+/** The phone has no TripDeck server: it asks frankfurter.dev directly. */
+async function fetchRates(base: string): Promise<Rates> {
+  const res = await fetch(ratesUrl(base));
+  if (!res.ok) throw new Error(`Exchange rates are unavailable (${res.status}).`);
+  return toRates((await res.json()) as Rates);
+}
 
 /** Open: a band above the plan. Collapsed: just its bar. Full: the whole screen. */
 type MapMode = "open" | "collapsed" | "full";
@@ -38,7 +49,7 @@ interface Props {
 export function TripScreen({ trip, now, onBack }: Props) {
   const [picked, setSelected] = useState(() => defaultDayIndex(trip, now));
   // A re-imported trip can be shorter than the day that was open.
-  const selected = picked === IDEAS_TAB ? IDEAS_TAB : Math.min(picked, trip.days.length - 1);
+  const selected = picked < 0 ? picked : Math.min(picked, trip.days.length - 1);
   const today = todayIndex(trip, now);
 
   const timelines = useMemo(() => computeTripTimeline(trip), [trip]);
@@ -48,6 +59,8 @@ export function TripScreen({ trip, now, onBack }: Props) {
   );
   const nights = useMemo(() => nightsOf(trip), [trip]);
   const rentals = useMemo(() => rentalsOf(trip), [trip]);
+  const budget = useTripBudgetFrom(trip, fetchRates);
+  const hasBudget = !!budget && (budget.lines.length > 0 || !!budget.limit || budget.noCurrency.length > 0);
 
   // Keep the selected day's chip in view.
   const strip = useRef<HTMLDivElement>(null);
@@ -75,12 +88,12 @@ export function TripScreen({ trip, now, onBack }: Props) {
       }
     }
   };
-  const dayId = selected === IDEAS_TAB ? null : trip.days[selected].id;
+  const dayId = selected < 0 ? null : trip.days[selected].id;
   const layers = useMemo(
     () => (dayId ? buildLayers(trip, dayId) : buildLayers(trip, null, new Set(trip.ideas))),
     [trip, dayId],
   );
-  const hasMap = layers.markers.length > 0;
+  const hasMap = selected !== BUDGET_TAB && layers.markers.length > 0;
 
   // Android back closes the full-screen map before leaving the trip (App listens for "app-back").
   useEffect(() => {
@@ -107,14 +120,14 @@ export function TripScreen({ trip, now, onBack }: Props) {
   const pinned = highlightId ? trip.items[highlightId] : undefined;
   const pinnedStop = tapped?.item.id === highlightId ? tapped?.stopName : undefined;
   const pinnedEntry =
-    pinned && selected !== IDEAS_TAB ? timelines[selected].entries.find((e) => e.itemId === pinned.id) : undefined;
+    pinned && selected >= 0 ? timelines[selected].entries.find((e) => e.itemId === pinned.id) : undefined;
 
   const touch = useRef<{ x: number; y: number } | null>(null);
   const last = trip.days.length - 1;
   const onTouchEnd = (e: React.TouchEvent) => {
     const start = touch.current;
     touch.current = null;
-    if (!start || selected === IDEAS_TAB) return;
+    if (!start || selected < 0) return;
     const dx = e.changedTouches[0].clientX - start.x;
     const dy = e.changedTouches[0].clientY - start.y;
     if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return;
@@ -168,6 +181,17 @@ export function TripScreen({ trip, now, onBack }: Props) {
             <span className="chip-date">{trip.ideas.length}</span>
           </button>
         )}
+        {hasBudget && (
+          <button
+            role="tab"
+            aria-current={selected === BUDGET_TAB}
+            className="day-chip budget"
+            onClick={() => select(BUDGET_TAB)}
+          >
+            <span className="chip-weekday">Budget</span>
+            <span className="chip-date">💰</span>
+          </button>
+        )}
       </div>
 
       {hasMap && (
@@ -214,7 +238,9 @@ export function TripScreen({ trip, now, onBack }: Props) {
         onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
         onTouchEnd={onTouchEnd}
       >
-        {selected === IDEAS_TAB ? (
+        {selected === BUDGET_TAB && budget ? (
+          <BudgetView trip={trip} budget={budget} onDay={select} />
+        ) : selected === IDEAS_TAB ? (
           <IdeasView trip={trip} highlightId={highlightId} onSelect={setHighlightId} />
         ) : (
           <DayView
@@ -227,6 +253,7 @@ export function TripScreen({ trip, now, onBack }: Props) {
             isToday={selected === today}
             highlightId={highlightId}
             onSelect={setHighlightId}
+            spent={budget?.byDay[selected] ? formatMoney(budget.byDay[selected], budget.currency) : undefined}
           />
         )}
       </main>

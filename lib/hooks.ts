@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { ApiError, postJSON } from "./api";
 import { routeKey } from "./geo";
+import type { Rates } from "./money";
 import { isoDate } from "./time";
 import { getLeg, type DayTimeline } from "./timeline";
 import { legRouteTime } from "./transit";
+import { useRatesFrom, useTripBudgetFrom, type FetchRates } from "./useRates";
 import { useStore } from "./store";
 import {
   isRoutable,
@@ -167,3 +169,11 @@ export function useTimeZones(trip: Trip | undefined) {
     }
   }, [trip]);
 }
+
+const fetchRates: FetchRates = (base) => postJSON<Rates>("/api/rates", { base });
+
+/** Exchange rates from `base`, through this app's server (which keeps them for the MCP server too). */
+export const useRates = (base: string, needed: boolean) => useRatesFrom(base, needed, fetchRates);
+
+/** What the trip costs, in its budget currency, with today's rates (or the last ones fetched). */
+export const useTripBudget = (trip: Trip | undefined) => useTripBudgetFrom(trip, fetchRates);

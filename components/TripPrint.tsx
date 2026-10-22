@@ -5,7 +5,8 @@ import { useEffect, useMemo } from "react";
 import { computeClockNotes, mergeIssues } from "@/lib/clock";
 import { computeDiveWarnings } from "@/lib/diveSafety";
 import { focusItems, mercatorAspect } from "@/lib/geo";
-import { useHydrated } from "@/lib/hooks";
+import { useHydrated, useTripBudget } from "@/lib/hooks";
+import { budgetSummary } from "@/lib/money";
 import { rentalsOf, type RentalDay } from "@/lib/rentals";
 import { nightsOf, type Night } from "@/lib/stays";
 import { dayColor } from "@/lib/mapLayers";
@@ -26,6 +27,7 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
   );
   const nights = useMemo(() => (trip ? nightsOf(trip) : []), [trip]);
   const rentals = useMemo(() => (trip ? rentalsOf(trip) : []), [trip]);
+  const budget = useTripBudget(trip);
   const focus = useMemo(() => {
     const items = trip ? focusItems(Object.values(trip.items)) : [];
     return { ids: new Set(items.map((it) => it.id)), aspect: mercatorAspect(items.map((it) => it.location!)) };
@@ -150,11 +152,23 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
                         </div>
                       )}
                     </td>
-                    <td>{item.booking?.price ?? "–"}</td>
+                    <td>
+                      {item.booking?.price ?? "–"}
+                      {item.booking?.paid && <div className="nowrap muted">Paid</div>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            {budget && budget.lines.length > 0 && (
+              <p className="small">
+                <strong>Total:</strong> {budgetSummary(budget)}
+                {budget.ratesDate && <span className="muted"> (converted at ECB rates of {budget.ratesDate})</span>}
+                {(budget.unconverted.length > 0 || budget.noCurrency.length > 0) && (
+                  <span className="muted"> · some prices are not included (no currency or exchange rate)</span>
+                )}
+              </p>
+            )}
           </section>
         )}
 

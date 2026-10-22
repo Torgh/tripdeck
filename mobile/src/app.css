@@ -623,3 +623,86 @@ p {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---------- Budget ---------- */
+
+.day-chip.budget {
+  width: auto;
+  padding: 6px 12px;
+}
+.content > .issue {
+  margin: 0 0 8px;
+}
+.budget-total {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.budget-amount {
+  font-size: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.budget-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.budget-bar > div {
+  height: 100%;
+  background: var(--accent);
+}
+.budget-bar.over > div {
+  background: var(--warn);
+}
+.warn-text {
+  color: var(--warn);
+}
+.budget-heading {
+  margin: 16px 0 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.budget-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.budget-list li + li {
+  border-top: 1px solid var(--border);
+}
+.budget-list li > button,
+.budget-list li > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.budget-list .grow {
+  flex: 1;
+  min-width: 0;
+}
+.budget-price {
+  display: grid;
+  justify-items: end;
+  white-space: nowrap;
+}
+.budget-note {
+  margin: 14px 0 8px;
+}
