@@ -10,6 +10,7 @@ import { chooseBasemap, offlineStyle, type Basemap } from "./basemap";
 maplibregl.setWorkerUrl(workerUrl);
 
 const toLngLat = (p: LatLng): [number, number] => [p.lng, p.lat];
+const COPYRIGHT_DELAY_MS = 500;
 
 /** A pin on the map and the marker it shows now (read when it is tapped). */
 interface Pin {
@@ -80,7 +81,12 @@ export function MapView({ layers, fitKey, highlightId, onPinTap }: Props) {
         .then((c) => !cancelled && setGoogleCopyright(c || "Google"))
         .catch(() => undefined);
     };
-    map.on("moveend", updateCopyright);
+    // Asked once the map has settled, not after every pan and zoom on the way.
+    let copyrightTimer: ReturnType<typeof setTimeout> | undefined;
+    map.on("moveend", () => {
+      clearTimeout(copyrightTimer);
+      copyrightTimer = setTimeout(updateCopyright, COPYRIGHT_DELAY_MS);
+    });
 
     void chooseBasemap().then((chosen) => {
       if (cancelled || typeof chosen.style !== "string" && !chosen.google) return; // offline: stay as is
@@ -99,6 +105,7 @@ export function MapView({ layers, fitKey, highlightId, onPinTap }: Props) {
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      clearTimeout(copyrightTimer);
       map.remove();
       mapRef.current = null;
       pins.clear();

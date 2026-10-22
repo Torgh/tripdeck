@@ -1,7 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useConfig } from "@/lib/config";
 import { computeClockNotes, mergeIssues } from "@/lib/clock";
 import { computeDiveWarnings } from "@/lib/diveSafety";
@@ -10,18 +11,21 @@ import { useTrip } from "@/lib/store";
 import { dayDate, formatDayLabel } from "@/lib/time";
 import { computeTripTimeline } from "@/lib/timeline";
 import { tripTodos } from "@/lib/todo";
-import type { ContainerId } from "@/lib/types";
+import type { ContainerId, Item } from "@/lib/types";
 import { Board } from "./Board";
 import { ExportMenu } from "./ExportMenu";
-import { ImportDialog } from "./ImportDialog";
-import { ItemEditor, type EditorTarget } from "./ItemEditor";
-import { OptimizeDialog } from "./OptimizeDialog";
+import type { EditorTarget } from "./ItemEditor";
 import { Splitter, useMapWidth } from "./Splitter";
-import { SuggestDialog } from "./SuggestDialog";
 import { SyncBadge } from "./SyncAgent";
-import { TodoDialog } from "./TodoDialog";
 import { TripMap } from "./TripMap";
-import { TripSettings } from "./TripSettings";
+
+// Dialogs are downloaded the first time one is opened, not with the board.
+const ItemEditor = dynamic(() => import("./ItemEditor").then((m) => m.ItemEditor), { ssr: false });
+const SuggestDialog = dynamic(() => import("./SuggestDialog").then((m) => m.SuggestDialog), { ssr: false });
+const OptimizeDialog = dynamic(() => import("./OptimizeDialog").then((m) => m.OptimizeDialog), { ssr: false });
+const ImportDialog = dynamic(() => import("./ImportDialog").then((m) => m.ImportDialog), { ssr: false });
+const TripSettings = dynamic(() => import("./TripSettings").then((m) => m.TripSettings), { ssr: false });
+const TodoDialog = dynamic(() => import("./TodoDialog").then((m) => m.TodoDialog), { ssr: false });
 
 type Dialog =
   | { kind: "editor"; target: EditorTarget }
@@ -51,6 +55,21 @@ export function TripView({ tripId }: { tripId: string | null }) {
     [trip, timelines],
   );
   const todos = useMemo(() => (trip ? tripTodos(trip) : []), [trip]);
+
+  // Stable, so the board's cards (memoised) don't re-render because of new handlers.
+  const onEdit = useCallback(
+    (itemId: string, t?: "details" | "tips") => setDialog({ kind: "editor", target: { kind: "edit", itemId, tab: t } }),
+    [],
+  );
+  const onAdd = useCallback(
+    (container: ContainerId, type?: Item["type"]) => setDialog({ kind: "editor", target: { kind: "new", container, type } }),
+    [],
+  );
+  const onSuggest = useCallback(
+    (container: ContainerId, anchorItemId?: string) => setDialog({ kind: "suggest", container, anchorItemId }),
+    [],
+  );
+  const onOptimize = useCallback((dayId: string) => setDialog({ kind: "optimize", dayId }), []);
 
   if (!hydrated) return <main className="home muted">Loading…</main>;
   if (!trip) {
@@ -129,10 +148,10 @@ export function TripView({ tripId }: { tripId: string | null }) {
           selectedDayId={selectedDayId}
           onSelectDay={setSelectedDayId}
           onHighlight={setHighlightId}
-          onEdit={(itemId, t) => setDialog({ kind: "editor", target: { kind: "edit", itemId, tab: t } })}
-          onAdd={(container, type) => setDialog({ kind: "editor", target: { kind: "new", container, type } })}
-          onSuggest={(container, anchorItemId) => setDialog({ kind: "suggest", container, anchorItemId })}
-          onOptimize={(dayId) => setDialog({ kind: "optimize", dayId })}
+          onEdit={onEdit}
+          onAdd={onAdd}
+          onSuggest={onSuggest}
+          onOptimize={onOptimize}
         />
         <Splitter pct={mapWidth.pct} setPct={mapWidth.setPct} save={mapWidth.save} />
         <div className="map-pane">
