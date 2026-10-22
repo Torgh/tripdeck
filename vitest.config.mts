@@ -23,6 +23,7 @@ export default defineConfig({
         "lib/server/testUtils.ts",
         // Browser-only glue (React hooks, fetch helpers) – exercised in the app, not in unit tests.
         "lib/hooks.ts",
+        "lib/useRates.ts",
         "lib/api.ts",
         "lib/config.ts",
         "lib/useTheme.ts",
