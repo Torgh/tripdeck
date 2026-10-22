@@ -120,6 +120,40 @@ describe("GoogleDriveStore", () => {
     expect(await g.list()).toEqual([{ id: "t1", name: "Malta & Gozo", updatedAt: "2026-10-02T00:00:00.000Z" }]);
   });
 
+  it("finds a trip's file from the last listing instead of listing the folder again", async () => {
+    connectGoogle(`${GOOGLE_DRIVE_FILE_SCOPE} ${GOOGLE_APPDATA_SCOPE}`);
+    const drive = fakeGoogleDrive();
+    vi.stubGlobal("fetch", drive.fetch);
+    const g = new store.GoogleDriveStore();
+    await g.put(trip("t1", "Malta"));
+    await g.list();
+
+    drive.fetch.mockClear();
+    expect((await g.get("t1"))?.name).toBe("Malta");
+    await g.put(trip("t1", "Malta & Gozo", "2026-10-02T00:00:00.000Z"));
+    // Just the download and the upload: no folder lookup, no listing.
+    expect(drive.fetch.mock.calls.map(([url, init]) => `${init?.method ?? "GET"} ${new URL(String(url)).pathname}`)).toEqual([
+      "GET /drive/v3/files/f2",
+      "PATCH /upload/drive/v3/files/f2",
+    ]);
+    expect((await g.get("t1"))?.name).toBe("Malta & Gozo");
+  });
+
+  it("looks again when a listed file was deleted on Drive meanwhile", async () => {
+    connectGoogle(`${GOOGLE_DRIVE_FILE_SCOPE} ${GOOGLE_APPDATA_SCOPE}`);
+    const drive = fakeGoogleDrive();
+    vi.stubGlobal("fetch", drive.fetch);
+    const g = new store.GoogleDriveStore();
+    await g.put(trip("t1", "Malta"));
+    await g.list();
+    drive.files.delete("f2");
+
+    expect(await g.get("t1")).toBeUndefined();
+    await g.put(trip("t1", "Malta again"));
+    expect((await g.get("t1"))?.name).toBe("Malta again");
+    expect(await g.list()).toEqual([expect.objectContaining({ id: "t1", name: "Malta again" })]);
+  });
+
   it("migrates trips out of the hidden app folder", async () => {
     connectGoogle(GOOGLE_APPDATA_SCOPE);
     const drive = fakeGoogleDrive();

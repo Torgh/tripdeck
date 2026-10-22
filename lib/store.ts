@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 import { defaultModeTo } from "./rentals";
 import * as ops from "./tripOps";
 import type { ContainerId, Day, Item, Leg, Trip } from "./types";
@@ -40,6 +40,50 @@ interface State {
   /** Removes a trip that was deleted elsewhere. */
   dropTrip: (tripId: string) => void;
   clearDeleted: (tripId: string) => void;
+}
+
+const SAVE_DELAY_MS = 500;
+
+/**
+ * localStorage for the store, written at most every half second instead of on every keystroke: each
+ * write turns every trip (twice, with the sync bases) into one string and blocks the page meanwhile.
+ * A pending write is done at once when the tab is hidden or closed.
+ */
+function throttledLocalStorage<S>(): PersistStorage<S> {
+  let pending: { name: string; value: StorageValue<S> } | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const flush = () => {
+    clearTimeout(timer);
+    timer = undefined;
+    if (!pending) return;
+    const { name, value } = pending;
+    pending = undefined;
+    try {
+      localStorage.setItem(name, JSON.stringify(value));
+    } catch (err) {
+      // Full or blocked: the trips are still on the server, only the offline copy is behind.
+      console.warn("Could not save trips in this browser:", err);
+    }
+  };
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && flush());
+  }
+  return {
+    getItem: (name) => {
+      if (pending?.name === name) return pending.value;
+      const raw = localStorage.getItem(name);
+      return raw === null ? null : (JSON.parse(raw) as StorageValue<S>);
+    },
+    setItem: (name, value) => {
+      pending = { name, value };
+      timer ??= setTimeout(flush, SAVE_DELAY_MS);
+    },
+    removeItem: (name) => {
+      if (pending?.name === name) pending = undefined;
+      localStorage.removeItem(name);
+    },
+  };
 }
 
 export const useStore = create<State>()(
@@ -110,7 +154,7 @@ export const useStore = create<State>()(
     {
       name: "tripdeck",
       version: 2,
-      storage: createJSONStorage(() => localStorage),
+      storage: throttledLocalStorage(),
       partialize: (s) => ({ trips: s.trips, synced: s.synced, bases: s.bases, deleted: s.deleted }),
       migrate: (persisted) => ({ synced: {}, bases: {}, deleted: [], ...(persisted as object) }) as unknown as State,
       // Rehydrated manually (useHydrated) so the server and first client render match.

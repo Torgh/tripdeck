@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ApiError, postJSON } from "./api";
 import { routeKey } from "./geo";
 import { isoDate } from "./time";
-import { computeTripTimeline, getLeg } from "./timeline";
+import { getLeg, type DayTimeline } from "./timeline";
 import { legRouteTime } from "./transit";
 import { useStore } from "./store";
 import {
@@ -46,9 +46,9 @@ const isUnavailable = (err: unknown) => err instanceof ApiError && (err.status =
  * Every consecutive pair on the board that needs a route, including the hop from the morning's stay,
  * with when public transport should be planned for (the time in the plan, not right now).
  */
-function legsToRoute(trip: Trip): { from: Item; to: Item; time?: RouteTime }[] {
+function legsToRoute(trip: Trip, timelines: DayTimeline[]): { from: Item; to: Item; time?: RouteTime }[] {
   const today = isoDate(new Date());
-  return computeTripTimeline(trip).flatMap((tl) =>
+  return timelines.flatMap((tl) =>
     tl.entries.flatMap((e) => {
       const from = e.fromId ? trip.items[e.fromId] : undefined;
       const to = trip.items[e.itemId];
@@ -59,12 +59,12 @@ function legsToRoute(trip: Trip): { from: Item; to: Item; time?: RouteTime }[] {
   );
 }
 
-/** Fetches Google routes for legs that have no up-to-date result yet. */
-export function useRouteLegs(trip: Trip | undefined) {
+/** Fetches Google routes for legs that have no up-to-date result yet. `timelines` is computeTripTimeline(trip). */
+export function useRouteLegs(trip: Trip | undefined, timelines: DayTimeline[]) {
   const setLeg = useStore((s) => s.setLeg);
   useEffect(() => {
     if (!trip || googleUnavailable) return;
-    for (const { from, to, time } of legsToRoute(trip)) {
+    for (const { from, to, time } of legsToRoute(trip, timelines)) {
       const origin = leavesFrom(from);
       if (!origin || !to.location) continue;
       const leg = getLeg(trip, from.id, to.id);
@@ -88,7 +88,7 @@ export function useRouteLegs(trip: Trip | undefined) {
         })
         .finally(() => inFlight.delete(attempt));
     }
-  }, [trip, setLeg]);
+  }, [trip, timelines, setLeg]);
 }
 
 /**

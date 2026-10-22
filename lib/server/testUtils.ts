@@ -2,6 +2,7 @@ import path from "node:path";
 import { vi } from "vitest";
 import type { Trip } from "../types";
 import { writeJson } from "./config";
+import { forgetDriveListings } from "./tripStore";
 
 /**
  * Helpers for server tests. Every test file sets its own TRIPDECK_HOME in vi.hoisted() before
@@ -29,6 +30,7 @@ export function connectGoogle(home: string, scope: string) {
 
 /** Just enough of the Google Drive v3 API: folders, the hidden appDataFolder and multipart uploads. */
 export function fakeGoogleDrive() {
+  forgetDriveListings();
   type File = { id: string; name: string; parent: string; folder?: boolean; appProperties?: object; content?: string };
   const files = new Map<string, File>();
   const add = (f: Omit<File, "id">) => {
@@ -51,6 +53,7 @@ export function fakeGoogleDrive() {
     if (url.pathname === "/drive/v3/files" && method === "POST") {
       return Response.json({ id: add({ ...JSON.parse(String(init!.body)), parent: "root", folder: true }).id });
     }
+    if (id && !files.has(id)) return Response.json({ error: { message: "File not found" } }, { status: 404 });
     if (url.pathname.startsWith("/upload/")) {
       const lines = String(init!.body).split("\r\n");
       const [metadata, content] = [JSON.parse(lines[3]), lines[7]];

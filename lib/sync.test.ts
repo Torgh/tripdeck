@@ -188,14 +188,17 @@ describe("store", () => {
     expect(local().trips.a.days).toHaveLength(1);
   });
 
-  it("persists trips, sync state and pending deletes", () => {
+  it("persists trips, sync state and pending deletes", async () => {
     useStore.setState({ trips: { a: trip("a", "1") }, synced: { a: "1" }, bases: { a: trip("a", "1") }, deleted: ["z"] });
-    expect(JSON.parse(localStorage.getItem("tripdeck")!).state).toEqual({
-      trips: { a: trip("a", "1") },
-      synced: { a: "1" },
-      bases: { a: trip("a", "1") },
-      deleted: ["z"],
-    });
+    // Written within half a second (see store.test.ts).
+    await vi.waitFor(() =>
+      expect(JSON.parse(localStorage.getItem("tripdeck")!).state).toEqual({
+        trips: { a: trip("a", "1") },
+        synced: { a: "1" },
+        bases: { a: trip("a", "1") },
+        deleted: ["z"],
+      }),
+    );
   });
 });
 

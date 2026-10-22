@@ -155,13 +155,16 @@ function adoptMerge(remote: Trip): Trip {
 const POLL_MS = 15_000;
 const PUSH_DELAY_MS = 1_500;
 
-/** Keeps the store in sync: on load, on focus, every 15 s, and shortly after local edits. */
+/**
+ * Keeps the store in sync: on load, on focus, every 15 s while the tab is visible, and shortly after
+ * local edits. A tab in the background doesn't poll – it catches up as soon as it is shown again.
+ */
 export function useServerSync(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     syncNow();
-    const timer = setInterval(syncNow, POLL_MS);
     const onFocus = () => document.visibilityState === "visible" && syncNow();
+    const timer = setInterval(onFocus, POLL_MS);
     document.addEventListener("visibilitychange", onFocus);
     window.addEventListener("focus", onFocus);
 
