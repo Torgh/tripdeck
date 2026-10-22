@@ -173,6 +173,8 @@ bun run test:coverage
 bun run check      # everything CI runs on a pull request: typecheck, lint, tests with coverage, both builds
 ```
 
+`bun run typecheck` uses TypeScript 7 (the `@typescript/native` package, with the `tsc` command). ESLint and `next build` still need the TypeScript API, which 7.0 doesn't have, so the `typescript` package is the TypeScript 6 compatibility release (`@typescript/typescript6`), as Microsoft recommends until typescript-eslint supports 7.
+
 CI runs the same steps as `bun run check` on every pull request and on every commit to `main`, plus the tests on Windows; a pull request can only be merged when both pass. Dependabot opens grouped update pull requests every Monday, and security fixes as soon as they are published. It fails when coverage drops below the thresholds in `vitest.config.mts`. Tests never touch your real trips: each suite uses its own temporary `TRIPDECK_HOME`, and the OneDrive folder is replaced with a temporary one.
 
 `bun install` points git at the hooks in `.githooks/`: they refuse a commit or push that contains the value of any key, secret, token or password from your `.env.local`.
