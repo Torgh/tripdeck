@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useConfig } from "@/lib/config";
 import { computeClockNotes, mergeIssues } from "@/lib/clock";
 import { computeDiveWarnings } from "@/lib/diveSafety";
@@ -19,13 +19,38 @@ import { Splitter, useMapWidth } from "./Splitter";
 import { SyncBadge } from "./SyncAgent";
 import { TripMap } from "./TripMap";
 
-// Dialogs are downloaded the first time one is opened, not with the board.
-const ItemEditor = dynamic(() => import("./ItemEditor").then((m) => m.ItemEditor), { ssr: false });
-const SuggestDialog = dynamic(() => import("./SuggestDialog").then((m) => m.SuggestDialog), { ssr: false });
-const OptimizeDialog = dynamic(() => import("./OptimizeDialog").then((m) => m.OptimizeDialog), { ssr: false });
-const ImportDialog = dynamic(() => import("./ImportDialog").then((m) => m.ImportDialog), { ssr: false });
-const TripSettings = dynamic(() => import("./TripSettings").then((m) => m.TripSettings), { ssr: false });
-const TodoDialog = dynamic(() => import("./TodoDialog").then((m) => m.TodoDialog), { ssr: false });
+// Dialogs are downloaded after the board, not with it.
+const dialogs = {
+  editor: () => import("./ItemEditor").then((m) => m.ItemEditor),
+  suggest: () => import("./SuggestDialog").then((m) => m.SuggestDialog),
+  optimize: () => import("./OptimizeDialog").then((m) => m.OptimizeDialog),
+  import: () => import("./ImportDialog").then((m) => m.ImportDialog),
+  settings: () => import("./TripSettings").then((m) => m.TripSettings),
+  todo: () => import("./TodoDialog").then((m) => m.TodoDialog),
+};
+const ItemEditor = dynamic(dialogs.editor, { ssr: false });
+const SuggestDialog = dynamic(dialogs.suggest, { ssr: false });
+const OptimizeDialog = dynamic(dialogs.optimize, { ssr: false });
+const ImportDialog = dynamic(dialogs.import, { ssr: false });
+const TripSettings = dynamic(dialogs.settings, { ssr: false });
+const TodoDialog = dynamic(dialogs.todo, { ssr: false });
+
+/**
+ * With the offline service worker running, fetch the dialogs once the board is idle: it keeps what
+ * was fetched, so they open offline too, even if none was opened while online.
+ */
+function usePrefetchDialogs() {
+  useEffect(() => {
+    if (!navigator.serviceWorker?.controller) return;
+    const load = () => Object.values(dialogs).forEach((fetchDialog) => fetchDialog().catch(() => undefined));
+    if (!("requestIdleCallback" in window)) {
+      const timer = setTimeout(load, 2000);
+      return () => clearTimeout(timer);
+    }
+    const id = requestIdleCallback(load, { timeout: 5000 });
+    return () => cancelIdleCallback(id);
+  }, []);
+}
 
 type Dialog =
   | { kind: "editor"; target: EditorTarget }
@@ -47,6 +72,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
 
   const timelines = useMemo(() => (trip ? computeTripTimeline(trip) : []), [trip]);
   useRouteLegs(trip, timelines);
+  usePrefetchDialogs();
   useElevations(trip);
   useTimeZones(trip);
 
