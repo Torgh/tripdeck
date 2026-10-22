@@ -68,10 +68,10 @@ jobs:
         include:
           # Chrome and Edge are the real browsers; the phone app (Android WebView) is tested in Chrome.
           - browser: chrome
-            install: chrome
+            install: --force chrome
             projects: --project=desktop-chrome --project=phone
           - browser: edge
-            install: msedge
+            install: --force msedge
             projects: --project=desktop-edge
           - browser: firefox
             install: firefox
@@ -84,7 +84,8 @@ jobs:
           node-version: 24
       - run: bun install --frozen-lockfile
       # --force: the runner image may already have Chrome or Edge; Playwright then reinstalls the stable build.
-      - run: bunx playwright install --with-deps --force ${{ matrix.install }}
+      - run: bunx playwright install --with-deps ${{ matrix.install }}
+        timeout-minutes: 5
       # Builds and starts both apps (playwright.config.ts), then drives them – offline, no keys.
       - run: bun run test:e2e ${{ matrix.projects }}
       - name: Upload the report (screenshots and traces of failed tests)
