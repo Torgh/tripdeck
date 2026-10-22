@@ -170,7 +170,7 @@ bun run typecheck
 bun run lint       # ESLint (Next.js + TypeScript rules), no warnings allowed
 bun run test       # unit, API and MCP integration tests
 bun run test:coverage
-bun run test:e2e   # end-to-end: both apps in a browser (Edge on Windows, else `bunx playwright install chromium` once)
+bun run test:e2e   # end-to-end: both apps in Chrome, Edge and Firefox (`bunx playwright install firefox` once)
 bun run check      # everything CI runs on a pull request: typecheck, lint, tests with coverage, both builds
 ```
 
@@ -178,7 +178,7 @@ bun run check      # everything CI runs on a pull request: typecheck, lint, test
 
 CI runs the same steps as `bun run check` on every pull request and on every commit to `main`, plus the tests on Windows and the end-to-end tests; a pull request can only be merged when they pass. Dependabot opens grouped update pull requests every Monday, and security fixes as soon as they are published. It fails when coverage drops below the thresholds in `vitest.config.mts`. Tests never touch your real trips: each suite uses its own temporary `TRIPDECK_HOME`, and the OneDrive folder is replaced with a temporary one.
 
-The end-to-end tests (`e2e/`) build and start both apps and drive them in a real browser: the board with its demo trip, dragging a card, the card editor, the budget, trip settings, the map, export and print, saving to disk, and the phone app's days, budget and file import. They run offline: the browser gets a plain map style, fixed exchange rates, and the app's route, place and AI lookups answer as if offline, so no keys or internet are needed. Their data folder is a temporary one, never your `~/.tripdeck`. A failing run in CI uploads a report with screenshots and a trace of each failed test.
+The end-to-end tests (`e2e/`) build and start both apps and drive them in the supported browsers – the desktop app in Chrome, Edge and Firefox, the phone app in Chrome (Android's WebView is Chromium). Chrome and Edge are the installed browsers; Firefox is Playwright's build. Pick one with `bun run test:e2e --project=desktop-firefox`. They cover the board with its demo trip, dragging a card, the card editor, the budget, trip settings, the map, export and print, saving to disk, and the phone app's days, budget and file import. They run offline: the browser gets a plain map style, fixed exchange rates, and the app's route, place and AI lookups answer as if offline, so no keys or internet are needed. Their data folder is a temporary one, never your `~/.tripdeck`. A failing run in CI uploads a report with screenshots and a trace of each failed test.
 
 `bun install` points git at the hooks in `.githooks/`: they refuse a commit or push that contains the value of any key, secret, token or password from your `.env.local`.
 

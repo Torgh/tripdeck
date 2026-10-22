@@ -59,9 +59,23 @@ jobs:
       - run: bun run test
 
   e2e:
-    name: End-to-end tests (Playwright)
+    name: End-to-end tests (${{ matrix.browser }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Chrome and Edge are the real browsers; the phone app (Android WebView) is tested in Chrome.
+          - browser: chrome
+            install: chrome
+            projects: --project=desktop-chrome --project=phone
+          - browser: edge
+            install: msedge
+            projects: --project=desktop-edge
+          - browser: firefox
+            install: firefox
+            projects: --project=desktop-firefox
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -69,14 +83,15 @@ jobs:
         with:
           node-version: 24
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium
-      # Builds and starts both apps (playwright.config.ts), then drives them in Chromium – offline, no keys.
-      - run: bun run test:e2e
+      # --force: the runner image may already have Chrome or Edge; Playwright then reinstalls the stable build.
+      - run: bunx playwright install --with-deps --force ${{ matrix.install }}
+      # Builds and starts both apps (playwright.config.ts), then drives them – offline, no keys.
+      - run: bun run test:e2e ${{ matrix.projects }}
       - name: Upload the report (screenshots and traces of failed tests)
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}
           path: |
             playwright-report/
             test-results/

@@ -32,6 +32,16 @@ const NO_KEYS = {
 };
 const CI = !!process.env.CI;
 
+/**
+ * The desktop app is tested in the browsers it supports: Chrome and Edge as installed (their own
+ * builds, not Playwright's Chromium) and Playwright's Firefox (`bunx playwright install firefox`).
+ */
+const DESKTOP_BROWSERS = [
+  { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome" } },
+  { name: "edge", use: { ...devices["Desktop Edge"], channel: "msedge" } },
+  { name: "firefox", use: devices["Desktop Firefox"] },
+];
+
 export default defineConfig({
   testDir: "e2e",
   forbidOnly: CI,
@@ -41,16 +51,19 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 15_000 },
   use: {
-    // CI installs Playwright's Chromium; on Windows the installed Edge does without the download.
-    channel: !CI && process.platform === "win32" ? "msedge" : undefined,
     // A service worker would fetch past the stubs in e2e/fixtures.ts.
     serviceWorkers: "block",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "desktop", testMatch: /desktop\.spec\.ts/, use: { baseURL: DESKTOP, viewport: { width: 1400, height: 900 } } },
-    { name: "phone", testMatch: /phone\.spec\.ts/, use: { ...devices["Pixel 7"], baseURL: PHONE } },
+    ...DESKTOP_BROWSERS.map(({ name, use }) => ({
+      name: `desktop-${name}`,
+      testMatch: /desktop\.spec\.ts/,
+      use: { ...use, baseURL: DESKTOP, viewport: { width: 1400, height: 900 } },
+    })),
+    // The phone app runs in Android's WebView, which is Chromium: Chrome stands in for it.
+    { name: "phone", testMatch: /phone\.spec\.ts/, use: { ...devices["Pixel 7"], channel: "chrome", baseURL: PHONE } },
   ],
   webServer: [
     {
