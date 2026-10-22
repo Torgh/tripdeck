@@ -1,6 +1,7 @@
 // TripDeck service worker: makes the app shell available offline.
 // Trip data lives in localStorage, so a cached shell is enough to view plans without a connection.
-const CACHE = "tripdeck-v1";
+// One cache per build (?v= from ServiceWorker.tsx): activating a new build deletes the old one's files.
+const CACHE = `tripdeck-${new URL(self.location.href).searchParams.get("v") || "v1"}`;
 const SHELL = ["/", "/trip", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
