@@ -2,7 +2,7 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef, useState } from "react";
-import { fitPoints, pinClass, type MapLayers, type Marker } from "@/lib/mapLayers";
+import { fitPoints, pinClass, syncPins, type MapLayers, type Marker } from "@/lib/mapLayers";
 import type { LatLng } from "@/lib/types";
 import { chooseBasemap, offlineStyle, type Basemap } from "./basemap";
 
@@ -10,6 +10,12 @@ import { chooseBasemap, offlineStyle, type Basemap } from "./basemap";
 maplibregl.setWorkerUrl(workerUrl);
 
 const toLngLat = (p: LatLng): [number, number] => [p.lng, p.lat];
+
+/** A pin on the map and the marker it shows now (read when it is tapped). */
+interface Pin {
+  marker: maplibregl.Marker;
+  data: Marker;
+}
 
 interface Props {
   layers: MapLayers;
@@ -22,7 +28,7 @@ interface Props {
 export function MapView({ layers, fitKey, highlightId, onPinTap }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<maplibregl.Marker[]>([]);
+  const pinsRef = useRef(new Map<string, Pin>());
   const layersRef = useRef(layers);
   const tapRef = useRef(onPinTap);
   /** The card whose pin was just tapped: the map is already looking at it. */
@@ -89,11 +95,13 @@ export function MapView({ layers, fitKey, highlightId, onPinTap }: Props) {
     });
 
     mapRef.current = map;
+    const pins = pinsRef.current;
     return () => {
       cancelled = true;
       clearTimeout(timer);
       map.remove();
       mapRef.current = null;
+      pins.clear();
     };
   }, []);
 
@@ -105,23 +113,37 @@ export function MapView({ layers, fitKey, highlightId, onPinTap }: Props) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = layers.markers.map((m) => {
-      // MapLibre positions the outer element with a transform, so the rotated pin goes inside it.
-      const el = document.createElement("button");
-      el.className = "pin-hit";
+    const draw = ({ marker, data: m }: Pin) => {
+      const el = marker.getElement();
       el.setAttribute("aria-label", m.title);
-      const pin = el.appendChild(document.createElement("div"));
+      const pin = el.firstElementChild as HTMLElement;
       pin.className = pinClass(m, highlightId);
       pin.style.background = m.color;
-      pin.appendChild(document.createElement("span")).textContent = m.label;
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        tappedRef.current = m.item.id;
-        map.easeTo({ center: toLngLat(m.position), duration: 400 });
-        tapRef.current(m);
-      });
-      return new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat(toLngLat(m.position)).addTo(map);
+      pin.firstElementChild!.textContent = m.label;
+      marker.setLngLat(toLngLat(m.position));
+    };
+    syncPins(pinsRef.current, layers.markers, {
+      create: (m) => {
+        // MapLibre positions the outer element with a transform, so the rotated pin goes inside it.
+        const el = document.createElement("button");
+        el.className = "pin-hit";
+        el.appendChild(document.createElement("div")).appendChild(document.createElement("span"));
+        const pin: Pin = { marker: new maplibregl.Marker({ element: el, anchor: "bottom" }), data: m };
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          tappedRef.current = pin.data.item.id;
+          map.easeTo({ center: toLngLat(pin.data.position), duration: 400 });
+          tapRef.current(pin.data);
+        });
+        draw(pin);
+        pin.marker.addTo(map);
+        return pin;
+      },
+      update: (pin, m) => {
+        pin.data = m;
+        draw(pin);
+      },
+      remove: (pin) => pin.marker.remove(),
     });
   }, [layers, highlightId]);
 

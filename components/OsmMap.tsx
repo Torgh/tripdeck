@@ -4,12 +4,18 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 import type { LatLng } from "@/lib/types";
-import { fitPoints, pinClass, type MapLayers } from "@/lib/mapLayers";
+import { fitPoints, pinClass, syncPins, type MapLayers, type Marker } from "@/lib/mapLayers";
 
 /** Free vector tiles, no key needed. */
 const STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
 const toLngLat = (p: LatLng): [number, number] => [p.lng, p.lat];
+
+/** A pin on the map and the marker it shows now (read when it is clicked). */
+interface Pin {
+  marker: maplibregl.Marker;
+  data: Marker;
+}
 
 // MapLibre derives its worker URL from import.meta.url, which bundlers rewrite; serve it ourselves.
 if (typeof window !== "undefined") maplibregl.setWorkerUrl("/vendor/maplibre-worker");
@@ -32,7 +38,7 @@ export function OsmMap({
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<maplibregl.Marker[]>([]);
+  const pinsRef = useRef(new Map<string, Pin>());
   const [loaded, setLoaded] = useState(false);
   const clickRef = useRef(onMarkerClick);
   useEffect(() => {
@@ -70,9 +76,11 @@ export function OsmMap({
       setLoaded(true);
     });
     mapRef.current = map;
+    const pins = pinsRef.current;
     return () => {
       map.remove();
       mapRef.current = null;
+      pins.clear();
     };
     // The map is created once; later prop changes update sources and markers below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,21 +103,35 @@ export function OsmMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = layers.markers.map((m) => {
-      // MapLibre positions the outer element with a transform, so the rotated pin goes inside it.
-      const el = document.createElement("div");
+    const draw = ({ marker, data: m }: Pin) => {
+      const el = marker.getElement();
       el.title = m.title;
-      el.style.cursor = "pointer";
-      const pin = el.appendChild(document.createElement("div"));
+      const pin = el.firstElementChild as HTMLElement;
       pin.className = pinClass(m, highlightId);
       pin.style.background = m.color;
-      pin.appendChild(document.createElement("span")).textContent = m.label;
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        clickRef.current(m.item.id);
-      });
-      return new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat(toLngLat(m.position)).addTo(map);
+      pin.firstElementChild!.textContent = m.label;
+      marker.setLngLat(toLngLat(m.position));
+    };
+    syncPins(pinsRef.current, layers.markers, {
+      create: (m) => {
+        // MapLibre positions the outer element with a transform, so the rotated pin goes inside it.
+        const el = document.createElement("div");
+        el.style.cursor = "pointer";
+        el.appendChild(document.createElement("div")).appendChild(document.createElement("span"));
+        const pin: Pin = { marker: new maplibregl.Marker({ element: el, anchor: "bottom" }), data: m };
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          clickRef.current(pin.data.item.id);
+        });
+        draw(pin);
+        pin.marker.addTo(map);
+        return pin;
+      },
+      update: (pin, m) => {
+        pin.data = m;
+        draw(pin);
+      },
+      remove: (pin) => pin.marker.remove(),
     });
   }, [layers, highlightId]);
 
