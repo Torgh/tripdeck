@@ -23,3 +23,8 @@ Thumbs.db
 
 # phone app build output (Capacitor copies it into mobile/android)
 mobile/dist/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/

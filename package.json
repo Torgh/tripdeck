@@ -18,6 +18,7 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "check": "bun run typecheck && bun run lint && bun run test:coverage && bun run build && bun run build:mobile"
   },
   "engines": {
@@ -45,11 +46,12 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.3",
-    "@typescript/native": "npm:typescript@^7.0.2",
+    "@playwright/test": "^1.64.1",
     "@types/google.maps": "^3.66.7",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/coverage-v8": "5.0.5",
     "eslint": "^10",
