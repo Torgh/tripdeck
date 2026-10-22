@@ -169,10 +169,12 @@ bun run typecheck
 bun run lint       # ESLint (Next.js + TypeScript rules), no warnings allowed
 bun run test       # unit, API and MCP integration tests
 bun run test:coverage
-bun run check      # everything CI runs on a pull request: typecheck, lint, tests with coverage, build
+bun run check      # everything CI runs on a pull request: typecheck, lint, tests with coverage, both builds
 ```
 
-CI runs `bun run check` on every pull request, plus the tests on Windows. It fails when coverage drops below the thresholds in `vitest.config.mts`. Tests never touch your real trips: each suite uses its own temporary `TRIPDECK_HOME`, and the OneDrive folder is replaced with a temporary one.
+CI runs the same steps as `bun run check` on every pull request and on every commit to `main`, plus the tests on Windows; a pull request can only be merged when both pass. Dependabot opens grouped update pull requests every Monday, and security fixes as soon as they are published. It fails when coverage drops below the thresholds in `vitest.config.mts`. Tests never touch your real trips: each suite uses its own temporary `TRIPDECK_HOME`, and the OneDrive folder is replaced with a temporary one.
+
+`bun install` points git at the hooks in `.githooks/`: they refuse a commit or push that contains the value of any key, secret, token or password from your `.env.local`.
 
 ## Disclaimer
 
