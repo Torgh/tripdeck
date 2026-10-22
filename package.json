@@ -5,6 +5,7 @@
   "description": "AI-assisted trip planner: drag-and-drop days, Google Maps routes, dive planning with safety checks, booking import and Claude-powered suggestions.",
   "license": "AGPL-3.0-or-later",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "start": "next start -H 127.0.0.1",
@@ -17,7 +18,7 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "check": "bun run typecheck && bun run lint && bun run test:coverage && bun run build"
+    "check": "bun run typecheck && bun run lint && bun run test:coverage && bun run build && bun run build:mobile"
   },
   "engines": {
     "node": ">=20.9"
