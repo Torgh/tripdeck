@@ -55,7 +55,7 @@ describe("/api/trips", () => {
 
     expect((await json(await tripsRoute.GET(request("/api/trips"), undefined))).body).toEqual({
       storage: "local",
-      trips: [{ id: "abc", name: "Malta", updatedAt: t.updatedAt }],
+      trips: [expect.objectContaining({ id: "abc", name: "Malta", updatedAt: t.updatedAt })],
     });
     expect((await json(await tripRoute.GET(request("/api/trips/abc"), params({ id: "abc" })))).body.trip).toEqual(t);
 

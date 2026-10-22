@@ -89,7 +89,9 @@ describe("OneDrive folder", () => {
     const conflict = path.join(oneDrive, "TripDeck", "Gozo (t3)-OTHER-PC.tripdeck.json");
     fs.writeFileSync(conflict, JSON.stringify(trip("t3", "Gozo from the other PC", "2026-10-03T00:00:00.000Z")));
 
-    expect(await od.list()).toEqual([{ id: "t3", name: "Gozo from the other PC", updatedAt: "2026-10-03T00:00:00.000Z" }]);
+    expect(await od.list()).toEqual([
+      expect.objectContaining({ id: "t3", name: "Gozo from the other PC", updatedAt: "2026-10-03T00:00:00.000Z" }),
+    ]);
     expect((await od.get("t3"))?.name).toBe("Gozo from the other PC");
 
     // Saving an older edit must not destroy the newer copy…
@@ -117,7 +119,10 @@ describe("GoogleDriveStore", () => {
     expect(all.filter((f) => !f.folder)).toEqual([
       expect.objectContaining({ name: "Malta & Gozo (t1).tripdeck.json", parent: folder.id }),
     ]);
-    expect(await g.list()).toEqual([{ id: "t1", name: "Malta & Gozo", updatedAt: "2026-10-02T00:00:00.000Z" }]);
+    expect(await g.list()).toEqual([
+      // What list_trips shows comes with the listing, so it needs no download per trip.
+      { id: "t1", name: "Malta & Gozo", updatedAt: "2026-10-02T00:00:00.000Z", destination: "", startDate: "2026-11-01", days: 0, cards: 0 },
+    ]);
   });
 
   it("finds a trip's file from the last listing instead of listing the folder again", async () => {
@@ -152,6 +157,20 @@ describe("GoogleDriveStore", () => {
     await g.put(trip("t1", "Malta again"));
     expect((await g.get("t1"))?.name).toBe("Malta again");
     expect(await g.list()).toEqual([expect.objectContaining({ id: "t1", name: "Malta again" })]);
+  });
+
+  it("lists files saved before the summary fields without them, so they are read in full", async () => {
+    connectGoogle(`${GOOGLE_DRIVE_FILE_SCOPE} ${GOOGLE_APPDATA_SCOPE}`);
+    const drive = fakeGoogleDrive();
+    vi.stubGlobal("fetch", drive.fetch);
+    const g = new store.GoogleDriveStore();
+    await g.put(trip("t1", "Malta"));
+    const file = [...drive.files.values()].find((f) => !f.folder)!;
+    file.appProperties = { tripId: "t1", updatedAt: "2026-10-01T00:00:00.000Z", name: "Malta" };
+    const [listed] = await g.list();
+    expect(listed).toMatchObject({ id: "t1", name: "Malta" });
+    expect(listed.startDate).toBeUndefined();
+    expect(store.summaryOf((await g.get("t1"))!)).toMatchObject({ startDate: "2026-11-01", days: 0, cards: 0 });
   });
 
   it("migrates trips out of the hidden app folder", async () => {

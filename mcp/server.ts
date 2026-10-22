@@ -29,7 +29,7 @@ import {
   type PlaceResult,
 } from "../lib/server/maps";
 import { saveIfUnchanged } from "../lib/server/tripLock";
-import { tripStore } from "../lib/server/tripStore";
+import { summaryOf, tripStore } from "../lib/server/tripStore";
 import { mergeTrips } from "../lib/merge";
 import { nightsOf } from "../lib/stays";
 import { dayDate, daysBetween, formatDayLabel, formatDuration, formatHm, isoDate, parseHm } from "../lib/time";
@@ -488,17 +488,27 @@ server.registerTool(
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   tool(async () => {
-    const summaries = await store().list();
-    const trips = (await Promise.all(summaries.map((s) => store().get(s.id)))).filter((t): t is Trip => !!t);
+    // The listing has what is shown; only trips saved before it did (on Drive) are downloaded.
+    const trips = (
+      await Promise.all(
+        (await store().list()).map(async (s) =>
+          s.startDate !== undefined && s.days !== undefined && s.cards !== undefined
+            ? s
+            : store()
+                .get(s.id)
+                .then((t) => t && summaryOf(t)),
+        ),
+      )
+    ).filter((t) => !!t);
     const where = store().location;
     if (!trips.length) return `No trips yet (storage: ${where}). Create one with create_trip.`;
     return [
       `Storage: ${where}. Maps data: ${mapsProvider() === "google" ? "Google" : "OpenStreetMap"}.`,
       ...trips
-        .sort((a, b) => a.startDate.localeCompare(b.startDate))
+        .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""))
         .map(
           (t) =>
-            `- ${t.name} [trip_id ${t.id}] · ${t.destination} · ${t.startDate}, ${t.days.length} days · ${Object.keys(t.items).length} cards`,
+            `- ${t.name} [trip_id ${t.id}] · ${t.destination ?? ""} · ${t.startDate}, ${t.days} days · ${t.cards} cards`,
         ),
     ].join("\n");
   }),

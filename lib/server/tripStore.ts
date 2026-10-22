@@ -11,6 +11,23 @@ export interface TripSummary {
   id: string;
   name: string;
   updatedAt: string;
+  /** For listing trips without downloading each one; missing on Drive files saved before they existed. */
+  destination?: string;
+  startDate?: string;
+  days?: number;
+  cards?: number;
+}
+
+export function summaryOf(trip: Trip): Required<TripSummary> {
+  return {
+    id: trip.id,
+    name: trip.name,
+    updatedAt: trip.updatedAt,
+    destination: trip.destination ?? "",
+    startDate: trip.startDate,
+    days: trip.days.length,
+    cards: Object.keys(trip.items).length,
+  };
 }
 
 export interface TripStore {
@@ -99,7 +116,7 @@ export class FolderStore implements TripStore {
           file,
           mtimeMs: stat.mtimeMs,
           size: stat.size,
-          summary: valid ? { id: trip.id, name: trip.name, updatedAt: trip.updatedAt } : undefined,
+          summary: valid ? summaryOf(trip) : undefined,
         };
         folderCache.set(file, entry);
       }
@@ -197,7 +214,15 @@ const FOLDER_MIME = "application/vnd.google-apps.folder";
 interface DriveFile {
   id: string;
   name: string;
-  appProperties?: { tripId?: string; updatedAt?: string; name?: string };
+  appProperties?: {
+    tripId?: string;
+    updatedAt?: string;
+    name?: string;
+    destination?: string;
+    startDate?: string;
+    days?: string;
+    cards?: string;
+  };
 }
 
 interface DriveListing {
@@ -303,6 +328,10 @@ export class GoogleDriveStore implements TripStore {
       id: GoogleDriveStore.tripId(f),
       name: f.appProperties?.name ?? "",
       updatedAt: f.appProperties?.updatedAt ?? "",
+      destination: f.appProperties?.destination,
+      startDate: f.appProperties?.startDate,
+      days: f.appProperties?.days ? Number(f.appProperties.days) : undefined,
+      cards: f.appProperties?.cards ? Number(f.appProperties.cards) : undefined,
     }));
   }
 
@@ -323,7 +352,15 @@ export class GoogleDriveStore implements TripStore {
       name: folder ? tripFileName(trip) : `trip-${trip.id}.json`,
       mimeType: "application/json",
       // appProperties values are limited to ~124 bytes including the key.
-      appProperties: { tripId: trip.id, updatedAt: trip.updatedAt, name: trip.name.slice(0, 80) },
+      appProperties: {
+        tripId: trip.id,
+        updatedAt: trip.updatedAt,
+        name: trip.name.slice(0, 80),
+        destination: (trip.destination ?? "").slice(0, 80),
+        startDate: trip.startDate,
+        days: String(trip.days.length),
+        cards: String(Object.keys(trip.items).length),
+      },
       ...(existing ? {} : { parents: [folder ?? "appDataFolder"] }),
     };
     const boundary = `tripdeck${Date.now()}`;
