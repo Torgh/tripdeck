@@ -26,7 +26,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { memo, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { routeKey } from "@/lib/geo";
 import { dayColor } from "@/lib/mapLayers";
 import { rentalsOf, type RentalDay } from "@/lib/rentals";
@@ -48,6 +48,7 @@ import {
   ROUTABLE_MODES,
   type ContainerId,
   type Item,
+  type Leg,
   type RouteResult,
   type TravelMode,
   type Trip,
@@ -364,7 +365,7 @@ function DayColumn(
             const entry = entries.get(id);
             return (
               <div key={id}>
-                {!props.dragging && entry?.fromId && <LegRow trip={trip} entry={entry} />}
+                {!props.dragging && entry?.fromId && <LegRow {...legView(trip, entry)} />}
                 <SortableItem item={item} entry={props.dragging ? undefined : entry} {...props} />
               </div>
             );
@@ -478,7 +479,7 @@ function SortableItem(
     ai: boolean;
   },
 ) {
-  const { item } = props;
+  const { item, entry, warnings } = props;
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: item.id,
     data: { type: "item" },
@@ -490,30 +491,64 @@ function SortableItem(
       {...attributes}
       {...listeners}
     >
-      <ItemCard {...props} ghost={isDragging} />
+      <ItemCard
+        item={item}
+        entry={entry}
+        issues={[...(entry?.issues ?? []), ...(warnings.get(item.id) ?? [])]}
+        highlighted={props.highlightId === item.id}
+        ghost={isDragging}
+        ai={props.ai}
+        onHighlight={props.onHighlight}
+        onEdit={props.onEdit}
+        onSuggest={props.onSuggest}
+      />
     </div>
   );
 }
 
-function ItemCard({
+interface CardProps extends Pick<BoardHandlers, "onHighlight" | "onEdit" | "onSuggest"> {
+  item: Item;
+  entry?: TimelineEntry;
+  issues: Issue[];
+  highlighted: boolean;
+  ghost: boolean;
+  ai: boolean;
+}
+
+const sameIssues = (a: Issue[], b: Issue[]) =>
+  a.length === b.length && a.every((x, i) => x.level === b[i].level && x.message === b[i].message);
+
+/**
+ * The timeline and warnings are rebuilt on every edit, so a card compares what it shows from them:
+ * editing, highlighting or routing one card re-renders that card, not the whole board.
+ */
+function sameCard(a: CardProps, b: CardProps) {
+  return (
+    a.item === b.item &&
+    a.highlighted === b.highlighted &&
+    a.ghost === b.ghost &&
+    a.ai === b.ai &&
+    a.onHighlight === b.onHighlight &&
+    a.onEdit === b.onEdit &&
+    a.onSuggest === b.onSuggest &&
+    a.entry?.start === b.entry?.start &&
+    a.entry?.end === b.entry?.end &&
+    a.entry?.fixed === b.entry?.fixed &&
+    sameIssues(a.issues, b.issues)
+  );
+}
+
+const ItemCard = memo(function ItemCard({
   item,
   entry,
-  warnings,
-  highlightId,
+  issues,
+  highlighted,
   ghost,
   ai,
   onHighlight,
   onEdit,
   onSuggest,
-}: BoardHandlers & {
-  item: Item;
-  entry?: TimelineEntry;
-  warnings: Map<string, Issue[]>;
-  highlightId?: string;
-  ghost?: boolean;
-  ai: boolean;
-}) {
-  const issues = [...(entry?.issues ?? []), ...(warnings.get(item.id) ?? [])];
+}: CardProps) {
   const stop = (fn: () => void) => (e: React.MouseEvent) => {
     e.stopPropagation();
     fn();
@@ -521,7 +556,7 @@ function ItemCard({
 
   return (
     <article
-      className={`item${highlightId === item.id ? " highlight" : ""}${ghost ? " ghost" : ""}${item.aiReason ? " ai-suggested" : ""}`}
+      className={`item${highlighted ? " highlight" : ""}${ghost ? " ghost" : ""}${item.aiReason ? " ai-suggested" : ""}`}
       onClick={() => onHighlight(item.id)}
       id={`item-${item.id}`}
       onDoubleClick={() => onEdit(item.id)}
@@ -601,7 +636,7 @@ function ItemCard({
       ))}
     </article>
   );
-}
+}, sameCard);
 
 const GMAPS_MODE: Partial<Record<TravelMode, string>> = {
   DRIVE: "driving",
@@ -611,28 +646,64 @@ const GMAPS_MODE: Partial<Record<TravelMode, string>> = {
   TRANSIT: "transit",
 };
 
-function LegRow({ trip, entry }: { trip: Trip; entry: TimelineEntry }) {
-  const setLeg = useStore((s) => s.setLeg);
+/**
+ * What a leg row shows, as plain values: the row is memoised on them, so it re-renders only when its
+ * own leg changes, not on every edit of the trip.
+ */
+function legView(trip: Trip, entry: TimelineEntry) {
   const from = trip.items[entry.fromId!];
   const to = trip.items[entry.itemId];
-  if (!from || !to) return null;
-  const key = legKey(from.id, to.id);
+  if (!from || !to) return { tripId: trip.id };
   const leg = getLeg(trip, from.id, to.id);
-  const routed = isRoutable(leg.mode);
   const origin = leavesFrom(from);
-  const fresh = freshRoute(trip, from, to);
-  const failed = routed && origin && to.location && leg.error?.key === routeKey(leg.mode, origin, to.location);
+  const failed =
+    isRoutable(leg.mode) && !!origin && !!to.location && leg.error?.key === routeKey(leg.mode, origin, to.location);
+  return {
+    tripId: trip.id,
+    legKey: legKey(from.id, to.id),
+    mode: leg.mode,
+    manualMin: leg.manualMin,
+    fresh: freshRoute(trip, from, to),
+    error: failed ? leg.error?.message : undefined,
+    failed,
+    legMin: entry.legMin,
+    directions:
+      origin && to.location && GMAPS_MODE[leg.mode]
+        ? `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${to.location.lat},${to.location.lng}&travelmode=${GMAPS_MODE[leg.mode]}`
+        : undefined,
+  };
+}
 
-  const directions =
-    origin && to.location && GMAPS_MODE[leg.mode]
-      ? `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${to.location.lat},${to.location.lng}&travelmode=${GMAPS_MODE[leg.mode]}`
-      : undefined;
+const LegRow = memo(function LegRow({
+  tripId,
+  legKey: key,
+  mode,
+  manualMin,
+  fresh,
+  error,
+  failed,
+  legMin,
+  directions,
+}: {
+  tripId: string;
+  legKey?: string;
+  mode?: Leg["mode"];
+  manualMin?: number;
+  fresh?: RouteResult;
+  error?: string;
+  failed?: boolean;
+  legMin?: number;
+  directions?: string;
+}) {
+  const setLeg = useStore((s) => s.setLeg);
+  if (!key || !mode) return null;
+  const routed = isRoutable(mode);
 
   return (
     <div className="leg" onPointerDown={(e) => e.stopPropagation()}>
       <select
-        value={leg.mode}
-        onChange={(e) => setLeg(trip.id, key, { mode: e.target.value as TravelMode, auto: false })}
+        value={mode}
+        onChange={(e) => setLeg(tripId, key, { mode: e.target.value as TravelMode, auto: false })}
         aria-label="How you get there"
       >
         {[...ROUTABLE_MODES, ...MANUAL_MODES].map((m) => (
@@ -647,8 +718,8 @@ function LegRow({ trip, entry }: { trip: Trip; entry: TimelineEntry }) {
             type="number"
             min={0}
             placeholder="min"
-            value={leg.manualMin ?? ""}
-            onChange={(e) => setLeg(trip.id, key, { manualMin: e.target.value === "" ? undefined : Number(e.target.value) })}
+            value={manualMin ?? ""}
+            onChange={(e) => setLeg(tripId, key, { manualMin: e.target.value === "" ? undefined : Number(e.target.value) })}
             aria-label="Duration in minutes"
           />
           <span>min</span>
@@ -658,11 +729,11 @@ function LegRow({ trip, entry }: { trip: Trip; entry: TimelineEntry }) {
           {formatDuration(fresh.durationSec / 60)} · {formatDistance(fresh.distanceM)}
         </span>
       ) : failed ? (
-        <span title={leg.error?.message}>
-          no route{entry.legMin != null ? ` · ~${formatDuration(entry.legMin)}` : ""}
+        <span title={error}>
+          no route{legMin != null ? ` · ~${formatDuration(legMin)}` : ""}
         </span>
-      ) : entry.legMin != null ? (
-        <span title="Straight-line estimate">~{formatDuration(entry.legMin)}</span>
+      ) : legMin != null ? (
+        <span title="Straight-line estimate">~{formatDuration(legMin)}</span>
       ) : (
         <span>add locations for routing</span>
       )}
@@ -674,7 +745,7 @@ function LegRow({ trip, entry }: { trip: Trip; entry: TimelineEntry }) {
       {fresh?.transit?.length ? <TransitRoute route={fresh} /> : null}
     </div>
   );
-}
+});
 
 /** The lines of a public-transport leg as coloured chips; opens to the rides with their stops and times. */
 function TransitRoute({ route }: { route: RouteResult }) {

@@ -15,7 +15,14 @@ export default defineConfig({
   // variable is exposed; without it the app uses OpenFreeMap.
   envDir: here("../"),
   envPrefix: ["VITE_", "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"],
-  build: { outDir: here("./dist"), emptyOutDir: true, target: "es2022" },
+  build: {
+    outDir: here("./dist"),
+    emptyOutDir: true,
+    target: "es2022",
+    // The map (MapView, loaded only when it opens) is mostly MapLibre itself, ~1 MB, and is read from
+    // the phone, not downloaded. Warn above that, so a really oversized chunk still stands out.
+    chunkSizeWarningLimit: 1200,
+  },
   // Reachable from the emulator (10.0.2.2) and phones on the same Wi-Fi for live reload.
   server: { host: true, port: 5173, strictPort: true },
 });
