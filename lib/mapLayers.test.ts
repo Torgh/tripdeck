@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { routeKey } from "./geo";
-import { buildLayers, fitPoints } from "./mapLayers";
+import { buildLayers, fitPoints, syncPins, type Marker } from "./mapLayers";
 import type { Item, Trip } from "./types";
 
 const hotel: Item = { id: "h", type: "stay", title: "Hotel", location: { lat: 21.162, lng: -86.823 }, stay: { nights: 2 } };
@@ -117,5 +117,29 @@ describe("buildLayers", () => {
     const t = trip();
     t.items.t = { ...tour, location: { lat: 21.2, lng: -86.8 } };
     expect(buildLayers(t, "d2").markers.some((m) => m.label === "🏨")).toBe(true);
+  });
+});
+
+describe("syncPins", () => {
+  const marker = (key: string, label = key): Marker =>
+    ({ key, label, item: hotel, position: hotel.location!, color: "#000", title: label }) as Marker;
+
+  it("updates pins that stay, adds new ones and removes the rest", () => {
+    const log: string[] = [];
+    const ops = {
+      create: (m: Marker) => (log.push(`create ${m.key}`), { label: m.label }),
+      update: (p: { label: string }, m: Marker) => (log.push(`update ${m.key}`), (p.label = m.label)),
+      remove: (p: { label: string }) => void log.push(`remove ${p.label}`),
+    };
+    const pins = new Map<string, { label: string }>();
+    syncPins(pins, [marker("a"), marker("b")], ops);
+    const a = pins.get("a");
+
+    log.length = 0;
+    syncPins(pins, [marker("a", "A2"), marker("c")], ops);
+    expect(log).toEqual(["remove b", "update a", "create c"]);
+    expect(pins.get("a")).toBe(a);
+    expect(a?.label).toBe("A2");
+    expect([...pins.keys()]).toEqual(["a", "c"]);
   });
 });

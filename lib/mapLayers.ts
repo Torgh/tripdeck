@@ -46,6 +46,29 @@ export function pinClass(m: Marker, highlightId?: string): string {
 
 export type MapLayers = ReturnType<typeof buildLayers>;
 
+/**
+ * Brings the pins drawn on a map in line with `markers`, matched by key: pins that stay are updated
+ * in place, new ones created and the rest removed – rather than rebuilding every pin on each edit
+ * or highlight.
+ */
+export function syncPins<P>(
+  pins: Map<string, P>,
+  markers: Marker[],
+  pin: { create: (m: Marker) => P; update: (p: P, m: Marker) => void; remove: (p: P) => void },
+) {
+  const keep = new Set(markers.map((m) => m.key));
+  for (const [key, p] of pins) {
+    if (keep.has(key)) continue;
+    pin.remove(p);
+    pins.delete(key);
+  }
+  for (const m of markers) {
+    const p = pins.get(m.key);
+    if (p) pin.update(p, m);
+    else pins.set(m.key, pin.create(m));
+  }
+}
+
 function cardMarker(item: Item, position: LatLng, label: string, color: string): Marker {
   return { key: item.id, item, position, label, color, title: `${label}. ${item.title}` };
 }
