@@ -95,6 +95,8 @@ export const useStore = create<State>()(
           if (!trip) return s;
           return { trips: { ...s.trips, [tripId]: ops.touch(fn(trip)) } };
         });
+      /** A change of which cards follow which: routes between cards no longer next to each other go. */
+      const reorder = (tripId: string, fn: (trip: Trip) => Trip) => mutate(tripId, (t) => ops.pruneLegs(fn(t)));
 
       return {
         trips: {},
@@ -108,19 +110,19 @@ export const useStore = create<State>()(
             return { trips: rest, deleted: s.synced[tripId] ? [...s.deleted, tripId] : s.deleted };
           }),
         updateTrip: (tripId, patch) => mutate(tripId, (t) => ({ ...t, ...patch })),
-        addItem: (tripId, item, container, index) => mutate(tripId, (t) => ops.addItem(t, item, container, index)),
+        addItem: (tripId, item, container, index) => reorder(tripId, (t) => ops.addItem(t, item, container, index)),
         updateItem: (tripId, itemId, patch) =>
           mutate(tripId, (t) =>
             t.items[itemId] ? { ...t, items: { ...t.items, [itemId]: { ...t.items[itemId], ...patch } } } : t,
           ),
-        removeItem: (tripId, itemId) => mutate(tripId, (t) => ops.removeItem(t, itemId)),
-        setContainers: (tripId, containers) => mutate(tripId, (t) => ops.withContainers(t, containers)),
+        removeItem: (tripId, itemId) => reorder(tripId, (t) => ops.removeItem(t, itemId)),
+        setContainers: (tripId, containers) => reorder(tripId, (t) => ops.withContainers(t, containers)),
         setContainerOrder: (tripId, container, itemIds) =>
-          mutate(tripId, (t) => ops.withContainers(t, { [container]: itemIds })),
-        moveDay: (tripId, from, to) => mutate(tripId, (t) => ops.moveDay(t, from, to)),
+          reorder(tripId, (t) => ops.withContainers(t, { [container]: itemIds })),
+        moveDay: (tripId, from, to) => reorder(tripId, (t) => ops.moveDay(t, from, to)),
         addDay: (tripId) => mutate(tripId, (t) => ({ ...t, days: [...t.days, ops.newDay()] })),
         removeDay: (tripId, dayId) =>
-          mutate(tripId, (t) => {
+          reorder(tripId, (t) => {
             const day = t.days.find((d) => d.id === dayId);
             if (!day || t.days.length <= 1) return t;
             return { ...t, days: t.days.filter((d) => d.id !== dayId), ideas: [...t.ideas, ...day.itemIds] };

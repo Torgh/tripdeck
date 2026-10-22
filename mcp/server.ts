@@ -102,7 +102,7 @@ async function loadTrip(tripId: string): Promise<Trip> {
 async function updateTrip(tripId: string, fn: (trip: Trip) => Trip | Promise<Trip>): Promise<Trip> {
   return exclusive(async () => {
     const base = await loadTrip(tripId);
-    let next = ops.touch(await fn(base));
+    let next = ops.touch(ops.pruneLegs(await fn(base)));
     let seen = base;
     for (let attempt = 0; attempt < 5; attempt++) {
       const result = await saveIfUnchanged(store(), next, seen.updatedAt);
