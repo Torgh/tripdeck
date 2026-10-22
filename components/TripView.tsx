@@ -41,11 +41,11 @@ export function TripView({ tripId }: { tripId: string | null }) {
   const mapWidth = useMapWidth();
   const ai = useConfig()?.ai ?? false;
 
-  useRouteLegs(trip);
+  const timelines = useMemo(() => (trip ? computeTripTimeline(trip) : []), [trip]);
+  useRouteLegs(trip, timelines);
   useElevations(trip);
   useTimeZones(trip);
 
-  const timelines = useMemo(() => (trip ? computeTripTimeline(trip) : []), [trip]);
   const warnings = useMemo(
     () => (trip ? mergeIssues(computeDiveWarnings(trip, timelines), computeClockNotes(trip, timelines)) : new Map()),
     [trip, timelines],

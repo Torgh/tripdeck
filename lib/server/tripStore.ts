@@ -200,6 +200,25 @@ interface DriveFile {
   appProperties?: { tripId?: string; updatedAt?: string; name?: string };
 }
 
+interface DriveListing {
+  at: number;
+  folder?: string;
+  files: DriveFile[];
+}
+
+/**
+ * How long a listing is trusted to find a trip's file. The browser lists trips every 15 s and then
+ * reads or saves single trips; without this each of those would list the whole folder again.
+ * Only file ids are taken from it: list() always asks Drive, and a trip missing here is looked up afresh.
+ */
+const DRIVE_LISTING_MS = 60_000;
+const driveListings = new Map<string, DriveListing>();
+
+/** Forgets the cached Drive listings (tests use a new fake Drive each time). */
+export function forgetDriveListings() {
+  driveListings.clear();
+}
+
 /**
  * Trips on Google Drive, one JSON file per trip, in a visible "TripDeck" folder in My Drive.
  * The drive.file permission only reaches files TripDeck created, never your other files.
@@ -236,8 +255,19 @@ export class GoogleDriveStore implements TripStore {
     return ((await res.json()) as { id: string }).id;
   }
 
-  private async files(): Promise<{ folder?: string; files: DriveFile[] }> {
-    const folder = this.hidden ? undefined : await this.folderId();
+  /** Per Google account and layout, so switching either never reuses the other's file ids. */
+  private get listingKey() {
+    return `${this.hidden ? "hidden" : "folder"}|${cloudAccount("google")?.email ?? ""}`;
+  }
+
+  private recentListing(): DriveListing | undefined {
+    const listing = driveListings.get(this.listingKey);
+    return listing && Date.now() - listing.at < DRIVE_LISTING_MS ? listing : undefined;
+  }
+
+  /** Lists the trip files on Drive (the folder id is reused from a recent listing). */
+  private async files(): Promise<DriveListing> {
+    const folder = this.hidden ? undefined : (this.recentListing()?.folder ?? (await this.folderId()));
     const out: DriveFile[] = [];
     let pageToken: string | undefined;
     do {
@@ -252,7 +282,18 @@ export class GoogleDriveStore implements TripStore {
       out.push(...(data.files ?? []).filter((f) => (folder ? !!f.appProperties?.tripId : f.name.startsWith("trip-"))));
       pageToken = data.nextPageToken;
     } while (pageToken);
-    return { folder, files: out };
+    const listing = { at: Date.now(), folder, files: out };
+    driveListings.set(this.listingKey, listing);
+    return listing;
+  }
+
+  /** The trip's file from a recent listing, or from a new one when it isn't there. */
+  private async fileOf(id: string, fresh = false): Promise<{ folder?: string; file?: DriveFile }> {
+    const recent = fresh ? undefined : this.recentListing();
+    const cached = recent?.files.find((f) => GoogleDriveStore.tripId(f) === id);
+    if (recent && cached) return { folder: recent.folder, file: cached };
+    const { folder, files } = await this.files();
+    return { folder, file: files.find((f) => GoogleDriveStore.tripId(f) === id) };
   }
 
   private static tripId = (f: DriveFile) => f.appProperties?.tripId ?? f.name.slice(5, -5);
@@ -265,18 +306,19 @@ export class GoogleDriveStore implements TripStore {
     }));
   }
 
-  async get(id: string) {
+  async get(id: string, fresh = false): Promise<Trip | undefined> {
     assertTripId(id);
-    const file = (await this.files()).files.find((f) => GoogleDriveStore.tripId(f) === id);
+    const { file } = await this.fileOf(id, fresh);
     if (!file) return undefined;
     const res = await this.request(`${DRIVE}/${file.id}?alt=media`);
+    // Deleted on Drive since it was listed: look again.
+    if (res.status === 404 && !fresh) return this.get(id, true);
     return res.ok ? ((await res.json()) as Trip) : undefined;
   }
 
-  async put(trip: Trip) {
+  async put(trip: Trip, fresh = false): Promise<void> {
     assertTripId(trip.id);
-    const { folder, files } = await this.files();
-    const existing = files.find((f) => GoogleDriveStore.tripId(f) === trip.id);
+    const { folder, file: existing } = await this.fileOf(trip.id, fresh);
     const metadata = {
       name: folder ? tripFileName(trip) : `trip-${trip.id}.json`,
       mimeType: "application/json",
@@ -296,17 +338,24 @@ export class GoogleDriveStore implements TripStore {
       tripJson(trip),
       `--${boundary}--`,
     ].join("\r\n");
-    await this.request(existing ? `${UPLOAD}/${existing.id}?uploadType=multipart` : `${UPLOAD}?uploadType=multipart`, {
+    const res = await this.request(existing ? `${UPLOAD}/${existing.id}?uploadType=multipart` : `${UPLOAD}?uploadType=multipart`, {
       method: existing ? "PATCH" : "POST",
       headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
       body,
     });
+    // The file was deleted on Drive since it was listed: list again, which creates a new one.
+    if (res.status === 404 && !fresh) return this.put(trip, true);
+    if (existing) existing.appProperties = metadata.appProperties;
+    // A new file isn't in the listing yet; the next lookup lists again.
+    else driveListings.delete(this.listingKey);
   }
 
   async delete(id: string) {
     assertTripId(id);
-    const file = (await this.files()).files.find((f) => GoogleDriveStore.tripId(f) === id);
-    if (file) await this.request(`${DRIVE}/${file.id}`, { method: "DELETE" });
+    const { file } = await this.fileOf(id);
+    if (!file) return;
+    await this.request(`${DRIVE}/${file.id}`, { method: "DELETE" });
+    driveListings.delete(this.listingKey);
   }
 }
 
