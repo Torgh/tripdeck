@@ -32,19 +32,22 @@ test("moves a card to another day by dragging, and keeps it after a reload", asy
   const dinner = card(page, "Dinner at Spinola Bay");
   await expect(day(page, 1)).toContainText("Dinner at Spinola Bay");
 
+  // The card is last in a day that scrolls; bring it into view, then drag it to day 2 next door.
+  await dinner.scrollIntoViewIfNeeded();
   const from = (await dinner.boundingBox())!;
-  const to = (await day(page, 3).locator(".column-head").boundingBox())!;
+  const to = (await day(page, 2).locator(".column-body").boundingBox())!;
   await page.mouse.move(from.x + 40, from.y + 15);
   await page.mouse.down();
-  // The board starts dragging after the pointer moves a few pixels; then glide over day 3.
+  // The board starts dragging after the pointer moves a few pixels.
   await page.mouse.move(from.x + 60, from.y + 30, { steps: 5 });
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height + 40, { steps: 25 });
+  await expect(page.locator(".item.overlay")).toBeVisible();
+  await page.mouse.move(to.x + to.width / 2, Math.max(to.y, 120) + 40, { steps: 25 });
   await page.mouse.up();
 
-  await expect(day(page, 3)).toContainText("Dinner at Spinola Bay");
+  await expect(day(page, 2)).toContainText("Dinner at Spinola Bay");
   await expect(day(page, 1)).not.toContainText("Dinner at Spinola Bay");
   await page.reload();
-  await expect(day(page, 3)).toContainText("Dinner at Spinola Bay");
+  await expect(day(page, 2)).toContainText("Dinner at Spinola Bay");
 });
 
 test("adds a card with a price, marks it paid and deletes it again", async ({ page }) => {
