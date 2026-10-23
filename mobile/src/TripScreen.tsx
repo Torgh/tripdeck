@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { computeClockNotes, mergeIssues } from "@/lib/clock";
 import { computeDiveWarnings } from "@/lib/diveSafety";
+import { entryActions } from "@/lib/entry";
 import { defaultDayIndex, todayIndex } from "@/lib/itinerary";
 import { buildLayers, type Marker } from "@/lib/mapLayers";
 import { formatMoney, ratesUrl, toRates, type Rates } from "@/lib/money";
@@ -11,6 +12,7 @@ import { computeTripTimeline } from "@/lib/timeline";
 import { itemIcon, type Trip } from "@/lib/types";
 import { useTripBudgetFrom } from "@/lib/useRates";
 import { BudgetView } from "./BudgetView";
+import { EntryView } from "./EntryView";
 import { DayView, IdeasView } from "./DayView";
 
 // The map library is big; load it only once a trip is open so the trip list starts instantly.
@@ -18,6 +20,7 @@ const MapView = lazy(() => import("./MapView").then((m) => ({ default: m.MapView
 
 const IDEAS_TAB = -1;
 const BUDGET_TAB = -2;
+const ENTRY_TAB = -3;
 
 /** The phone has no TripDeck server: it asks frankfurter.dev directly. */
 async function fetchRates(base: string): Promise<Rates> {
@@ -93,7 +96,8 @@ export function TripScreen({ trip, now, onBack }: Props) {
     () => (dayId ? buildLayers(trip, dayId) : buildLayers(trip, null, new Set(trip.ideas))),
     [trip, dayId],
   );
-  const hasMap = selected !== BUDGET_TAB && layers.markers.length > 0;
+  const hasMap = selected !== BUDGET_TAB && selected !== ENTRY_TAB && layers.markers.length > 0;
+  const entryTodo = useMemo(() => entryActions(trip).length, [trip]);
 
   // Android back closes the full-screen map before leaving the trip (App listens for "app-back").
   useEffect(() => {
@@ -150,6 +154,28 @@ export function TripScreen({ trip, now, onBack }: Props) {
             Today
           </button>
         )}
+        {/* In the bar, not at the end of the day strip, so they show whichever day is open. */}
+        {hasBudget && (
+          <button
+            className="appbar-tab"
+            aria-label="Budget"
+            aria-current={selected === BUDGET_TAB}
+            onClick={() => select(BUDGET_TAB)}
+          >
+            💰
+          </button>
+        )}
+        {trip.entry && (
+          <button
+            className="appbar-tab"
+            aria-label={`Entry & paperwork${entryTodo ? `, ${entryTodo} to do` : ""}`}
+            aria-current={selected === ENTRY_TAB}
+            onClick={() => select(ENTRY_TAB)}
+          >
+            🛂
+            {entryTodo > 0 && <span className="appbar-count">{entryTodo}</span>}
+          </button>
+        )}
       </header>
 
       <div className="day-strip" ref={strip} role="tablist">
@@ -179,17 +205,6 @@ export function TripScreen({ trip, now, onBack }: Props) {
           >
             <span className="chip-weekday">Ideas</span>
             <span className="chip-date">{trip.ideas.length}</span>
-          </button>
-        )}
-        {hasBudget && (
-          <button
-            role="tab"
-            aria-current={selected === BUDGET_TAB}
-            className="day-chip budget"
-            onClick={() => select(BUDGET_TAB)}
-          >
-            <span className="chip-weekday">Budget</span>
-            <span className="chip-date">💰</span>
           </button>
         )}
       </div>
@@ -238,7 +253,9 @@ export function TripScreen({ trip, now, onBack }: Props) {
         onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
         onTouchEnd={onTouchEnd}
       >
-        {selected === BUDGET_TAB && budget ? (
+        {selected === ENTRY_TAB && trip.entry ? (
+          <EntryView trip={trip} entry={trip.entry} />
+        ) : selected === BUDGET_TAB && budget ? (
           <BudgetView trip={trip} budget={budget} onDay={select} />
         ) : selected === IDEAS_TAB ? (
           <IdeasView trip={trip} highlightId={highlightId} onSelect={setHighlightId} />

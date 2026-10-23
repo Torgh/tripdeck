@@ -115,6 +115,39 @@ p {
   flex: 1;
   min-width: 0;
 }
+/* Budget and Entry: as tall as the trip's name and destination together. */
+.appbar-tab {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 26px;
+  line-height: 1;
+}
+.appbar-tab[aria-current="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.appbar-tab:active {
+  opacity: 0.7;
+}
+.appbar-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--warn);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+}
 .logo {
   width: 30px;
   height: 30px;
@@ -626,10 +659,6 @@ p {
 
 /* ---------- Budget ---------- */
 
-.day-chip.budget {
-  width: auto;
-  padding: 6px 12px;
-}
 .content > .issue {
   margin: 0 0 8px;
 }
@@ -705,4 +734,34 @@ p {
 }
 .budget-note {
   margin: 14px 0 8px;
+}
+
+/* ---------- Entry & paperwork ---------- */
+
+.entry-list li > div {
+  align-items: flex-start;
+}
+.entry-list .grow {
+  display: grid;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+.entry-list .grow > a {
+  justify-self: start;
+}
+.entry-due {
+  white-space: nowrap;
+}
+.entry-list li.done strong {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.entry-list a {
+  color: var(--accent);
+}
+.entry-sources {
+  margin: 6px 2px 0;
+}
+.entry-sources a {
+  color: var(--accent);
 }
