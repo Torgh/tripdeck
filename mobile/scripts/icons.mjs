@@ -8,33 +8,49 @@ const at = (p) => fileURLToPath(new URL(p, import.meta.url));
 const res = at("../android/app/src/main/res/");
 const svg = readFileSync(at("../../public/icon.svg"), "utf8");
 
-/** The logo's tile colour; also the adaptive icon background and the splash screen. */
-const TILE = "#0e7490";
-const tile = /<rect width="512" height="512"[^>]*\/>/;
-if (!tile.test(svg) || !svg.includes(`fill="${TILE}"`)) throw new Error("public/icon.svg no longer starts with its tile");
-/** The logo without its rounded tile, in the 512 × 512 viewBox. */
-const artwork = svg.replace(/^[\s\S]*?<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "").replace(tile, "");
-
-/** `artwork` scaled to `scale` of a square canvas and centred, on an optional background shape. */
-const compose = (scale, background = "") => {
-  const offset = (512 * (1 - scale)) / 2;
-  return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${background}` +
-      `<g transform="translate(${offset} ${offset}) scale(${scale})">${artwork}</g></svg>`,
-  );
+/** Behind the logo on the splash screens: the dark sea at the bottom of the logo. */
+const SPLASH = "#155e75";
+/** The logo's parts, in the 512 × 512 viewBox: the sunset with the sea, and the cards in front. */
+const group = (id) => {
+  // Everything up to the group's closing tag, which sits at the group's own indent.
+  const m = svg.match(new RegExp(String.raw`<g id="${id}"[^>]*>([\s\S]*?)\n  </g>`));
+  if (!m) throw new Error(`public/icon.svg has no <g id="${id}">`);
+  return m[1];
 };
+const defs = svg.match(/<defs>[\s\S]*?<\/defs>/)?.[0] ?? "";
+const background = group("background");
+const artwork = group("artwork");
+const svgOf = (body) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${defs}${body}</svg>`);
+
+/** `artwork` scaled to `scale` of a square canvas and centred, on an optional background. */
+const compose = (scale, under = "") => {
+  const offset = (512 * (1 - scale)) / 2;
+  return svgOf(`${under}<g transform="translate(${offset} ${offset}) scale(${scale})">${artwork}</g>`);
+};
+
+/**
+ * The sunset for the adaptive icon's background layer. Launchers show only its middle two thirds,
+ * so it is drawn at 5/6 size in the middle – the sea stays in view – with the sky and the sea
+ * carried on to the edges.
+ */
+const adaptiveBackground = svgOf(
+  `<rect width="512" height="512" fill="url(#sky)"/><rect y="400" width="512" height="112" fill="${SPLASH}"/>` +
+    `<g transform="translate(42.67 42.67) scale(0.8333)">${background}</g>`,
+);
 
 const png = (input, size, file) => sharp(input, { density: 600 }).resize(size, size).png().toFile(res + file);
 
 const densities = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
 
 for (const [name, k] of Object.entries(densities)) {
-  // Adaptive icon (Android 8+): launchers mask the middle ~66 dp of the 108 dp layer to their own
-  // shape. At 58 dp the logo's columns take about 60% of that circle, like other launcher icons.
-  await png(compose(58 / 108), 108 * k, `mipmap-${name}/ic_launcher_foreground.png`);
+  // Adaptive icon (Android 8+): launchers mask the middle ~66 dp of the 108 dp layers to their own
+  // shape. The sunset fills the whole background layer; the cards take about 60% of that circle.
+  await png(adaptiveBackground, 108 * k, `mipmap-${name}/ic_launcher_background.png`);
+  await png(compose(62 / 108), 108 * k, `mipmap-${name}/ic_launcher_foreground.png`);
   // Older launchers: the logo as it is, and a round version.
   await png(Buffer.from(svg), 48 * k, `mipmap-${name}/ic_launcher.png`);
-  await png(compose(0.8, `<circle cx="256" cy="256" r="256" fill="${TILE}"/>`), 48 * k, `mipmap-${name}/ic_launcher_round.png`);
+  const disc = `<clipPath id="disc"><circle cx="256" cy="256" r="256"/></clipPath><g clip-path="url(#disc)">${background}</g>`;
+  await png(compose(0.8, disc), 48 * k, `mipmap-${name}/ic_launcher_round.png`);
 }
 
 // Splash before Android 12 (later versions show the launcher icon on the theme's splash colour).
@@ -53,8 +69,8 @@ const splashes = {
 };
 for (const [dir, [w, h]] of Object.entries(splashes)) {
   const logo = Math.round(Math.min(w, h) * 0.4);
-  await sharp({ create: { width: w, height: h, channels: 4, background: TILE } })
-    .composite([{ input: await sharp(compose(1), { density: 600 }).resize(logo, logo).png().toBuffer() }])
+  await sharp({ create: { width: w, height: h, channels: 4, background: SPLASH } })
+    .composite([{ input: await sharp(Buffer.from(svg), { density: 600 }).resize(logo, logo).png().toBuffer() }])
     .png()
     .toFile(`${res}${dir}/splash.png`);
 }

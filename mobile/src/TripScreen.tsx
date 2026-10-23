@@ -165,17 +165,15 @@ export function TripScreen({ trip, now, onBack }: Props) {
             💰
           </button>
         )}
-        {trip.entry && (
-          <button
-            className="appbar-tab"
-            aria-label={`Entry & paperwork${entryTodo ? `, ${entryTodo} to do` : ""}`}
-            aria-current={selected === ENTRY_TAB}
-            onClick={() => select(ENTRY_TAB)}
-          >
-            🛂
-            {entryTodo > 0 && <span className="appbar-count">{entryTodo}</span>}
-          </button>
-        )}
+        <button
+          className="appbar-tab"
+          aria-label={`Entry & paperwork${entryTodo ? `, ${entryTodo} to do` : ""}`}
+          aria-current={selected === ENTRY_TAB}
+          onClick={() => select(ENTRY_TAB)}
+        >
+          🛂
+          {entryTodo > 0 && <span className="appbar-count">{entryTodo}</span>}
+        </button>
       </header>
 
       <div className="day-strip" ref={strip} role="tablist">
@@ -253,7 +251,7 @@ export function TripScreen({ trip, now, onBack }: Props) {
         onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
         onTouchEnd={onTouchEnd}
       >
-        {selected === ENTRY_TAB && trip.entry ? (
+        {selected === ENTRY_TAB ? (
           <EntryView trip={trip} entry={trip.entry} />
         ) : selected === BUDGET_TAB && budget ? (
           <BudgetView trip={trip} budget={budget} onDay={select} />
