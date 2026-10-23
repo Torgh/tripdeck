@@ -7,7 +7,20 @@ const LEVEL_ICON: Record<EntryLevel, string> = { ok: "✅", action: "📝", warn
 const day = (iso: string) => formatDayLabel(dayDate(iso, 0));
 
 /** Visas, passport rules and arrival forms as checked on the desktop (Claude via MCP); read-only here. */
-export function EntryView({ trip, entry }: { trip: Trip; entry: EntryCheck }) {
+export function EntryView({ trip, entry }: { trip: Trip; entry?: EntryCheck }) {
+  if (!entry) {
+    return (
+      <>
+        <div className="day-head">
+          <h2>Entry & paperwork</h2>
+        </div>
+        <p className="empty muted">
+          Not checked yet. On the desktop, ask Claude (with TripDeck connected): “Check the entry requirements for my trip
+          &ldquo;{trip.name}&rdquo; in TripDeck.” Then export the trip and import it here again.
+        </p>
+      </>
+    );
+  }
   const state = entryState(trip);
   const todo = entryActions(trip);
 

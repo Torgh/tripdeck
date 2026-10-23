@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { demoTrip } from "./demo";
+import { entryState, keepFoundLinks } from "./entry";
 import { rentalsOf } from "./rentals";
 import { nightsOf } from "./stays";
+import { dayDate, isoDate } from "./time";
 import { computeTripTimeline, freshRoute } from "./timeline";
 import { todoLabel, tripTodos } from "./todo";
 
@@ -74,10 +76,30 @@ describe("demo trip travel", () => {
 });
 
 describe("demo trip to-do list", () => {
-  it("has a dive day waiting for confirmation and one still to book", () => {
-    expect(tripTodos(demoTrip()).map(todoLabel)).toEqual([
+  it("has the health card to get, a dive day waiting for confirmation and one still to book", () => {
+    const trip = demoTrip();
+    expect(tripTodos(trip).map(todoLabel)).toEqual([
+      `Malta: European Health Insurance Card (EKUZ) – by ${isoDate(dayDate(trip.startDate, -3))}`,
       "Cirkewwa – Rozi & P29 wrecks (day 3): waiting for confirmation",
       "Wied iż-Żurrieq shore dives (day 6): to book",
     ]);
+  });
+});
+
+describe("demo entry rules and tour", () => {
+  it("has an up-to-date entry check for its Polish passports, with official links", () => {
+    const trip = demoTrip();
+    expect(trip.passports).toEqual(["PL"]);
+    expect(entryState(trip)).toEqual({ kind: "fresh" });
+    const [malta] = trip.entry!.countries;
+    expect(malta.requirements.map((r) => r.level)).toEqual(["ok", "action", "warn", "info", "info"]);
+    // Every link is on one of the sources, as save_entry_check keeps them.
+    expect(keepFoundLinks([malta], malta.sources.map((s) => s.url))).toEqual([malta]);
+  });
+
+  it("has an organised boat tour that picks up at the harbour", () => {
+    const comino = Object.values(demoTrip().items).find((i) => i.title === "Comino Blue Lagoon boat trip")!;
+    expect(comino.location?.address).toBe("Mġarr harbour, Gozo");
+    expect(comino.tour?.stops.map((s) => s.name)).toEqual(["Santa Maria caves", "Crystal Lagoon", "Blue Lagoon"]);
   });
 });

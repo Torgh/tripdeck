@@ -1,7 +1,8 @@
+import { entryRouteKey } from "./entry";
 import { createTrip, newId } from "./tripOps";
-import { isoDate } from "./time";
+import { dayDate, isoDate } from "./time";
 import { routeKey } from "./geo";
-import { legKey, type Item, type Leg, type OpeningPeriod, type RouteResult, type Trip } from "./types";
+import { legKey, type EntryCheck, type Item, type Leg, type OpeningPeriod, type RouteResult, type Trip } from "./types";
 
 type Draft = Omit<Item, "id"> & { key: string };
 
@@ -42,7 +43,8 @@ const monToSat = (open: [number, number], close: [number, number]): OpeningPerio
 /**
  * A sample Malta & Gozo dive week that shows off every card type, three stays with check-in/out
  * times, every travel mode (with a real bus line), flights and ferries that know where they land,
- * bookings with prices (some paid) against a €1,500 budget, opening hours, AI tips and suggestions – plus a few deliberate problems:
+ * bookings with prices (some paid) against a €1,500 budget, an organised boat tour, entry rules with one
+ * formality to do, opening hours, AI tips and suggestions – plus a few deliberate problems:
  * a no-fly warning, a place closed on Sunday and a late arrival.
  */
 export function demoTrip(): Trip {
@@ -251,7 +253,15 @@ export function demoTrip(): Trip {
         startTime: "10:00",
         durationMin: 300,
         booking: { provider: "GetYourGuide", reference: "GYG-DEMO", price: "€35", status: "confirmed" },
-        location: { lat: 36.013, lng: 14.3227, address: "Blue Lagoon, Comino" },
+        // An organised tour: the card's place is where the boat picks you up.
+        location: { lat: 36.0247, lng: 14.2995, address: "Mġarr harbour, Gozo" },
+        tour: {
+          stops: [
+            { name: "Santa Maria caves", location: { lat: 36.0186, lng: 14.3409 } },
+            { name: "Crystal Lagoon", location: { lat: 36.0059, lng: 14.3398 } },
+            { name: "Blue Lagoon", location: { lat: 36.013, lng: 14.3227 } },
+          ],
+        },
       },
     ],
     // Day 6 (Thursday): back to Malta, last dives, a night by the airport.
@@ -347,7 +357,7 @@ export function demoTrip(): Trip {
     ["ferry", "scooter", { mode: "WALK" }],
     ["scooter", "bluehole", { mode: "TWO_WHEELER" }],
     ["farmhouse", "victoria", { mode: "TWO_WHEELER" }],
-    ["farmhouse", "comino", { mode: "BOAT", manualMin: 30 }],
+    ["farmhouse", "comino", { mode: "TWO_WHEELER" }],
     ["mdina", "dingli", { mode: "BICYCLE" }],
   ];
   for (const [a, b, leg] of legs) trip.legs[legKey(ids.get(a)!, ids.get(b)!)] = leg;
@@ -375,5 +385,71 @@ export function demoTrip(): Trip {
     trip.ideas.push(item.id);
   }
 
+  trip.passports = ["PL"];
+  trip.entry = demoEntryCheck(trip);
   return trip;
+}
+
+/**
+ * Entry rules for the demo, as Claude saved them through MCP (save_entry_check) after checking the
+ * official EU and Polish pages on 23 Oct 2026. Malta is in the EU, so it is mostly "nothing to do".
+ */
+function demoEntryCheck(trip: Trip): EntryCheck {
+  const day = (i: number) => isoDate(dayDate(trip.startDate, i));
+  const travel = "https://europa.eu/youreurope/citizens/travel/entry-exit/eu-citizen/index_en.htm";
+  const licence = "https://europa.eu/youreurope/citizens/vehicles/driving-licence/driving-licence-recognition-validity/index_en.htm";
+  const health = "https://europa.eu/youreurope/citizens/health/unplanned-healthcare/temporary-stays/index_en.htm";
+  const ekuz = "https://pacjent.gov.pl/europejska-karta-ubezpieczenia-zdrowotnego-ekuz";
+  return {
+    passports: ["PL"],
+    routeKey: entryRouteKey(trip),
+    checkedAt: "2026-10-23T12:00:00.000Z",
+    countries: [
+      {
+        code: "MT",
+        name: "Malta",
+        from: day(0),
+        to: day(trip.days.length - 1),
+        summary: "EU country: no visa – your ID card or passport is enough",
+        requirements: [
+          { kind: "visa", level: "ok", title: "No visa – EU free movement", details: "Polish citizens travel freely within the EU; no visa or registration for a holiday." },
+          {
+            kind: "health",
+            level: "action",
+            title: "European Health Insurance Card (EKUZ)",
+            details: "Free from the NFZ, one card per traveller. At an NFZ branch you get it at once; online (IKP, mojeIKP or ePUAP) or by post it takes up to 5 days.",
+            dueBy: day(-3),
+            url: ekuz,
+          },
+          {
+            kind: "passport",
+            level: "warn",
+            title: "Take a valid ID card or passport",
+            details: "It must be valid on the day you travel. A driving licence is not a travel document, and the airline checks your ID at boarding.",
+            url: travel,
+          },
+          {
+            kind: "driving",
+            level: "info",
+            title: "Your Polish licence is valid – Malta drives on the left",
+            details: "An EU driving licence is recognised in every EU country, so no international permit is needed for the rental car or the scooter. Traffic keeps left.",
+            url: licence,
+          },
+          {
+            kind: "insurance",
+            level: "info",
+            title: "Travel insurance that covers diving",
+            details: "The EHIC covers treatment that can't wait, in public healthcare only – not private clinics, rescue or repatriation. With six dives planned, choose cover for scuba diving.",
+            url: health,
+          },
+        ],
+        sources: [
+          { title: "Your Europe: travel documents for EU nationals", url: travel },
+          { title: "Your Europe: driving licence recognition", url: licence },
+          { title: "Your Europe: healthcare on a temporary stay", url: health },
+          { title: "pacjent.gov.pl: EKUZ", url: ekuz },
+        ],
+      },
+    ],
+  };
 }
