@@ -154,6 +154,28 @@ export function TripScreen({ trip, now, onBack }: Props) {
             Today
           </button>
         )}
+        {/* In the bar, not at the end of the day strip, so they show whichever day is open. */}
+        {hasBudget && (
+          <button
+            className="appbar-tab"
+            aria-label="Budget"
+            aria-current={selected === BUDGET_TAB}
+            onClick={() => select(BUDGET_TAB)}
+          >
+            💰
+          </button>
+        )}
+        {trip.entry && (
+          <button
+            className="appbar-tab"
+            aria-label={`Entry & paperwork${entryTodo ? `, ${entryTodo} to do` : ""}`}
+            aria-current={selected === ENTRY_TAB}
+            onClick={() => select(ENTRY_TAB)}
+          >
+            🛂
+            {entryTodo > 0 && <span className="appbar-count">{entryTodo}</span>}
+          </button>
+        )}
       </header>
 
       <div className="day-strip" ref={strip} role="tablist">
@@ -183,28 +205,6 @@ export function TripScreen({ trip, now, onBack }: Props) {
           >
             <span className="chip-weekday">Ideas</span>
             <span className="chip-date">{trip.ideas.length}</span>
-          </button>
-        )}
-        {hasBudget && (
-          <button
-            role="tab"
-            aria-current={selected === BUDGET_TAB}
-            className="day-chip budget"
-            onClick={() => select(BUDGET_TAB)}
-          >
-            <span className="chip-weekday">Budget</span>
-            <span className="chip-date">💰</span>
-          </button>
-        )}
-        {trip.entry && (
-          <button
-            role="tab"
-            aria-current={selected === ENTRY_TAB}
-            className="day-chip entry"
-            onClick={() => select(ENTRY_TAB)}
-          >
-            <span className="chip-weekday">{entryTodo ? `Entry · ${entryTodo}` : "Entry"}</span>
-            <span className="chip-date">🛂</span>
           </button>
         )}
       </div>
