@@ -1,11 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#0e7490"/>
-  <rect x="80" y="104" width="104" height="304" rx="24" fill="#155e75"/>
-  <rect x="204" y="104" width="104" height="304" rx="24" fill="#155e75"/>
-  <rect x="328" y="104" width="104" height="304" rx="24" fill="#155e75"/>
-  <path d="M132 340C132 260 256 330 256 256S380 250 380 214" stroke="#ecfeff" stroke-width="22" fill="none" stroke-linecap="round" stroke-dasharray="1 38"/>
-  <circle cx="132" cy="340" r="34" fill="#ecfeff"/>
-  <circle cx="256" cy="256" r="34" fill="#ecfeff"/>
-  <path d="M380 250c0 0-58-60-58-102a58 58 0 0 1 116 0c0 42-58 102-58 102z" fill="#f97316"/>
-  <circle cx="380" cy="148" r="22" fill="#155e75"/>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fb923c"/><stop offset=".6" stop-color="#f43f5e"/><stop offset="1" stop-color="#be185d"/></linearGradient>
+    <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
+  </defs>
+  <g id="background" clip-path="url(#tile)">
+    <rect width="512" height="512" fill="url(#sky)"/>
+    <path d="M0 392c60-24 120-24 180 0s120 24 180 0 104-24 152-8V512H0z" fill="#0e7490"/>
+    <path d="M0 436c60-20 120-20 180 0s120 20 180 0 104-20 152-6V512H0z" fill="#155e75"/>
+  </g>
+  <g id="artwork">
+    <rect x="118" y="112" width="214" height="282" rx="30" fill="#fff" opacity=".35" transform="rotate(-14 225 253)"/>
+    <rect x="144" y="102" width="214" height="282" rx="30" fill="#fff" opacity=".6" transform="rotate(-5 251 243)"/>
+    <g transform="rotate(6 271 235)">
+      <rect x="164" y="94" width="214" height="282" rx="30" fill="#fff"/>
+      <path d="M204 316C204 256 324 288 324 212" stroke="#0e7490" stroke-width="16" fill="none" stroke-linecap="round" stroke-dasharray="1 30"/>
+      <circle cx="204" cy="316" r="20" fill="#0e7490"/>
+      <path d="M324 222c0 0-46-48-46-82a46 46 0 0 1 92 0c0 34-46 82-46 82z" fill="#f97316"/>
+      <circle cx="324" cy="140" r="17" fill="#fff"/>
+    </g>
+  </g>
 </svg>

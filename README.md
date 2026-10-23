@@ -1,6 +1,6 @@
 # TripDeck
 
-**A trip planner for people who want to see the whole trip at once – and plan it together with Claude or ChatGPT.** Each day is a column and each place is a card. Drag cards between days or move whole days. TripDeck works out how you get from one stop to the next – including public transport lines and clock changes on flights – keeps a list of what is still to book, and flags dive-safety problems such as flying too soon after diving. An MCP server lets Claude (Claude Code / Desktop) or ChatGPT (Codex) work on the same plan using **your own subscription, no API key needed**.
+**A trip planner for people who want to see the whole trip at once – and plan it together with Claude or ChatGPT.** Each day is a column and each place is a card. Drag cards between days or move whole days. TripDeck works out how you get from one stop to the next – including public transport lines and clock changes on flights – adds up what the trip costs, keeps a list of what is still to book or apply for (visas and arrival forms included), and flags dive-safety problems such as flying too soon after diving. An MCP server lets Claude (Claude Code / Desktop) or ChatGPT (Codex) work on the same plan using **your own subscription, no API key needed**, and an Android app takes the plan on the road, offline.
 
 ![TripDeck board](docs/screenshot.png)
 
@@ -15,8 +15,9 @@
 - **Day timeline.** Shows estimated arrival times, warns when you would be late for a fixed-time booking, and flags places that are closed that day. A stay's time is when you can check in, not an appointment: arriving later is fine, arriving before check-in gives a hint.
 - **Stays and nights.** A stay has nights, a check-in time and a check-out time. The bottom of every day shows where you sleep that night (“Night 2 of 3”, check-in, check-out tomorrow), in the same colour on every night of that stay. Overnight flights and boats are recognised, and a night with no accommodation is flagged with a quick **+ Add stay**.
 - **Rentals: car, scooter, motorbike or bicycle.** A rental card sits on the pick-up day and holds the vehicle, the rental company, the order number and price, the pick-up place and time, the number of days, and the return time and place (when it goes back somewhere else). Like a stay, it then shows at the top of every day you have it, and the return day says, for example, “Return today by 17:00 at Gozo farmhouse”. Booking import recognises rental confirmations. When the trip's default way of getting around is a vehicle you rent (a scooter, say), legs use it only from the pick-up card until it goes back – before and after, they default to a car (taxi), so you don't ride a scooter from the airport you just landed at.
-- **Booking status and a to-do list.** Mark a booking ✅ *Confirmed*, ⏳ *Waiting for confirmation* or 📝 *To book*. The trip header shows “📝 3 to sort out”: the bookings still to make or confirm and the nights with nowhere to sleep, each one click from its card or a new stay. The status also shows on the card, in the printable itinerary and on the phone.
-- **Budget.** Write a card's price as it appears on the confirmation – “€189”, “1 500 THB”, “300 zł” – and tick *Paid* once it is paid. The trip header shows what the trip costs in one currency, and *💰 Budget* breaks it down by day and by kind of card (stays, transport, food…), with what is paid and what is still to pay, against an optional spending limit. Prices in other currencies are converted at the European Central Bank's daily rates (from frankfurter.dev, no key needed); the last rates fetched are kept for offline use. A stay or rental counts on the day it starts, and cards in *Ideas* are listed but not counted. The printable itinerary, the phone app (a *Budget* tab and each day's spend) and `get_trip` (MCP) show the totals too.
+- **Booking status and a to-do list.** Mark a booking ✅ *Confirmed*, ⏳ *Waiting for confirmation* or 📝 *To book*. The trip header shows “📝 3 to sort out”: visas and arrival forms to apply for (earliest deadline first), the bookings still to make or confirm and the nights with nowhere to sleep, each one click from its card, a new stay or the entry rules. The status also shows on the card, in the printable itinerary and on the phone.
+- **Entry & paperwork.** Ask Claude to “check the entry requirements for my trip” and it researches, on the web, what it takes to enter every country on the route with your passports – transit countries included: visa or visa-free stay, passport validity, arrival cards (such as Thailand's TDAC) and when to fill them in, a driving permit when you rent a car or scooter, customs rules that catch travellers out. It saves them on the trip: *🛂 Entry rules* in the header lists each country with ✅ nothing to do, 📝 to do by a date, ⚠️ warnings and ℹ️ good to know, the official sources and links (only to the sites it used as sources, so no look-alike visa agency), and a tick for each formality once it's done. Set the passports in the same dialog (one or more). When the passports, the dates or the countries in the plan change, it says the check is out of date. Entry rules change: confirm on the official sites before you go.
+- **Budget.** Write a card's price as it appears on the confirmation – “€189”, “1 500 THB”, “300 zł” – and tick *Paid* once it is paid. The trip header shows what the trip costs in one currency, and *💰 Budget* breaks it down by day and by kind of card (stays, transport, food…), with what is paid and what is still to pay, against an optional spending limit. Prices in other currencies are converted at the European Central Bank's daily rates (from frankfurter.dev, no key needed); the last rates fetched are kept for offline use. A stay or rental counts on the day it starts, and cards in *Ideas* are listed but not counted. The printable itinerary, the phone app (the 💰 button and each day's spend) and `get_trip` (MCP) show the totals too.
 - **Dive planning.** Dive cards hold site, centre, number of dives, depth and gas. TripDeck warns about flights less than 12 h after a single dive or 18 h after repetitive diving (DAN guidance), about going above 300 m altitude in that window, and suggests a rest day after long dive streaks.
 - **Plan with Claude or ChatGPT (MCP).** Ask in plain language, for example “plan day 3 around Gozo”, “what's worth seeing near my hotel?” or “find my Booking.com and GetYourGuide confirmations in Gmail and add them”. The cards appear on the board within seconds. Changes made on the board at the same time are merged with Claude's, not lost.
 - **No keys needed for maps.** OpenStreetMap powers the map (OpenFreeMap tiles), search (Photon), nearby places (Overpass, with a Wikipedia fallback), routing (OSRM) and elevation (Open-Meteo). If you add Google Maps keys, TripDeck uses Google's richer data and falls back to OSM if a Google API fails. Public-transport lines and time zones need Google; without it, public transport is estimated and journeys show no clock changes.
@@ -96,8 +97,11 @@ Environment variables still work and take precedence over Settings: `GOOGLE_CLIE
 
 `mobile/` is a small Android app for the road: it shows your trips offline, with nothing to host and no account. It shares the trip logic in `lib/` with the desktop app.
 
+![TripDeck on the phone: a day with its map and the budget](docs/phone.png)
+
 - **Getting a trip onto the phone:** in a trip on the PC choose **Export → JSON**, then on the phone tap **Import trip file** and pick the `.tripdeck.json` from OneDrive, Google Drive, Downloads or an email. Importing a newer export of the same trip replaces it.
 - **Day view:** opens on today's day during the trip. Swipe left or right to change days. It shows times, travel between stops (with the public-transport lines, stops and departure times, offline too), clock changes on flights, where you wake up and sleep, rentals in use and when they go back, booking status, references and prices, opening-hours and dive-safety warnings, plus the Ideas list.
+- **💰 Budget and 🛂 Entry:** big buttons in the trip's header, on every day. 💰 shows the totals, what is still to pay and the spend per day; 🛂 (with the number still to do) shows the visas, arrival forms and other formalities Claude saved on the trip, deadlines first, with the official links.
 - **Keep the app and the file in step:** the phone shows the trip as it was when you exported it, worked out by the app's own copy of `lib/`. After updating TripDeck, build and install the phone app again before importing newer exports – an older app doesn't know, for example, where a flight lands.
 - **🧭 Navigate:** opens the Google Maps app with directions to the card, in the leg's travel mode (a rented scooter only while you have it).
 - **Map:** each day shows its pins and route above the plan; hide it or open it full screen. Tapping a pin finds its card and the other way round. Routes come from the trip file, so without network you still see pins and routes on a plain background.
@@ -139,12 +143,14 @@ mcp/server.ts                  MCP server (stdio) – same storage and maps faca
 mobile/
   src/                         Android app UI (Vite + React), reads trips imported from a JSON export
   android/                     Capacitor's Android project (capacitor.config.ts at the repo root)
+  scripts/icons.mjs            launcher icons and splash screens from the logo (public/icon.svg)
 lib/
   tripOps.ts                   pure trip operations (shared by browser and MCP)
   timeline.ts, diveSafety.ts   arrival times, opening hours, no-fly / altitude rules
   stays.ts                     where each night is spent, stay colours
   rentals.ts                   rental days, and a rented vehicle as the default only while you have it
-  todo.ts                      bookings to make or confirm, nights without a bed
+  todo.ts                      formalities to apply for, bookings to make or confirm, nights without a bed
+  entry.ts                     entry checks: countries, when a check is out of date, which links to keep
   itinerary.ts                 today's day, trip status and Google Maps directions links (phone app)
   optimize.ts                  travel-time matrix, exact (≤ 8 stops) or 2-opt day ordering
   transit.ts                   when to plan a public-transport leg, line labels
@@ -167,6 +173,7 @@ bun run mcp        # run the MCP server manually (normally Claude/Codex starts i
 bun run dev:mobile # phone app UI in a desktop browser on http://localhost:5173
 bun run build:mobile
 bun run android    # build the phone app and run it on the emulator or a connected phone
+bun run icons:mobile # regenerate the Android icons and splash screens after changing public/icon.svg
 bun run typecheck
 bun run lint       # ESLint (Next.js + TypeScript rules), no warnings allowed
 bun run test       # unit, API and MCP integration tests
