@@ -58,16 +58,17 @@ For Claude Desktop, add the same command to `mcpServers` in its config. The MCP 
 | MCP tool | What it does |
 |---|---|
 | `list_trips`, `get_trip` | Trips, and the full plan with times, legs, bookings and warnings |
-| `create_trip`, `update_trip` | New trip; rename, change the dates (`start_date`, `end_date`) or interests, add days, set a day's start time, set the budget currency and limit (`budget_currency`, `budget_limit`) |
+| `create_trip`, `update_trip` | New trip; rename, change the dates (`start_date`, `end_date`) or interests, add days, set a day's start time, set the budget currency and limit (`budget_currency`, `budget_limit`), the travellers' `passports` |
 | `add_item`, `update_item` | Cards of any type; `place_query` finds the location; stays take `stay_nights`, `stay_check_in`, `stay_check_out`; rentals take `rental` (vehicle, days, return time and place); flights, ferries and trains take `transport.to_place_query` for where they arrive and `transport.arrival_time` (local, as on the ticket); `start_time: ""` removes a fixed time; `booking.price` is written with its currency and `booking.paid` marks it paid; `booking.status` is `confirmed`, `pending` or `todo` |
 | `move_item`, `remove_item`, `move_day`, `reorder_day` | Rearrange the plan |
 | `set_leg` | Travel mode between two cards (incl. ferry/boat/flight minutes) |
 | `search_places`, `nearby_places` | Find places by name, or notable places around a card |
 | `optimize_day` | Real travel-time matrix and the fastest order, keeping the ferry, boat and flight legs you entered; Claude decides and calls `reorder_day` |
+| `save_entry_check`, `set_entry_done` | Claude researches visas, passport rules and arrival forms for the trip's passports on the web and saves them (links only to the official sites it used as sources); tick formalities off. The board shows them under 🛂 Entry |
 
-`get_trip` also lists the public-transport lines the board found for a leg (`via 12:24 🚆 ARL: Suvarnabhumi → Phaya Thai (7 stops) → …`), so Claude can tell you where to change. It starts with **To sort out** (bookings to make or confirm, nights without a bed) and ends every day with where you sleep.
+`get_trip` also lists the public-transport lines the board found for a leg (`via 12:24 🚆 ARL: Suvarnabhumi → Phaya Thai (7 stops) → …`), so Claude can tell you where to change. It starts with **To sort out** (visas and forms to apply for, with deadlines; bookings to make or confirm; nights without a bed) and ends every day with where you sleep.
 
-Prompts: `/mcp__tripdeck__plan-day` and `/mcp__tripdeck__import-bookings`. Booking import works best with the Gmail connector enabled in Claude.
+Prompts: `/mcp__tripdeck__plan-day`, `/mcp__tripdeck__import-bookings` and `/mcp__tripdeck__entry-requirements`. Booking import works best with the Gmail connector enabled in Claude.
 
 ### 2. Store trips in OneDrive or on Google Drive (optional)
 

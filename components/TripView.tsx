@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useConfig } from "@/lib/config";
 import { computeClockNotes, mergeIssues } from "@/lib/clock";
 import { computeDiveWarnings } from "@/lib/diveSafety";
+import { entryState } from "@/lib/entry";
 import { useElevations, useHydrated, useRouteLegs, useTimeZones, useTripBudget } from "@/lib/hooks";
 import { formatMoney } from "@/lib/money";
 import { useTrip } from "@/lib/store";
@@ -29,6 +30,7 @@ const dialogs = {
   settings: () => import("./TripSettings").then((m) => m.TripSettings),
   todo: () => import("./TodoDialog").then((m) => m.TodoDialog),
   budget: () => import("./BudgetDialog").then((m) => m.BudgetDialog),
+  entry: () => import("./EntryDialog").then((m) => m.EntryDialog),
 };
 const ItemEditor = dynamic(dialogs.editor, { ssr: false });
 const SuggestDialog = dynamic(dialogs.suggest, { ssr: false });
@@ -37,6 +39,7 @@ const ImportDialog = dynamic(dialogs.import, { ssr: false });
 const TripSettings = dynamic(dialogs.settings, { ssr: false });
 const TodoDialog = dynamic(dialogs.todo, { ssr: false });
 const BudgetDialog = dynamic(dialogs.budget, { ssr: false });
+const EntryDialog = dynamic(dialogs.entry, { ssr: false });
 
 /**
  * With the offline service worker running, fetch the dialogs once the board is idle: it keeps what
@@ -62,7 +65,8 @@ type Dialog =
   | { kind: "import" }
   | { kind: "settings" }
   | { kind: "todo" }
-  | { kind: "budget" };
+  | { kind: "budget" }
+  | { kind: "entry" };
 
 export function TripView({ tripId }: { tripId: string | null }) {
   const hydrated = useHydrated();
@@ -86,6 +90,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
   );
   const todos = useMemo(() => (trip ? tripTodos(trip) : []), [trip]);
   const budget = useTripBudget(trip);
+  const entry = useMemo(() => (trip ? entryState(trip) : undefined), [trip]);
 
   // Stable, so the board's cards (memoised) don't re-render because of new handlers.
   const onEdit = useCallback(
@@ -144,6 +149,15 @@ export function TripView({ tripId }: { tripId: string | null }) {
                 </button>
               </>
             )}
+            {" · "}
+            <button
+              className="linklike"
+              style={entry?.kind === "stale" ? { color: "var(--warn)" } : undefined}
+              title={entry?.kind === "stale" ? "The plan changed since the entry rules were checked" : undefined}
+              onClick={() => setDialog({ kind: "entry" })}
+            >
+              🛂 {entry?.kind === "none" ? "Entry rules" : entry?.kind === "stale" ? "Entry rules ⚠️" : "Entry"}
+            </button>
             {budget && (
               <>
                 {" · "}
@@ -244,12 +258,14 @@ export function TripView({ tripId }: { tripId: string | null }) {
           onClose={close}
         />
       )}
+      {dialog?.kind === "entry" && <EntryDialog trip={trip} onClose={close} />}
       {dialog?.kind === "todo" && (
         <TodoDialog
           trip={trip}
           todos={todos}
           onEdit={(itemId) => setDialog({ kind: "editor", target: { kind: "edit", itemId } })}
           onAddStay={(dayId) => setDialog({ kind: "editor", target: { kind: "new", container: dayId, type: "stay" } })}
+          onEntry={() => setDialog({ kind: "entry" })}
           onClose={close}
         />
       )}

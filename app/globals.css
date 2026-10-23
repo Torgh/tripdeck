@@ -593,6 +593,72 @@ label {
   border-bottom: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
 }
+.entry {
+  display: grid;
+  gap: 10px;
+}
+.entry .badge .linklike {
+  margin-left: 2px;
+  color: var(--muted);
+}
+.entry-add {
+  width: auto;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+.entry-ask {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--ai-soft);
+}
+.entry-ask q {
+  font-weight: 600;
+}
+.entry-country h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  margin: 6px 0 2px;
+}
+.entry-country > p {
+  margin: 0 0 4px;
+}
+.entry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.entry-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+.entry-list li .grow {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}
+.entry-list li.done strong {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.entry-done {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.entry-done input {
+  width: auto;
+}
 .issue {
   font-size: 12px;
   border-radius: 6px;
