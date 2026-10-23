@@ -706,3 +706,37 @@ p {
 .budget-note {
   margin: 14px 0 8px;
 }
+
+/* ---------- Entry & paperwork ---------- */
+
+.day-chip.entry {
+  width: auto;
+  padding: 6px 12px;
+}
+.entry-list li > div {
+  align-items: flex-start;
+}
+.entry-list .grow {
+  display: grid;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+.entry-list .grow > a {
+  justify-self: start;
+}
+.entry-due {
+  white-space: nowrap;
+}
+.entry-list li.done strong {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.entry-list a {
+  color: var(--accent);
+}
+.entry-sources {
+  margin: 6px 2px 0;
+}
+.entry-sources a {
+  color: var(--accent);
+}
