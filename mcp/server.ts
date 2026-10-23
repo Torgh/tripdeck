@@ -13,6 +13,18 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { computeClockNotes, mergeIssues } from "../lib/clock";
 import { computeDiveWarnings } from "../lib/diveSafety";
+import {
+  carryOverDone,
+  COUNTRY_CODES,
+  countryName,
+  ENTRY_RESEARCH_GUIDE,
+  entryRouteKey,
+  entryState,
+  flag,
+  keepFoundLinks,
+  normalizeCountries,
+  setRequirementDone,
+} from "../lib/entry";
 import { centroid } from "../lib/geo";
 import { bestOrder, evaluate, travelMatrix, type OptInput } from "../lib/optimize";
 import { guessType, itemFieldsFromPlace } from "../lib/places";
@@ -70,6 +82,7 @@ How to work:
 - Before reordering a day, call optimize_day for real travel times, then decide (meals, sunset, heat, opening hours) and apply with reorder_day. Explain your reasoning briefly.
 - Booking confirmations: if you have Gmail (or another mail) tools, search for confirmations (Booking.com, GetYourGuide, Viator, Airbnb, airlines, ferries, car / scooter rentals, dive centres), then add one card per booking on the right day with provider, reference, times and price. Never invent booking numbers.
 - Booking status: booking.status "confirmed", "pending" (paid or requested, not confirmed yet) or "todo" (still to book). get_trip lists the pending and to-book ones, and nights with nowhere to sleep, under "To sort out" – mention them.
+- Entry & paperwork (visas, passport rules, arrival forms, driving permits): research them on the web yourself for the trip's passports (update_trip passports – ask which passports when get_trip says they are not set) and save them with save_entry_check, whose description says what to look for. The board shows them under 🛂, the open ones with deadlines under "To sort out". When get_trip says they are missing or out of date, offer to check; mark one done with set_entry_done when the user says it is sorted. Never present entry rules from memory as certain.
 - Prices: booking.price as written on the confirmation, always with its currency ("€189", "1 500 THB"); booking.paid when it is already paid. get_trip adds them up under "Budget" in the trip's currency (update_trip budget_currency / budget_limit) – mention prices without a currency and a budget that is over its limit.
 - Rentals (car, scooter, motorbike, bicycle): one card of type rental on the pick-up day, start_time = pick-up time, rental.days = days until the return. The board then shows it on every day up to the return. Do not use transport car_rental for new rentals.
 - Organised tours (type activity): the card's place is the pick-up / meeting point (travel times go there); list the places the tour visits in tour_stops so they show on the map.
@@ -219,6 +232,27 @@ async function budgetOf(trip: Trip): Promise<Budget> {
   return tripBudget(trip, rates);
 }
 
+/** The saved entry check: one line per country, its warnings and what is still to do (also under To sort out). */
+function entryLines(trip: Trip): string[] {
+  const passports = trip.passports?.length ? trip.passports.map(countryName).join(", ") : "not set";
+  const state = entryState(trip);
+  if (!trip.entry) {
+    return ["## Entry & paperwork", `Passports: ${passports}. Not checked yet – research it and save it with save_entry_check.`, ""];
+  }
+  const lines = ["## Entry & paperwork", `Passports: ${passports} · checked ${trip.entry.checkedAt.slice(0, 10)}`];
+  if (state.kind === "stale") lines.push(`⚠️ Out of date: ${state.reasons.join(" and ")} – research it again and save_entry_check`);
+  for (const c of trip.entry.countries) {
+    lines.push(`${flag(c.code)} ${c.name}${c.transit ? " (transit)" : ""}${c.from ? ` ${c.from}${c.to && c.to !== c.from ? `→${c.to}` : ""}` : ""}: ${c.summary}`);
+    c.requirements.forEach((r, i) => {
+      if (r.level === "warn") lines.push(`   ⚠️ ${r.title}${r.details ? ` – ${r.details}` : ""}`);
+      if (r.level === "action") {
+        lines.push(`   ${r.done ? "☑️ done:" : "📝"} ${r.title} [${c.code} ${i + 1}]${r.dueBy ? ` (by ${r.dueBy})` : ""}${r.url ? ` ${r.url}` : ""}`);
+      }
+    });
+  }
+  return [...lines, ""];
+}
+
 function renderTrip(trip: Trip, budget?: Budget): string {
   const timelines = computeTripTimeline(trip);
   const diveWarnings = mergeIssues(computeDiveWarnings(trip, timelines), computeClockNotes(trip, timelines));
@@ -237,6 +271,7 @@ function renderTrip(trip: Trip, budget?: Budget): string {
   const todos = tripTodos(trip);
   if (todos.length) lines.push("## To sort out", ...todos.map((t) => `- ${todoLabel(t)}`), "");
   if (budget) lines.push(...budgetLines(budget));
+  lines.push(...entryLines(trip));
   const nights = nightsOf(trip);
 
   timelines.forEach((tl, d) => {
@@ -589,7 +624,7 @@ server.registerTool(
   "update_trip",
   {
     title: "Update trip",
-    description: "Changes trip details, changes the date range (end_date adds or removes days at the end; cards from removed days move to Ideas), adds days at the end, sets the start time of a day, or sets the budget currency and spending limit.",
+    description: "Changes trip details, changes the date range (end_date adds or removes days at the end; cards from removed days move to Ideas), adds days at the end, sets the start time of a day, sets the budget currency and spending limit, or the travellers' passports.",
     inputSchema: {
       trip_id: tripId,
       name: z.string().max(120).optional(),
@@ -608,6 +643,11 @@ server.registerTool(
       add_days: z.number().int().min(1).max(30).optional(),
       budget_currency: z.enum(RATE_CURRENCIES).optional().describe("The currency the trip's prices add up in"),
       budget_limit: z.number().min(0).optional().describe("Spending limit in the budget currency; 0 removes it"),
+      passports: z
+        .array(z.enum(COUNTRY_CODES as [string, ...string[]]))
+        .max(5)
+        .optional()
+        .describe("Passports the travellers hold, ISO 3166-1 alpha-2 (e.g. ['PL']); entry rules are checked for these"),
       day_start: z
         .object({ day: z.number().int().min(1), time: hhmm })
         .optional()
@@ -624,6 +664,7 @@ server.registerTool(
         startDate: a.start_date ?? t.startDate,
         interests: a.interests ?? t.interests,
         defaultMode: a.default_mode ?? t.defaultMode,
+        passports: a.passports ?? t.passports,
       };
       if (a.budget_currency || a.budget_limit !== undefined) {
         next.budget = {
@@ -930,6 +971,131 @@ server.registerTool(
     ]
       .filter(Boolean)
       .join("\n\n");
+  }),
+);
+
+const entryKind = z.enum(["visa", "passport", "arrival_form", "health", "insurance", "driving", "customs", "other"]);
+const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
+
+server.registerTool(
+  "save_entry_check",
+  {
+    title: "Save entry requirements",
+    description: `Saves what it takes to enter the countries on the trip's route – visas, passport rules, arrival forms and other formalities – after you researched them on the web. Replaces the previous check; formalities already ticked off stay ticked. How to research:\n${ENTRY_RESEARCH_GUIDE}`,
+    inputSchema: {
+      trip_id: tripId,
+      passports: z
+        .array(z.enum(COUNTRY_CODES as [string, ...string[]]))
+        .min(1)
+        .max(5)
+        .optional()
+        .describe("The passports it was checked for (ISO 3166-1 alpha-2); default: the trip's"),
+      countries: z
+        .array(
+          z.object({
+            code: z.string().describe("ISO 3166-1 alpha-2"),
+            name: z.string().optional(),
+            transit: z.boolean().optional().describe("Only changing planes / ships there"),
+            from: isoDay.optional().describe("First day in the country"),
+            to: isoDay.optional().describe("Last day in the country"),
+            summary: z.string().max(200).describe("One line, e.g. 'No visa needed for up to 60 days'"),
+            requirements: z
+              .array(
+                z.object({
+                  kind: entryKind,
+                  level: z.enum(["ok", "action", "warn", "info"]),
+                  title: z.string().max(120),
+                  details: z.string().max(600).optional().describe("How, where, cost, the window to do it in"),
+                  due_by: isoDay.optional().describe("Last day to do it (level action)"),
+                  url: z.string().url().optional().describe("Official page for it, on the site of one of the sources"),
+                }),
+              )
+              .max(20),
+            sources: z
+              .array(z.object({ title: z.string(), url: z.string().url() }))
+              .min(1)
+              .max(10)
+              .describe("The official pages you read for this country"),
+          }),
+        )
+        .max(15)
+        .describe("In route order, transit countries included"),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  },
+  tool(async (a) => {
+    let summary = "";
+    await updateTrip(a.trip_id, (t) => {
+      const passports = a.passports ?? t.passports;
+      if (!passports?.length) {
+        throw new HttpError(400, "The trip has no passports yet – pass passports (ask the user which they travel on).");
+      }
+      const countries = normalizeCountries(a.countries);
+      // A link has to be on one of the sites given as sources, so no stray agency page slips in.
+      const linked = keepFoundLinks(countries, countries.flatMap((c) => c.sources.map((s) => s.url)));
+      const links = (cs: typeof countries) => cs.flatMap((c) => c.requirements).filter((r) => r.url).length;
+      const dropped = links(countries) - links(linked);
+      const next: Trip = { ...t, passports };
+      next.entry = carryOverDone(t.entry, {
+        passports,
+        routeKey: entryRouteKey(next),
+        checkedAt: new Date().toISOString(),
+        countries: linked,
+      });
+      const open = linked.flatMap((c) => c.requirements).filter((r) => r.level === "action").length;
+      summary =
+        `Saved entry rules for ${linked.map((c) => `${flag(c.code)} ${c.name}`).join(", ") || "no countries"} ` +
+        `(passports: ${passports.join(", ")}); ${open} ${open === 1 ? "formality" : "formalities"} to do.` +
+        (dropped ? ` Left out ${dropped} link(s) not on a source's site.` : "");
+      return next;
+    });
+    return summary;
+  }),
+);
+
+server.registerTool(
+  "set_entry_done",
+  {
+    title: "Tick off a formality",
+    description: "Marks an entry formality listed by get_trip ([TH 2] = country TH, formality 2) as done, or as not done again.",
+    inputSchema: {
+      trip_id: tripId,
+      country: z.string().describe("ISO code, e.g. TH"),
+      number: z.number().int().min(1),
+      done: z.boolean().default(true),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  },
+  tool(async (a) => {
+    let title = "";
+    await updateTrip(a.trip_id, (t) => {
+      const code = a.country.toUpperCase();
+      const r = t.entry?.countries.find((c) => c.code === code)?.requirements[a.number - 1];
+      if (!t.entry || !r) throw new HttpError(404, `No formality ${code} ${a.number} in this trip's entry check.`);
+      title = r.title;
+      return { ...t, entry: setRequirementDone(t.entry, code, a.number - 1, a.done) };
+    });
+    return `${a.done ? "Done" : "Not done"}: ${title}.`;
+  }),
+);
+
+server.registerPrompt(
+  "entry-requirements",
+  {
+    title: "Check entry requirements",
+    description: "Research visas, passport rules and arrival forms for a trip's route and save them on the board",
+    argsSchema: { trip: z.string().describe("Trip name or id") },
+  },
+  ({ trip }) => ({
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text: `Check the entry requirements for my trip "${trip}" in TripDeck. Get the trip; if its passports are not set, ask me which passports I travel on. Search the web for the current official rules for every country on the route, transit countries included, and save them with save_entry_check. Then summarise what I have to do and by when, and anything the sources disagreed on.`,
+        },
+      },
+    ],
   }),
 );
 

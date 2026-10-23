@@ -251,6 +251,54 @@ export interface TripBudget {
   limit?: number;
 }
 
+export type EntryKind = "visa" | "passport" | "arrival_form" | "health" | "insurance" | "driving" | "customs" | "other";
+
+/** ok: nothing to do · action: something to apply for or fill in · warn: a rule that can stop you · info: good to know. */
+export type EntryLevel = "ok" | "action" | "warn" | "info";
+
+/** One entry rule or formality for a country, e.g. "e-Visa – apply at least 3 days before". */
+export interface EntryRequirement {
+  kind: EntryKind;
+  level: EntryLevel;
+  title: string;
+  details?: string;
+  /** "YYYY-MM-DD": the last day to do it (`level` action). */
+  dueBy?: string;
+  /** An official page for it; only links the research actually found are kept. */
+  url?: string;
+  /** Ticked off by the traveller. */
+  done?: boolean;
+}
+
+export interface EntrySource {
+  title: string;
+  url: string;
+}
+
+export interface EntryCountry {
+  /** ISO 3166-1 alpha-2. */
+  code: string;
+  name: string;
+  /** Only changing planes or ships there. */
+  transit?: boolean;
+  /** "YYYY-MM-DD" of the first and last day in the country. */
+  from?: string;
+  to?: string;
+  /** One line, e.g. "No visa needed for up to 90 days". */
+  summary: string;
+  requirements: EntryRequirement[];
+  sources: EntrySource[];
+}
+
+/** What it takes to enter the countries on the route, researched on the web for the trip's passports. */
+export interface EntryCheck {
+  /** The passports and route (`entryRouteKey`) it was checked for: a change makes it out of date. */
+  passports: string[];
+  routeKey: string;
+  checkedAt: string;
+  countries: EntryCountry[];
+}
+
 export interface Trip {
   id: string;
   name: string;
@@ -262,6 +310,9 @@ export interface Trip {
   defaultMode: TravelMode;
   /** The currency the trip's costs add up in, and an optional spending limit in it. */
   budget?: TripBudget;
+  /** Passports the travellers hold (ISO 3166-1 alpha-2); entry rules are checked for these. */
+  passports?: string[];
+  entry?: EntryCheck;
   days: Day[];
   ideas: string[];
   items: Record<string, Item>;

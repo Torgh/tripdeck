@@ -72,14 +72,16 @@ describe.skipIf(!bun)("MCP server", () => {
         "optimize_day",
         "remove_item",
         "reorder_day",
+        "save_entry_check",
         "search_places",
+        "set_entry_done",
         "set_leg",
         "update_item",
         "update_trip",
       ].sort(),
     );
     const { prompts } = await client.listPrompts();
-    expect(prompts.map((p) => p.name).sort()).toEqual(["import-bookings", "plan-day"]);
+    expect(prompts.map((p) => p.name).sort()).toEqual(["entry-requirements", "import-bookings", "plan-day"]);
     expect(client.getInstructions()).toContain("list_trips");
   });
 
@@ -280,6 +282,57 @@ describe.skipIf(!bun)("MCP server", () => {
 
     await ok("update_item", { trip_id: tripId, item_id: dives, booking: { status: "confirmed" } });
     expect(await ok("get_trip", { trip_id: tripId })).not.toContain("Big Blue Best-Of (day 2)");
+  });
+
+  it("keeps the travellers' passports for the entry check", async () => {
+    const created = await ok("create_trip", { name: "Visa", destination: "Japan", start_date: "2027-03-01", days: 2 });
+    const tripId = idIn(created, /trip_id ([\w-]+)/);
+    expect(await ok("get_trip", { trip_id: tripId })).toContain("## Entry & paperwork\nPassports: not set. Not checked yet");
+
+    await ok("update_trip", { trip_id: tripId, passports: ["PL", "DE"] });
+    expect(await ok("get_trip", { trip_id: tripId })).toContain("Passports: Poland, Germany. Not checked yet");
+    expect((await call("update_trip", { trip_id: tripId, passports: ["XX"] })).isError).toBe(true);
+  });
+
+  it("saves researched entry rules, lists what to do and ticks it off", async () => {
+    const created = await ok("create_trip", { name: "Seoul", destination: "South Korea", start_date: "2027-04-10", days: 5 });
+    const tripId = idIn(created, /trip_id ([\w-]+)/);
+    const countries = [
+      {
+        code: "kr",
+        from: "2027-04-10",
+        to: "2027-04-14",
+        summary: "No visa needed for up to 90 days",
+        requirements: [
+          { kind: "visa", level: "ok", title: "Visa-free for 90 days" },
+          { kind: "arrival_form", level: "action", title: "K-ETA or e-Arrival card", due_by: "2027-04-07", url: "https://www.k-eta.go.kr/portal/apply" },
+          { kind: "passport", level: "warn", title: "Passport valid for the whole stay", url: "https://visa-agency.example/korea" },
+        ],
+        sources: [{ title: "K-ETA", url: "https://www.k-eta.go.kr/portal/" }],
+      },
+    ];
+    // Without passports on the trip or in the call, it asks for them.
+    expect((await call("save_entry_check", { trip_id: tripId, countries })).text).toMatch(/no passports yet/);
+
+    const saved = await ok("save_entry_check", { trip_id: tripId, passports: ["PL"], countries });
+    expect(saved).toBe("Saved entry rules for 🇰🇷 South Korea (passports: PL); 1 formality to do. Left out 1 link(s) not on a source's site.");
+    let plan = await ok("get_trip", { trip_id: tripId });
+    expect(plan).toContain("## To sort out\n- South Korea: K-ETA or e-Arrival card – by 2027-04-07\n");
+    expect(plan).toContain("🇰🇷 South Korea 2027-04-10→2027-04-14: No visa needed for up to 90 days");
+    expect(plan).toContain("📝 K-ETA or e-Arrival card [KR 2] (by 2027-04-07) https://www.k-eta.go.kr/portal/apply");
+    expect(plan).toContain("⚠️ Passport valid for the whole stay\n");
+
+    expect(await ok("set_entry_done", { trip_id: tripId, country: "kr", number: 2 })).toBe("Done: K-ETA or e-Arrival card.");
+    plan = await ok("get_trip", { trip_id: tripId });
+    expect(plan).not.toContain("- South Korea: K-ETA");
+    expect(plan).toContain("☑️ done: K-ETA or e-Arrival card [KR 2]");
+    // A new check keeps the tick; another passport makes the saved one out of date.
+    await ok("save_entry_check", { trip_id: tripId, countries });
+    await ok("update_trip", { trip_id: tripId, passports: ["PL", "US"] });
+    plan = await ok("get_trip", { trip_id: tripId });
+    expect(plan).toContain("☑️ done: K-ETA");
+    expect(plan).toContain("⚠️ Out of date: the passports changed");
+    expect((await call("set_entry_done", { trip_id: tripId, country: "KR", number: 9 })).isError).toBe(true);
   });
 
   it("rides a rented scooter only while it is rented", async () => {

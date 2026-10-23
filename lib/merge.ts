@@ -16,6 +16,8 @@ export function mergeTrips(base: Trip, local: Trip, remote: Trip): Trip {
     interests: pick(base.interests, local.interests, remote.interests),
     defaultMode: pick(base.defaultMode, local.defaultMode, remote.defaultMode),
     budget: pick(base.budget, local.budget, remote.budget),
+    passports: pick(base.passports, local.passports, remote.passports),
+    entry: pick(base.entry, local.entry, remote.entry),
     items,
     legs: mergeRecords(base.legs, local.legs, remote.legs),
     days,
