@@ -7,6 +7,7 @@ import { SyncBadge } from "@/components/SyncAgent";
 import { SOURCE_URL } from "@/lib/about";
 import { demoTrip } from "@/lib/demo";
 import { useHydrated } from "@/lib/hooks";
+import { nextTripId, tripCountdown } from "@/lib/itinerary";
 import { createTrip, parseTripFile, useStore } from "@/lib/store";
 import { dayDate, formatDayLabel, isoDate } from "@/lib/time";
 import { MODE_LABEL, ROUTABLE_MODES, type TravelMode } from "@/lib/types";
@@ -47,6 +48,9 @@ export default function Home() {
   };
 
   const list = Object.values(trips).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  // Trips only show once hydrated, so "now" is the browser's, never the server's.
+  const now = new Date();
+  const next = nextTripId(list, now);
 
   return (
     <main className="home">
@@ -92,20 +96,39 @@ export default function Home() {
         {!hydrated ? (
           <p className="muted">Loading…</p>
         ) : list.length === 0 ? (
-          <p className="muted">No trips yet. Create one below or load the demo.</p>
+          <div className="home-empty">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/empty-deck.svg" alt="" />
+            <strong>Your deck is empty</strong>
+            <p className="muted">No trips yet. Create one below or load the demo.</p>
+          </div>
         ) : (
           <div className="trip-list">
-            {list.map((t) => (
-              <Link key={t.id} href={`/trip?id=${t.id}`} className="card trip-tile">
-                <strong>{t.name}</strong>
-                <span className="muted small">
-                  {t.destination} · {formatDayLabel(dayDate(t.startDate, 0))} – {formatDayLabel(dayDate(t.startDate, t.days.length - 1))}
-                </span>
-                <span className="small">
-                  {t.days.length} days · {Object.keys(t.items).length} places
-                </span>
-              </Link>
-            ))}
+            {list.map((t) => {
+              const countdown = tripCountdown(t, now);
+              const tone = countdown.phase === "ended" ? " ended" : t.id === next ? " next" : "";
+              return (
+                <div key={t.id} className="trip-deck">
+                  <Link href={`/trip?id=${t.id}`} className="card trip-tile">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/trip-thumb.svg" alt="" className="trip-thumb" />
+                    <span className="trip-text">
+                      <strong>{t.name}</strong>
+                      <span className="muted small">
+                        {t.destination} · {formatDayLabel(dayDate(t.startDate, 0))} – {formatDayLabel(dayDate(t.startDate, t.days.length - 1))}
+                      </span>
+                      <span className="small">
+                        {t.days.length} days · {Object.keys(t.items).length} places
+                      </span>
+                    </span>
+                    <span className={`countdown${tone}`}>
+                      <b>{countdown.value}</b>
+                      <span>{countdown.label}</span>
+                    </span>
+                  </Link>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>

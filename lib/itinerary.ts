@@ -27,6 +27,34 @@ export function tripStatus(trip: Trip, now: Date): string {
   return "Ended";
 }
 
+/** The trip list's countdown tile: days to go, the day of the trip it is, or ended. */
+export interface TripCountdown {
+  phase: "upcoming" | "ongoing" | "ended";
+  /** The big figure: days to go, or "3/9" during the trip. */
+  value: string;
+  label: string;
+}
+
+export function tripCountdown(trip: Trip, now: Date): TripCountdown {
+  const i = daysBetween(trip.startDate, localIsoDate(now));
+  if (i < 0) return { phase: "upcoming", value: String(-i), label: i === -1 ? "day" : "days" };
+  if (i < trip.days.length) return { phase: "ongoing", value: `${i + 1}/${trip.days.length}`, label: "today" };
+  return { phase: "ended", value: "✓", label: "ended" };
+}
+
+/** The trip the list singles out: the one under way, else the next to start. */
+export function nextTripId(trips: Trip[], now: Date): string | undefined {
+  let best: { id: string; i: number } | undefined;
+  for (const trip of trips) {
+    const i = daysBetween(trip.startDate, localIsoDate(now));
+    if (i >= trip.days.length) continue;
+    // Under way beats upcoming; among upcoming, the soonest.
+    const rank = i >= 0 ? -Infinity : -i;
+    if (!best || rank < best.i) best = { id: trip.id, i: rank };
+  }
+  return best?.id;
+}
+
 const MAPS_TRAVEL_MODE: Partial<Record<TravelMode, string>> = {
   DRIVE: "driving",
   WALK: "walking",

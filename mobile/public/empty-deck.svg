@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 150">
+  <!-- An empty trip list: the logo's deck of cards, waiting for a trip. -->
+  <ellipse cx="90" cy="138" rx="70" ry="8" fill="#0e7490" opacity=".15"/>
+  <rect x="40" y="18" width="78" height="104" rx="12" fill="#fff" stroke="#e2e8f0" opacity=".7" transform="rotate(-14 79 70)"/>
+  <rect x="50" y="14" width="78" height="104" rx="12" fill="#fff" stroke="#e2e8f0" transform="rotate(-5 89 66)"/>
+  <g transform="rotate(6 99 62)">
+    <rect x="60" y="10" width="78" height="104" rx="12" fill="#fff" stroke="#e2e8f0"/>
+    <path d="M72 10h54a12 12 0 0 1 12 12v32H60V22a12 12 0 0 1 12-12z" fill="#fb923c"/>
+    <rect x="60" y="40" width="78" height="14" fill="#f43f5e"/>
+    <path d="M60 54c13-5 26-5 39 0s26 5 39 0v6H60z" fill="#0e7490"/>
+    <path d="M75 96C75 78 118 86 118 68" stroke="#0e7490" stroke-width="5" fill="none" stroke-linecap="round" stroke-dasharray=".5 9"/>
+    <circle cx="75" cy="96" r="6" fill="#0e7490"/>
+    <path d="M118 74c0 0-15-15-15-26a15 15 0 0 1 30 0c0 11-15 26-15 26z" fill="#f97316" stroke="#fff" stroke-width="2"/>
+    <circle cx="118" cy="48" r="5.5" fill="#fff"/>
+  </g>
+</svg>
