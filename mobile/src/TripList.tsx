@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { demoTrip } from "@/lib/demo";
 import { nextTripId, tripCountdown } from "@/lib/itinerary";
 import { dayDate, formatDayLabel } from "@/lib/time";
 import type { Trip } from "@/lib/types";
@@ -14,6 +16,7 @@ interface Props {
 export function TripList({ trips, now, onOpen, onImport, onDemo, onDelete }: Props) {
   const sorted = [...trips].sort((a, b) => a.startDate.localeCompare(b.startDate));
   const next = nextTripId(trips, now);
+  const demo = useMemo(() => demoTrip(), []);
 
   return (
     <div className="screen">
@@ -24,12 +27,33 @@ export function TripList({ trips, now, onOpen, onImport, onDemo, onDelete }: Pro
 
       <main className="content">
         {sorted.length === 0 && (
-          <div className="empty">
-            <img src="./empty-deck.svg" alt="" className="empty-art" />
-            <p className="empty-title">Your deck is empty</p>
-            <p className="muted">
-              No trips on this device yet. On your PC choose <b>Export → JSON</b> in a trip, then open the{" "}
-              <code>.tripdeck.json</code> file here – from OneDrive, Google Drive, Downloads or an email.
+          // An empty deck: a slot for the first trip, and the demo as a real trip tile.
+          <div className="first-trip">
+            <button className="first-slot" onClick={onImport}>
+              <span className="first-plus" aria-hidden>
+                +
+              </span>
+              <span className="trip-text">
+                <span className="trip-name">Your first trip goes here</span>
+                <span className="muted small">
+                  Import the <code>.tripdeck.json</code> you exported on your PC
+                </span>
+              </span>
+            </button>
+            <p className="muted small first-or">Or look around first</p>
+            <div className="trip-deck">
+              <button className="trip-card" onClick={onDemo}>
+                <img src="./trip-thumb.svg" alt="" className="trip-thumb" />
+                <span className="trip-text">
+                  <span className="trip-name">{demo.name}</span>
+                  <span className="muted small">Demo · {demo.days.length} days · dives, ferries, a rental car</span>
+                </span>
+                <span className="try">Try ›</span>
+              </button>
+            </div>
+            <p className="first-how muted small">
+              <b>How to bring a trip:</b> on your PC choose Export → JSON in a trip, then save the file to OneDrive,
+              Google Drive or Downloads, or email it to yourself.
             </p>
           </div>
         )}
@@ -71,16 +95,18 @@ export function TripList({ trips, now, onOpen, onImport, onDemo, onDelete }: Pro
           );
         })}
 
-        <div className="actions">
-          <button className="btn primary" onClick={onImport}>
-            📥 Import trip file
-          </button>
-          <button className="btn" onClick={onDemo}>
-            🏝️ Load demo trip
-          </button>
-        </div>
         {sorted.length > 0 && (
-          <p className="muted small center">Importing a newer export of the same trip replaces it.</p>
+          <>
+            <div className="actions">
+              <button className="btn primary" onClick={onImport}>
+                📥 Import trip file
+              </button>
+              <button className="btn" onClick={onDemo}>
+                🏝️ Load demo trip
+              </button>
+            </div>
+            <p className="muted small center">Importing a newer export of the same trip replaces it.</p>
+          </>
         )}
       </main>
     </div>

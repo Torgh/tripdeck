@@ -319,16 +319,49 @@ body:has(.home)::before {
   background: var(--surface-2);
   color: var(--muted);
 }
-.home-empty {
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  margin: 16px 0 24px;
-  text-align: center;
+/* An empty trip list: a dashed slot for the first trip, then the demo as a trip tile. */
+.first-slot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 2px dashed var(--muted);
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
-.home-empty img {
-  width: 180px;
-  height: 150px;
+.first-slot:hover {
+  border-color: var(--accent);
+}
+.first-plus {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 30px;
+  font-weight: 300;
+}
+.trip-deck > button.trip-tile {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.try {
+  flex: none;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--sun-soft);
+  color: var(--sun-text);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 /* ---------- Trip view ---------- */

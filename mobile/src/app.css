@@ -205,6 +205,7 @@ p {
 .btn:active,
 .icon-btn:active,
 .trip-card:active,
+.first-slot:active,
 .day-chip:active {
   opacity: 0.7;
 }
@@ -221,21 +222,56 @@ p {
 
 /* ---------- Trip list ---------- */
 
-.empty {
-  padding: 24px 8px;
-  text-align: center;
+/* An empty trip list: a dashed slot for the first trip, then the demo as a trip tile. */
+.first-trip {
   display: grid;
-  justify-items: center;
-  gap: 8px;
+  gap: 12px;
+  padding-top: 6px;
 }
-.empty-art {
-  width: 180px;
-  height: 150px;
-  margin-bottom: 4px;
+.first-slot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 12px;
+  border: 2px dashed var(--muted);
+  border-radius: 14px;
+  background: transparent;
+  text-align: left;
 }
-.empty-title {
-  font-size: 18px;
+.first-plus {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 28px;
+  font-weight: 300;
+}
+.first-or {
+  margin: 6px 2px 0;
+  font-weight: 600;
+}
+.try {
+  flex: none;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--sun-soft);
+  color: var(--sun-text);
+  font-size: 14px;
   font-weight: 700;
+}
+.first-how {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.first-how b {
+  color: var(--text);
 }
 
 .trip-row {
