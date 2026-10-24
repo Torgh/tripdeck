@@ -766,26 +766,47 @@ p {
   color: var(--accent);
 }
 
-/* ---------- Tablet ---------- */
+/* ---------- Sideways and tablet ---------- */
 
-.trip-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+/* Held sideways the screen edges can hold a camera cutout. */
+.appbar,
+.day-strip {
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+}
+.content {
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+}
+.map-bar {
+  padding-right: max(8px, env(safe-area-inset-right, 0px));
+}
+.map-pane.full {
+  padding-left: env(safe-area-inset-left, 0px);
 }
 
-@media (min-width: 900px) {
-  /* Plan on the left, map on the right, as in the desktop app. A hidden map leaves its bar above the plan. */
-  .trip-body.map-open {
+/* A wide screen, or a phone held sideways: days and plan on the left, the map on the right the whole height,
+   as in the desktop app. A hidden map leaves its bar above the plan. */
+@media (min-width: 900px), (orientation: landscape) and (min-width: 560px) {
+  .screen.map-open {
     display: grid;
-    grid-template-columns: minmax(380px, 1fr) minmax(0, 1fr);
-    grid-template-areas: "plan map";
+    grid-template-columns: minmax(320px, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      "bar bar"
+      "days map"
+      "plan map";
   }
-  .trip-body.map-open .content {
+  .screen.map-open > .appbar {
+    grid-area: bar;
+  }
+  .screen.map-open > .day-strip {
+    grid-area: days;
+  }
+  .screen.map-open > .content {
     grid-area: plan;
   }
-  .trip-body.map-open .map-pane {
+  .screen.map-open > .map-pane {
     grid-area: map;
     display: flex;
     flex-direction: column;
@@ -793,20 +814,52 @@ p {
     border-bottom: none;
     border-left: 1px solid var(--border);
   }
-  .trip-body.map-open .map-frame {
+  .screen.map-open .map-frame {
     flex: 1;
     height: auto;
+    min-height: 0;
   }
-  .trip-body.map-open .map-bar {
+  .screen.map-open .map-bar {
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
   }
 
   /* Without a map beside it the plan would stretch edge to edge; keep it a readable width. */
   .content {
-    padding-inline: max(12px, calc((100% - 760px) / 2));
+    padding-left: max(12px, env(safe-area-inset-left, 0px), calc((100% - 760px) / 2));
+    padding-right: max(12px, env(safe-area-inset-right, 0px), calc((100% - 760px) / 2));
   }
   .toast {
     max-width: 520px;
     margin-inline: auto;
+  }
+}
+
+/* A phone held sideways is short: a slimmer bar and one-line day chips leave room for the plan. */
+@media (max-height: 500px) {
+  .appbar {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 4px);
+    padding-bottom: 4px;
+  }
+  .appbar-title .muted {
+    display: none;
+  }
+  .appbar-tab {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+  }
+  .day-strip {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .day-chip {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    width: auto;
+    padding: 4px 10px;
+  }
+  .chip-date {
+    font-size: 16px;
   }
 }
