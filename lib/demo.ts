@@ -1,4 +1,5 @@
 import { entryRouteKey } from "./entry";
+import { localIsoDate } from "./itinerary";
 import { createTrip, newId } from "./tripOps";
 import { dayDate, isoDate } from "./time";
 import { routeKey } from "./geo";
@@ -48,14 +49,14 @@ const monToSat = (open: [number, number], close: [number, number]): OpeningPerio
  * a no-fly warning, a place closed on Sunday and a late arrival.
  */
 export function demoTrip(): Trip {
-  // Start on a Saturday about a month from now, so day 2 is always a Sunday.
-  const start = new Date();
-  start.setUTCDate(start.getUTCDate() + 30);
-  start.setUTCDate(start.getUTCDate() + ((6 - start.getUTCDay() + 7) % 7));
+  // Start on the latest Saturday, so the trip is always under way (Saturday to Friday covers every
+  // weekday) and shows today, while day 2 is still a Sunday.
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 1) % 7));
   const trip = createTrip({
     name: "Malta & Gozo dive week (demo)",
     destination: "Malta",
-    startDate: isoDate(start),
+    startDate: localIsoDate(start),
     days: 7,
     interests: "scuba diving, snorkeling, history, viewpoints, local food",
     defaultMode: "DRIVE",
