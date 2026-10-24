@@ -17,6 +17,19 @@ export function TripList({ trips, now, onOpen, onImport, onDemo, onDelete }: Pro
   const sorted = sortTrips(trips, now);
   const next = nextTripId(trips, now);
   const demo = useMemo(() => demoTrip(), []);
+  // The demo as a trip tile, on an empty list and at the end of a full one.
+  const demoTile = (
+    <div className="trip-deck">
+      <button className="trip-card" onClick={onDemo}>
+        <img src="./trip-thumb.svg" alt="" className="trip-thumb" />
+        <span className="trip-text">
+          <span className="trip-name">{demo.name}</span>
+          <span className="muted small">Demo · {demo.days.length} days · dives, ferries, a rental car</span>
+        </span>
+        <span className="try">Try ›</span>
+      </button>
+    </div>
+  );
 
   return (
     <div className="screen">
@@ -41,16 +54,7 @@ export function TripList({ trips, now, onOpen, onImport, onDemo, onDelete }: Pro
               </span>
             </button>
             <p className="muted small first-or">Or look around first</p>
-            <div className="trip-deck">
-              <button className="trip-card" onClick={onDemo}>
-                <img src="./trip-thumb.svg" alt="" className="trip-thumb" />
-                <span className="trip-text">
-                  <span className="trip-name">{demo.name}</span>
-                  <span className="muted small">Demo · {demo.days.length} days · dives, ferries, a rental car</span>
-                </span>
-                <span className="try">Try ›</span>
-              </button>
-            </div>
+            {demoTile}
             <p className="first-how muted small">
               <b>How to bring a trip:</b> on your PC choose Export → JSON in a trip, then save the file to OneDrive,
               Google Drive or Downloads, or email it to yourself.
@@ -111,11 +115,7 @@ export function TripList({ trips, now, onOpen, onImport, onDemo, onDelete }: Pro
                 </span>
               </button>
             </div>
-            <div className="actions">
-              <button className="btn" onClick={onDemo}>
-                🏝️ Load demo trip
-              </button>
-            </div>
+            <div className="trip-row next-slot-row">{demoTile}</div>
             <p className="muted small center">Importing a newer export of the same trip replaces it.</p>
           </>
         )}
