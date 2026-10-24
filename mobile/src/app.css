@@ -765,3 +765,48 @@ p {
 .entry-sources a {
   color: var(--accent);
 }
+
+/* ---------- Tablet ---------- */
+
+.trip-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 900px) {
+  /* Plan on the left, map on the right, as in the desktop app. A hidden map leaves its bar above the plan. */
+  .trip-body.map-open {
+    display: grid;
+    grid-template-columns: minmax(380px, 1fr) minmax(0, 1fr);
+    grid-template-areas: "plan map";
+  }
+  .trip-body.map-open .content {
+    grid-area: plan;
+  }
+  .trip-body.map-open .map-pane {
+    grid-area: map;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-bottom: none;
+    border-left: 1px solid var(--border);
+  }
+  .trip-body.map-open .map-frame {
+    flex: 1;
+    height: auto;
+  }
+  .trip-body.map-open .map-bar {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
+  }
+
+  /* Without a map beside it the plan would stretch edge to edge; keep it a readable width. */
+  .content {
+    padding-inline: max(12px, calc((100% - 760px) / 2));
+  }
+  .toast {
+    max-width: 520px;
+    margin-inline: auto;
+  }
+}

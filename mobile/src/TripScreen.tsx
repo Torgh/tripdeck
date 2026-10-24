@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { computeClockNotes, mergeIssues } from "@/lib/clock";
 import { computeDiveWarnings } from "@/lib/diveSafety";
 import { entryActions } from "@/lib/entry";
@@ -43,6 +43,15 @@ function savedMapMode(): MapMode {
 /** Horizontal swipe distance that flips to the next / previous day. */
 const SWIPE_PX = 60;
 
+/** Turning the device reshapes the map pane (on a tablet it moves beside the plan), so the map frames its stops again. */
+const LANDSCAPE = "(orientation: landscape)";
+function subscribeOrientation(onChange: () => void) {
+  const query = matchMedia(LANDSCAPE);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const isLandscape = () => matchMedia(LANDSCAPE).matches;
+
 interface Props {
   trip: Trip;
   now: Date;
@@ -79,6 +88,7 @@ export function TripScreen({ trip, now, onBack }: Props) {
     content.current?.scrollTo({ top: 0 });
   };
 
+  const landscape = useSyncExternalStore(subscribeOrientation, isLandscape);
   const [mapMode, setMapModeState] = useState<MapMode>(savedMapMode);
   const setMapMode = (mode: MapMode) => {
     setMapModeState(mode);
@@ -207,71 +217,74 @@ export function TripScreen({ trip, now, onBack }: Props) {
         )}
       </div>
 
-      {hasMap && (
-        <section className={`map-pane ${mapMode}`} aria-label="Map of the day">
-          <div className="map-frame">
-            <Suspense fallback={<div className="map" />}>
-              <MapView layers={layers} fitKey={`${selected}|${mapMode}`} highlightId={highlightId} onPinTap={onPinTap} />
-            </Suspense>
-          </div>
-          {mapMode === "full" && pinned && (
-            <button
-              className="map-pick"
-              onClick={() => {
-                setMapMode("open");
-                // Let the list come back before scrolling to the card.
-                requestAnimationFrame(() => showInPlan(pinned.id));
-              }}
-            >
-              <span aria-hidden>{pinnedStop ? "🗺️" : itemIcon(pinned)}</span>
-              <span className="map-pick-title">
-                {pinnedStop ?? pinned.title}
-                {pinnedStop && <span className="muted small">{pinned.title}</span>}
-              </span>
-              {pinnedEntry && <span className="muted small">{formatHm(pinnedEntry.start)}</span>}
-              <span className="muted small">Show in plan ›</span>
-            </button>
-          )}
-          <div className="map-bar">
-            {mapMode !== "full" && (
-              <button className="map-btn" onClick={() => setMapMode(mapMode === "collapsed" ? "open" : "collapsed")}>
-                {mapMode === "collapsed" ? "🗺️ Show map ▾" : "▴ Hide map"}
+      {/* Phone: map above the plan. Tablet landscape: plan left, map right, like the desktop app. */}
+      <div className={`trip-body${hasMap ? ` map-${mapMode}` : ""}`}>
+        {hasMap && (
+          <section className={`map-pane ${mapMode}`} aria-label="Map of the day">
+            <div className="map-frame">
+              <Suspense fallback={<div className="map" />}>
+                <MapView layers={layers} fitKey={`${selected}|${mapMode}|${landscape}`} highlightId={highlightId} onPinTap={onPinTap} />
+              </Suspense>
+            </div>
+            {mapMode === "full" && pinned && (
+              <button
+                className="map-pick"
+                onClick={() => {
+                  setMapMode("open");
+                  // Let the list come back before scrolling to the card.
+                  requestAnimationFrame(() => showInPlan(pinned.id));
+                }}
+              >
+                <span aria-hidden>{pinnedStop ? "🗺️" : itemIcon(pinned)}</span>
+                <span className="map-pick-title">
+                  {pinnedStop ?? pinned.title}
+                  {pinnedStop && <span className="muted small">{pinned.title}</span>}
+                </span>
+                {pinnedEntry && <span className="muted small">{formatHm(pinnedEntry.start)}</span>}
+                <span className="muted small">Show in plan ›</span>
               </button>
             )}
-            <button className="map-btn" onClick={() => setMapMode(mapMode === "full" ? "open" : "full")}>
-              {mapMode === "full" ? "✕ Close map" : "⛶ Full screen"}
-            </button>
-          </div>
-        </section>
-      )}
-
-      <main
-        className="content"
-        ref={content}
-        onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
-        onTouchEnd={onTouchEnd}
-      >
-        {selected === ENTRY_TAB ? (
-          <EntryView trip={trip} entry={trip.entry} />
-        ) : selected === BUDGET_TAB && budget ? (
-          <BudgetView trip={trip} budget={budget} onDay={select} />
-        ) : selected === IDEAS_TAB ? (
-          <IdeasView trip={trip} highlightId={highlightId} onSelect={setHighlightId} />
-        ) : (
-          <DayView
-            key={selected}
-            trip={trip}
-            timeline={timelines[selected]}
-            warnings={warnings}
-            night={nights[selected]}
-            rentals={rentals[selected]}
-            isToday={selected === today}
-            highlightId={highlightId}
-            onSelect={setHighlightId}
-            spent={budget?.byDay[selected] ? formatMoney(budget.byDay[selected], budget.currency) : undefined}
-          />
+            <div className="map-bar">
+              {mapMode !== "full" && (
+                <button className="map-btn" onClick={() => setMapMode(mapMode === "collapsed" ? "open" : "collapsed")}>
+                  {mapMode === "collapsed" ? "🗺️ Show map ▾" : "▴ Hide map"}
+                </button>
+              )}
+              <button className="map-btn" onClick={() => setMapMode(mapMode === "full" ? "open" : "full")}>
+                {mapMode === "full" ? "✕ Close map" : "⛶ Full screen"}
+              </button>
+            </div>
+          </section>
         )}
-      </main>
+
+        <main
+          className="content"
+          ref={content}
+          onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
+          onTouchEnd={onTouchEnd}
+        >
+          {selected === ENTRY_TAB ? (
+            <EntryView trip={trip} entry={trip.entry} />
+          ) : selected === BUDGET_TAB && budget ? (
+            <BudgetView trip={trip} budget={budget} onDay={select} />
+          ) : selected === IDEAS_TAB ? (
+            <IdeasView trip={trip} highlightId={highlightId} onSelect={setHighlightId} />
+          ) : (
+            <DayView
+              key={selected}
+              trip={trip}
+              timeline={timelines[selected]}
+              warnings={warnings}
+              night={nights[selected]}
+              rentals={rentals[selected]}
+              isToday={selected === today}
+              highlightId={highlightId}
+              onSelect={setHighlightId}
+              spent={budget?.byDay[selected] ? formatMoney(budget.byDay[selected], budget.currency) : undefined}
+            />
+          )}
+        </main>
+      </div>
     </div>
   );
 }

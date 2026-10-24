@@ -1,4 +1,4 @@
-# TripDeck
+<h1><img src="public/icon.svg" alt="" width="40" height="40" align="center"> TripDeck</h1>
 
 **A trip planner for people who want to see the whole trip at once – and plan it together with Claude or ChatGPT.** Each day is a column and each place is a card. Drag cards between days or move whole days. TripDeck works out how you get from one stop to the next – including public transport lines and clock changes on flights – adds up what the trip costs, keeps a list of what is still to book or apply for (visas and arrival forms included), and flags dive-safety problems such as flying too soon after diving. An MCP server lets Claude (Claude Code / Desktop) or ChatGPT (Codex) work on the same plan using **your own subscription, no API key needed**, and an Android app takes the plan on the road, offline.
 
