@@ -71,7 +71,9 @@ export function OsmMap({
         type: "line",
         source: "legs",
         filter: ["get", "dashed"],
-        paint: { ...paint, "line-dasharray": [1.5, 1.5] },
+        // Round dots, like the route on the TripDeck logo.
+        layout: { "line-cap": "round" },
+        paint: { ...paint, "line-dasharray": [0, 2] },
       });
       setLoaded(true);
     });

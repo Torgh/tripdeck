@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- The logo in miniature: sunset, sea and the deck of cards, for each trip on the trip list. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fb923c"/><stop offset=".6" stop-color="#f43f5e"/><stop offset="1" stop-color="#be185d"/></linearGradient>
+    <clipPath id="tile"><rect width="48" height="48" rx="12"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="48" height="48" fill="url(#sky)"/>
+    <path d="M0 36c6-2 11-2 17 0s11 2 17 0 10-2 14-1V48H0z" fill="#0e7490"/>
+    <path d="M0 41c6-2 11-2 17 0s11 2 17 0 10-2 14-1V48H0z" fill="#155e75"/>
+  </g>
+  <rect x="14" y="9" width="20" height="26" rx="4" fill="#fff" opacity=".55" transform="rotate(-8 24 22)"/>
+  <g transform="rotate(6 26 21)">
+    <rect x="16" y="8" width="20" height="26" rx="4" fill="#fff"/>
+    <path d="M30 22c0 0-4-4-4-7a4 4 0 0 1 8 0c0 3-4 7-4 7z" fill="#f97316"/>
+  </g>
+</svg>

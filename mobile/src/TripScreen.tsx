@@ -161,7 +161,7 @@ export function TripScreen({ trip, now, onBack }: Props) {
           <div className="muted small">{trip.destination}</div>
         </div>
         {today != null && selected !== today && (
-          <button className="btn small" onClick={() => select(today)}>
+          <button className="btn small today-btn" onClick={() => select(today)}>
             Today
           </button>
         )}
@@ -199,7 +199,7 @@ export function TripScreen({ trip, now, onBack }: Props) {
               onClick={() => select(i)}
             >
               <span className="chip-weekday">
-                {date.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}
+                {i === today ? "Today" : date.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}
               </span>
               <span className="chip-date">{date.getUTCDate()}</span>
             </button>

@@ -144,7 +144,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
             {todos.length > 0 && (
               <>
                 {" · "}
-                <button className="linklike" onClick={() => setDialog({ kind: "todo" })}>
+                <button className="linklike todo-link" onClick={() => setDialog({ kind: "todo" })}>
                   📝 {todos.length} to sort out
                 </button>
               </>

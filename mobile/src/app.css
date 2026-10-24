@@ -15,19 +15,26 @@
   --info-soft: #dbeafe;
   --stay: #0d9488;
   --rental: #d97706;
+  /* The logo's sunset: "today" and "picked", never a day's own colour. */
+  --sun: #f97316;
+  --sun-text: #c2410c;
+  --sun-soft: #fff7ed;
+  --sun-line: #fed7aa;
+  --sunset: linear-gradient(90deg, #fb923c, #f43f5e 60%, #be185d);
   --shadow: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 3px rgb(15 23 42 / 0.08);
   --radius: 12px;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
+  /* Dusk: the deep end of the logo's sky. */
   :root {
-    --bg: #0b1220;
-    --surface: #111a2e;
-    --surface-2: #0f172a;
-    --border: #1f2a44;
-    --text: #e2e8f0;
-    --muted: #94a3b8;
+    --bg: #120d1e;
+    --surface: #1c1530;
+    --surface-2: #170f27;
+    --border: #2f2447;
+    --text: #efeaf7;
+    --muted: #ab9fc4;
     --accent: #22d3ee;
     --accent-soft: #083344;
     --accent-text: #042f3a;
@@ -37,6 +44,10 @@
     --info-soft: #172554;
     --stay: #2dd4bf;
     --rental: #fbbf24;
+    --sun: #fb923c;
+    --sun-text: #fdba74;
+    --sun-soft: #2c1a2a;
+    --sun-line: #4d2c3c;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
     color-scheme: dark;
   }
@@ -103,7 +114,8 @@ p {
   gap: 10px;
   padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 10px;
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 3px solid transparent;
+  border-image: var(--sunset) 1;
 }
 .appbar h1 {
   font-size: 18px;
@@ -142,7 +154,7 @@ p {
   height: 20px;
   padding: 0 5px;
   border-radius: 999px;
-  background: var(--warn);
+  background: var(--sun-text);
   color: var(--surface);
   font-size: 12px;
   font-weight: 700;
@@ -185,9 +197,15 @@ p {
   padding: 0 12px;
   font-size: 14px;
 }
+.btn.today-btn {
+  border-color: var(--sun);
+  background: var(--sun-soft);
+  color: var(--sun-text);
+}
 .btn:active,
 .icon-btn:active,
 .trip-card:active,
+.first-slot:active,
 .day-chip:active {
   opacity: 0.7;
 }
@@ -204,40 +222,146 @@ p {
 
 /* ---------- Trip list ---------- */
 
-.empty {
-  padding: 24px 8px;
-  text-align: center;
+/* An empty trip list: a dashed slot for the first trip, then the demo as a trip tile. */
+.first-trip {
   display: grid;
-  gap: 8px;
+  gap: 12px;
+  padding-top: 6px;
+}
+.first-slot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 12px;
+  border: 2px dashed var(--muted);
+  border-radius: 14px;
+  background: transparent;
+  text-align: left;
+}
+.first-plus {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 28px;
+  font-weight: 300;
+}
+.first-or {
+  margin: 6px 2px 0;
+  font-weight: 600;
+}
+.try {
+  flex: none;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--sun-soft);
+  color: var(--sun-text);
+  font-size: 14px;
+  font-weight: 700;
+}
+.first-how {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.first-how b {
+  color: var(--text);
 }
 
 .trip-row {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+}
+/* Each trip is a deck of cards, like the logo: two tilted cards peek out behind it. */
+.trip-deck {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.trip-deck::before,
+.trip-deck::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.trip-deck::before {
+  transform: rotate(-3deg) translate(-2px, 3px);
+  opacity: 0.55;
+}
+.trip-deck::after {
+  transform: rotate(-1.5deg) translate(-1px, 1px);
+  opacity: 0.8;
 }
 .trip-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.trip-thumb {
+  flex: none;
+  width: 48px;
+  height: 48px;
+}
+.trip-text {
   flex: 1;
   min-width: 0;
   display: grid;
   gap: 2px;
-  padding: 14px 16px;
-  text-align: left;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
 }
 .trip-name {
-  font-size: 17px;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Days to go; the trip under way or next to start is in the logo's orange. */
+.countdown {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  min-width: 52px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.countdown b {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.countdown span {
+  font-size: 11px;
   font-weight: 600;
 }
-.trip-status {
-  margin-top: 4px;
-  color: var(--accent);
-  font-size: 14px;
-  font-weight: 600;
+.countdown.next {
+  background: var(--sun-soft);
+  color: var(--sun-text);
+}
+.countdown.ended {
+  background: var(--surface-2);
+  color: var(--muted);
 }
 
 .actions {
@@ -276,7 +400,14 @@ p {
   font-weight: 600;
 }
 .day-chip.today {
-  border-color: var(--accent);
+  border: 2px solid var(--sun);
+  padding: 5px 0;
+  background: var(--sun-soft);
+  color: var(--sun-text);
+}
+.day-chip.today .chip-weekday {
+  color: inherit;
+  font-weight: 600;
 }
 .day-chip.ideas {
   width: auto;
@@ -286,6 +417,9 @@ p {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-text);
+}
+.day-chip.today[aria-current="true"] {
+  border-color: var(--sun);
 }
 .day-chip[aria-current="true"] .chip-weekday {
   color: inherit;
@@ -303,11 +437,12 @@ p {
 .day-head h2 {
   font-size: 18px;
 }
+/* "Today" beside the day's heading, in the logo's sunset like the day chip. */
 .badge {
   padding: 1px 8px;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--sun-soft);
+  color: var(--sun-text);
   font-size: 12px;
   font-weight: 600;
 }
@@ -339,10 +474,11 @@ p {
   padding: 0;
 }
 
+/* Dots between the cards, like the route on the logo. */
 .leg {
-  margin: 0 0 0 22px;
+  margin: 0 0 0 21px;
   padding: 6px 0 6px 18px;
-  border-left: 2px dotted var(--border);
+  border-left: 4px dotted var(--accent);
   color: var(--muted);
   font-size: 13px;
 }
@@ -602,10 +738,12 @@ p {
   font-weight: 700;
   font-size: 11px;
 }
+/* The picked card's pin: bigger and ringed, in its day's colour (a day can be orange too). */
 .pin.active {
   outline: 3px solid #fff;
   outline-offset: 1px;
-  scale: 1.2;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.45);
+  scale: 1.35;
 }
 .pin.stop {
   width: 20px;
@@ -617,8 +755,8 @@ p {
 }
 
 .card.highlight {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent), var(--shadow);
+  border-color: var(--sun-line);
+  background: var(--sun-soft);
 }
 .map-bar .map-btn:last-child {
   margin-left: auto;

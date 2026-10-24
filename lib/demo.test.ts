@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { demoTrip } from "./demo";
 import { entryState, keepFoundLinks } from "./entry";
+import { todayIndex } from "./itinerary";
 import { rentalsOf } from "./rentals";
 import { nightsOf } from "./stays";
 import { dayDate, isoDate } from "./time";
@@ -101,5 +102,18 @@ describe("demo entry rules and tour", () => {
     const comino = Object.values(demoTrip().items).find((i) => i.title === "Comino Blue Lagoon boat trip")!;
     expect(comino.location?.address).toBe("Mġarr harbour, Gozo");
     expect(comino.tour?.stops.map((s) => s.name)).toEqual(["Santa Maria caves", "Crystal Lagoon", "Blue Lagoon"]);
+  });
+});
+
+describe("demo trip dates", () => {
+  afterEach(() => vi.useRealTimers());
+
+  // Mon 2 Nov 2026 to Sun 8 Nov 2026, late in the evening so a UTC slip would show.
+  it.each([2, 3, 4, 5, 6, 7, 8])("is under way on %i Nov, with day 2 on a Sunday", (day) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, day, 23, 30));
+    const trip = demoTrip();
+    expect(todayIndex(trip, new Date())).toBeDefined();
+    expect(dayDate(trip.startDate, 1).getUTCDay()).toBe(0);
   });
 });

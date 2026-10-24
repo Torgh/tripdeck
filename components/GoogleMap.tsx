@@ -5,6 +5,9 @@ import { useEffect } from "react";
 import { fitPoints, pinClass, type MapLayers } from "@/lib/mapLayers";
 import type { LatLng } from "@/lib/types";
 
+/** google.maps.SymbolPath.CIRCLE, which is not defined until the Maps script has loaded. */
+const CIRCLE = 0;
+
 /** The trip map on Google Maps (with a Google browser key); loaded only when it is used. */
 export function GoogleMap({
   apiKey,
@@ -54,7 +57,14 @@ export function GoogleMap({
               l.dashed
                 ? [
                     {
-                      icon: { path: "M 0,-1 0,1", strokeOpacity: 0.9, strokeColor: l.color, scale: 3 },
+                      // Round dots, like the route on the TripDeck logo.
+                      icon: {
+                        path: CIRCLE,
+                        fillColor: l.color,
+                        fillOpacity: 0.9,
+                        strokeOpacity: 0,
+                        scale: 2.5,
+                      },
                       offset: "0",
                       repeat: "14px",
                     },

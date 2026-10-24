@@ -28,6 +28,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { memo, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { routeKey } from "@/lib/geo";
+import { todayIndex } from "@/lib/itinerary";
 import { dayColor } from "@/lib/mapLayers";
 import { rentalsOf, type RentalDay } from "@/lib/rentals";
 import { nightsOf, stayColorIndex, type Night } from "@/lib/stays";
@@ -98,6 +99,7 @@ export function Board(props: BoardProps) {
   const nights = useMemo(() => nightsOf(trip), [trip]);
   const staySlots = useMemo(() => stayColorIndex(nights), [nights]);
   const rentals = useMemo(() => rentalsOf(trip), [trip]);
+  const today = todayIndex(trip, new Date());
   const rentalColors = useMemo(() => {
     const ids = [...new Set(rentals.flat().map((r) => r.rental.id))];
     return new Map(ids.map((id, i) => [id, RENTAL_COLORS[i % RENTAL_COLORS.length]]));
@@ -205,6 +207,7 @@ export function Board(props: BoardProps) {
               key={day.id}
               {...props}
               dayIndex={i}
+              isToday={i === today}
               itemIds={containers[day.id] ?? []}
               dragging={!!drag}
               night={nights[i]}
@@ -278,6 +281,7 @@ function IdeasColumn(props: BoardProps & { itemIds: string[]; dragging: boolean 
 function DayColumn(
   props: BoardProps & {
     dayIndex: number;
+    isToday: boolean;
     itemIds: string[];
     dragging: boolean;
     night?: Night;
@@ -301,7 +305,7 @@ function DayColumn(
   return (
     <section
       ref={setNodeRef}
-      className={`column${selectedDayId === day.id ? " selected" : ""}${isDragging ? " dragging" : ""}`}
+      className={`column${props.isToday ? " today" : ""}${selectedDayId === day.id ? " selected" : ""}${isDragging ? " dragging" : ""}`}
       style={{ transform: CSS.Translate.toString(transform), transition }}
     >
       <div className="column-head">
@@ -349,6 +353,7 @@ function DayColumn(
               🗑
             </button>
           )}
+          {props.isToday && <span className="today-badge">● Today</span>}
         </div>
       </div>
       {props.rentals?.map((r) => (

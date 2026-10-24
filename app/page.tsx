@@ -2,14 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { SyncBadge } from "@/components/SyncAgent";
 import { SOURCE_URL } from "@/lib/about";
 import { demoTrip } from "@/lib/demo";
 import { useHydrated } from "@/lib/hooks";
+import { nextTripId, sortTrips, tripCountdown } from "@/lib/itinerary";
 import { createTrip, parseTripFile, useStore } from "@/lib/store";
-import { dayDate, formatDayLabel, isoDate } from "@/lib/time";
+import { dayDate, daysBetween, formatDayLabel, isoDate } from "@/lib/time";
 import { MODE_LABEL, ROUTABLE_MODES, type TravelMode } from "@/lib/types";
+
+/** The longest trip the New trip form makes. */
+const MAX_DAYS = 60;
 
 export default function Home() {
   const hydrated = useHydrated();
@@ -17,6 +21,8 @@ export default function Home() {
   const saveTrip = useStore((s) => s.saveTrip);
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  const destinationRef = useRef<HTMLInputElement>(null);
+  const demo = useMemo(() => demoTrip(), []);
   const [error, setError] = useState<string>();
   const [form, setForm] = useState({
     name: "",
@@ -28,6 +34,19 @@ export default function Home() {
   });
 
   const open = (id: string) => router.push(`/trip?id=${id}`);
+  const loadDemo = () => {
+    const t = demoTrip();
+    saveTrip(t);
+    open(t.id);
+  };
+
+  // The last day and the number of days fill each other in.
+  const lastDay = form.startDate && form.days >= 1 ? isoDate(dayDate(form.startDate, form.days - 1)) : "";
+  const setLastDay = (date: string) => {
+    if (!date || !form.startDate) return;
+    const days = daysBetween(form.startDate, date) + 1;
+    setForm({ ...form, days: Math.min(MAX_DAYS, Math.max(1, days)) });
+  };
 
   const create = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +65,10 @@ export default function Home() {
     }
   };
 
-  const list = Object.values(trips).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  // Trips only show once hydrated, so "now" is the browser's, never the server's.
+  const now = new Date();
+  const list = sortTrips(Object.values(trips), now);
+  const next = nextTripId(list, now);
 
   return (
     <main className="home">
@@ -67,19 +89,6 @@ export default function Home() {
       <section>
         <div className="row">
           <h2 className="grow">Your trips</h2>
-          <button className="btn" onClick={() => fileRef.current?.click()}>
-            ⬆ Import trip file
-          </button>
-          <button
-            className="btn"
-            onClick={() => {
-              const t = demoTrip();
-              saveTrip(t);
-              open(t.id);
-            }}
-          >
-            🏝️ Load demo trip
-          </button>
           <input
             ref={fileRef}
             type="file"
@@ -92,22 +101,78 @@ export default function Home() {
         {!hydrated ? (
           <p className="muted">Loading…</p>
         ) : list.length === 0 ? (
-          <p className="muted">No trips yet. Create one below or load the demo.</p>
+          // An empty deck: a slot for the first trip, and the demo as a real trip tile.
+          <div className="trip-list">
+            <button
+              className="first-slot"
+              onClick={() => {
+                destinationRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                destinationRef.current?.focus({ preventScroll: true });
+              }}
+            >
+              <span className="first-plus" aria-hidden>
+                +
+              </span>
+              <span className="trip-text">
+                <strong>Your first trip goes here</strong>
+                <span className="muted small">Start it in New trip below, or import a trip file</span>
+              </span>
+            </button>
+            <div className="trip-deck">
+              <button className="card trip-tile" onClick={loadDemo}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/trip-thumb.svg" alt="" className="trip-thumb" />
+                <span className="trip-text">
+                  <strong>{demo.name}</strong>
+                  <span className="muted small">Demo · {demo.days.length} days · dives, ferries, a rental car</span>
+                </span>
+                <span className="try">Try ›</span>
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="trip-list">
-            {list.map((t) => (
-              <Link key={t.id} href={`/trip?id=${t.id}`} className="card trip-tile">
-                <strong>{t.name}</strong>
-                <span className="muted small">
-                  {t.destination} · {formatDayLabel(dayDate(t.startDate, 0))} – {formatDayLabel(dayDate(t.startDate, t.days.length - 1))}
-                </span>
-                <span className="small">
-                  {t.days.length} days · {Object.keys(t.items).length} places
-                </span>
-              </Link>
-            ))}
+            {list.map((t) => {
+              const countdown = tripCountdown(t, now);
+              const tone = countdown.phase === "ended" ? " ended" : t.id === next ? " next" : "";
+              return (
+                <div key={t.id} className="trip-deck">
+                  <Link href={`/trip?id=${t.id}`} className="card trip-tile">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/trip-thumb.svg" alt="" className="trip-thumb" />
+                    <span className="trip-text">
+                      <strong>{t.name}</strong>
+                      <span className="muted small">
+                        {t.destination} · {formatDayLabel(dayDate(t.startDate, 0))} – {formatDayLabel(dayDate(t.startDate, t.days.length - 1))}
+                      </span>
+                      <span className="small">
+                        {t.days.length} days · {Object.keys(t.items).length} places
+                      </span>
+                    </span>
+                    <span className={`countdown${tone}`}>
+                      <b>{countdown.value}</b>
+                      <span>{countdown.label}</span>
+                    </span>
+                  </Link>
+                </div>
+              );
+            })}
           </div>
         )}
+        {/* Under the trips, as on the phone; an empty list has the demo as a tile already. */}
+        {hydrated && (
+          <div className="home-actions">
+            <button className="btn primary big" onClick={() => fileRef.current?.click()}>
+              📥 Import trip file
+            </button>
+            {list.length > 0 && (
+              <button className="btn big" onClick={loadDemo}>
+                🏝️ Load demo trip
+              </button>
+            )}
+          </div>
+        )}
+        {list.length > 0 && <p className="muted small home-note">Importing a newer export of the same trip replaces it.</p>}
       </section>
 
       <section className="card">
@@ -117,6 +182,7 @@ export default function Home() {
             <label>
               Destination
               <input
+                ref={destinationRef}
                 required
                 placeholder="e.g. Malta, Red Sea, Lofoten"
                 value={form.destination}
@@ -131,6 +197,8 @@ export default function Home() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </label>
+          </div>
+          <div className="grid3">
             <label>
               First day
               <input
@@ -141,15 +209,28 @@ export default function Home() {
               />
             </label>
             <label>
+              Last day
+              <input
+                type="date"
+                required
+                min={form.startDate}
+                max={form.startDate ? isoDate(dayDate(form.startDate, MAX_DAYS - 1)) : undefined}
+                value={lastDay}
+                onChange={(e) => setLastDay(e.target.value)}
+              />
+            </label>
+            <label>
               Number of days
               <input
                 type="number"
                 min={1}
-                max={60}
+                max={MAX_DAYS}
                 value={form.days}
                 onChange={(e) => setForm({ ...form, days: Number(e.target.value) })}
               />
             </label>
+          </div>
+          <div className="grid2">
             <label>
               Interests (used by AI suggestions)
               <input

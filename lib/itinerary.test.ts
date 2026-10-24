@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { defaultDayIndex, localIsoDate, navigationUrl, todayIndex, tripStatus } from "./itinerary";
+import {
+  defaultDayIndex,
+  localIsoDate,
+  navigationUrl,
+  nextTripId,
+  sortTrips,
+  todayIndex,
+  tripCountdown,
+  tripStatus,
+} from "./itinerary";
 import { tripWith } from "./testUtils";
 
 // Starts Mon 1 Jun 2026, three days.
@@ -35,6 +44,50 @@ describe("tripStatus", () => {
     [june(10), "Ended"],
   ])("%s → %s", (now, status) => {
     expect(tripStatus(trip, now)).toBe(status);
+  });
+});
+
+describe("tripCountdown", () => {
+  it.each([
+    [new Date(2026, 4, 20, 12), { phase: "upcoming", value: "12", label: "days" }],
+    [new Date(2026, 4, 31, 12), { phase: "upcoming", value: "1", label: "day" }],
+    [june(2), { phase: "ongoing", value: "2/3", label: "today" }],
+    [june(10), { phase: "ended", value: "✓", label: "ended" }],
+  ])("%s", (now, countdown) => {
+    expect(tripCountdown(trip, now)).toEqual(countdown);
+  });
+});
+
+describe("sortTrips", () => {
+  const starting = (id: string, startDate: string) => ({ ...trip, id, startDate });
+
+  it("puts the trip under way and the soonest first, and ended trips last, the latest first", () => {
+    const trips = [
+      starting("old", "2025-03-01"),
+      starting("later", "2026-08-01"),
+      starting("recent", "2026-05-01"),
+      starting("now", "2026-06-09"),
+      starting("soon", "2026-06-20"),
+    ];
+    expect(sortTrips(trips, june(10)).map((t) => t.id)).toEqual(["now", "soon", "later", "recent", "old"]);
+  });
+});
+
+describe("nextTripId", () => {
+  const starting = (id: string, startDate: string) => ({ ...trip, id, startDate });
+
+  it("picks the soonest trip still to come", () => {
+    const trips = [starting("later", "2026-08-01"), starting("soon", "2026-06-20"), starting("past", "2026-01-01")];
+    expect(nextTripId(trips, june(10))).toBe("soon");
+  });
+
+  it("prefers the trip under way", () => {
+    const trips = [starting("soon", "2026-06-11"), starting("now", "2026-06-09")];
+    expect(nextTripId(trips, june(10))).toBe("now");
+  });
+
+  it("is undefined when every trip has ended", () => {
+    expect(nextTripId([starting("past", "2026-01-01")], june(10))).toBeUndefined();
   });
 });
 
