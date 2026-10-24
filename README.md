@@ -103,7 +103,7 @@ Environment variables still work and take precedence over Settings: `GOOGLE_CLIE
 
 `mobile/` is a small Android app for the road: it shows your trips offline, with nothing to host and no account. It shares the trip logic in `lib/` with the desktop app.
 
-![TripDeck on the phone: a day with a boat tour on the map, the entry rules and the budget](docs/phone.png)
+![TripDeck on the phone: the trip list with days to go, a day in Valletta with a card picked, and the same day in dark mode](docs/phone.png)
 
 - **Getting a trip onto the phone:** in a trip on the PC choose **Export → JSON**, then on the phone tap **Import trip file** (on an empty phone: *Your first trip goes here*) and pick the `.tripdeck.json` from OneDrive, Google Drive, Downloads or an email. Importing a newer export of the same trip replaces it. The trips are listed soonest first, each with the days left.
 - **Day view:** opens on today's day during the trip; its day is marked *Today* and a *Today* button brings you back from any other day. Swipe left or right to change days. It shows times, travel between stops (with the public-transport lines, stops and departure times, offline too), clock changes on flights, where you wake up and sleep, rentals in use and when they go back, booking status, references and prices, opening-hours and dive-safety warnings, plus the Ideas list.
