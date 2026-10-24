@@ -42,6 +42,18 @@ export function tripCountdown(trip: Trip, now: Date): TripCountdown {
   return { phase: "ended", value: "✓", label: "ended" };
 }
 
+/** The trip list's order: under way and upcoming first, soonest first; ended trips last, the latest first. */
+export function sortTrips(trips: Trip[], now: Date): Trip[] {
+  const today = localIsoDate(now);
+  const ended = (t: Trip) => daysBetween(t.startDate, today) >= t.days.length;
+  return [...trips].sort((a, b) => {
+    const ea = ended(a);
+    const eb = ended(b);
+    if (ea !== eb) return ea ? 1 : -1;
+    return ea ? b.startDate.localeCompare(a.startDate) : a.startDate.localeCompare(b.startDate);
+  });
+}
+
 /** The trip the list singles out: the one under way, else the next to start. */
 export function nextTripId(trips: Trip[], now: Date): string | undefined {
   let best: { id: string; i: number } | undefined;

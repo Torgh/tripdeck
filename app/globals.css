@@ -237,7 +237,7 @@ body:has(.home)::before {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 14px;
-  margin: 16px 0 24px;
+  margin: 16px 0 20px;
 }
 /* Each trip is a deck of cards, like the logo: two tilted cards peek out behind it. */
 .trip-deck {
@@ -319,6 +319,26 @@ body:has(.home)::before {
   background: var(--surface-2);
   color: var(--muted);
 }
+/* Import and demo under the trips, big like the phone app's. */
+.home-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+.btn.big {
+  min-height: 46px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.home-note {
+  margin: 10px 0 0;
+  text-align: center;
+}
+.home > section:first-of-type {
+  margin-bottom: 24px;
+}
+
 /* An empty trip list: a dashed slot for the first trip, then the demo as a trip tile. */
 .first-slot {
   display: flex;

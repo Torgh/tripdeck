@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { defaultDayIndex, localIsoDate, navigationUrl, nextTripId, todayIndex, tripCountdown, tripStatus } from "./itinerary";
+import {
+  defaultDayIndex,
+  localIsoDate,
+  navigationUrl,
+  nextTripId,
+  sortTrips,
+  todayIndex,
+  tripCountdown,
+  tripStatus,
+} from "./itinerary";
 import { tripWith } from "./testUtils";
 
 // Starts Mon 1 Jun 2026, three days.
@@ -46,6 +55,21 @@ describe("tripCountdown", () => {
     [june(10), { phase: "ended", value: "✓", label: "ended" }],
   ])("%s", (now, countdown) => {
     expect(tripCountdown(trip, now)).toEqual(countdown);
+  });
+});
+
+describe("sortTrips", () => {
+  const starting = (id: string, startDate: string) => ({ ...trip, id, startDate });
+
+  it("puts the trip under way and the soonest first, and ended trips last, the latest first", () => {
+    const trips = [
+      starting("old", "2025-03-01"),
+      starting("later", "2026-08-01"),
+      starting("recent", "2026-05-01"),
+      starting("now", "2026-06-09"),
+      starting("soon", "2026-06-20"),
+    ];
+    expect(sortTrips(trips, june(10)).map((t) => t.id)).toEqual(["now", "soon", "later", "recent", "old"]);
   });
 });
 

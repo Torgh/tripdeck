@@ -7,7 +7,7 @@ import { SyncBadge } from "@/components/SyncAgent";
 import { SOURCE_URL } from "@/lib/about";
 import { demoTrip } from "@/lib/demo";
 import { useHydrated } from "@/lib/hooks";
-import { nextTripId, tripCountdown } from "@/lib/itinerary";
+import { nextTripId, sortTrips, tripCountdown } from "@/lib/itinerary";
 import { createTrip, parseTripFile, useStore } from "@/lib/store";
 import { dayDate, daysBetween, formatDayLabel, isoDate } from "@/lib/time";
 import { MODE_LABEL, ROUTABLE_MODES, type TravelMode } from "@/lib/types";
@@ -65,9 +65,9 @@ export default function Home() {
     }
   };
 
-  const list = Object.values(trips).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   // Trips only show once hydrated, so "now" is the browser's, never the server's.
   const now = new Date();
+  const list = sortTrips(Object.values(trips), now);
   const next = nextTripId(list, now);
 
   return (
@@ -89,12 +89,6 @@ export default function Home() {
       <section>
         <div className="row">
           <h2 className="grow">Your trips</h2>
-          <button className="btn" onClick={() => fileRef.current?.click()}>
-            ⬆ Import trip file
-          </button>
-          <button className="btn" onClick={loadDemo}>
-            🏝️ Load demo trip
-          </button>
           <input
             ref={fileRef}
             type="file"
@@ -165,6 +159,20 @@ export default function Home() {
             })}
           </div>
         )}
+        {/* Under the trips, as on the phone; an empty list has the demo as a tile already. */}
+        {hydrated && (
+          <div className="home-actions">
+            <button className="btn primary big" onClick={() => fileRef.current?.click()}>
+              📥 Import trip file
+            </button>
+            {list.length > 0 && (
+              <button className="btn big" onClick={loadDemo}>
+                🏝️ Load demo trip
+              </button>
+            )}
+          </div>
+        )}
+        {list.length > 0 && <p className="muted small home-note">Importing a newer export of the same trip replaces it.</p>}
       </section>
 
       <section className="card">

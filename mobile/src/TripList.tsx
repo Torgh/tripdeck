@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { demoTrip } from "@/lib/demo";
-import { nextTripId, tripCountdown } from "@/lib/itinerary";
+import { nextTripId, sortTrips, tripCountdown } from "@/lib/itinerary";
 import { dayDate, formatDayLabel } from "@/lib/time";
 import type { Trip } from "@/lib/types";
 
@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function TripList({ trips, now, onOpen, onImport, onDemo, onDelete }: Props) {
-  const sorted = [...trips].sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const sorted = sortTrips(trips, now);
   const next = nextTripId(trips, now);
   const demo = useMemo(() => demoTrip(), []);
 
