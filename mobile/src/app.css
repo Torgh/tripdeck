@@ -238,6 +238,16 @@ p {
   background: transparent;
   text-align: left;
 }
+/* At the end of a list, the slot keeps the trip tiles' width (they have a bin beside them). */
+.next-slot,
+.next-slot-row > .trip-deck {
+  flex: 1;
+  min-width: 0;
+  margin-right: 48px;
+}
+.next-slot-row {
+  margin-top: 4px;
+}
 .first-plus {
   flex: none;
   display: grid;
@@ -362,12 +372,6 @@ p {
 .countdown.ended {
   background: var(--surface-2);
   color: var(--muted);
-}
-
-.actions {
-  display: grid;
-  gap: 10px;
-  margin: 20px 0 12px;
 }
 
 /* ---------- Day strip ---------- */
