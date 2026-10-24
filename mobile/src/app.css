@@ -238,6 +238,12 @@ p {
   background: transparent;
   text-align: left;
 }
+/* At the end of a list, the slot keeps the trip tiles' width (they have a bin beside them). */
+.next-slot {
+  flex: 1;
+  min-width: 0;
+  margin-right: 48px;
+}
 .first-plus {
   flex: none;
   display: grid;

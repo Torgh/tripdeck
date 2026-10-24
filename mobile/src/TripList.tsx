@@ -97,10 +97,21 @@ export function TripList({ trips, now, onOpen, onImport, onDemo, onDelete }: Pro
 
         {sorted.length > 0 && (
           <>
-            <div className="actions">
-              <button className="btn primary" onClick={onImport}>
-                📥 Import trip file
+            {/* The next trip's slot at the end of the deck, as on an empty list. */}
+            <div className="trip-row">
+              <button className="first-slot next-slot" onClick={onImport}>
+                <span className="first-plus" aria-hidden>
+                  +
+                </span>
+                <span className="trip-text">
+                  <span className="trip-name">Add a trip</span>
+                  <span className="muted small">
+                    Import a <code>.tripdeck.json</code> you exported on your PC
+                  </span>
+                </span>
               </button>
+            </div>
+            <div className="actions">
               <button className="btn" onClick={onDemo}>
                 🏝️ Load demo trip
               </button>
