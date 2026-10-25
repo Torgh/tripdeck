@@ -446,7 +446,7 @@ export function ItemEditor({
                   {DIVE_PREP_ICON[draft.dive.prep.status]} <strong>{DIVE_PREP_LABEL[draft.dive.prep.status]}:</strong> {draft.dive.prep.summary}{" "}
                   {divePrepUrl(draft.dive.prep) && (
                     <a href={divePrepUrl(draft.dive.prep)} target="_blank" rel="noopener noreferrer">
-                      Open in AI Diving Monitor
+                      Open in DiveDeck
                     </a>
                   )}{" "}
                   <button type="button" className="linklike" onClick={() => set({ dive: { ...draft.dive!, prep: undefined } })}>

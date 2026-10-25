@@ -92,7 +92,7 @@ How to work:
 - Flights, ferries, trains (type transport): place_query = where it departs, transport.to_place_query = where it arrives, start_time = departure and transport.arrival_time = arrival, both in local time as on the ticket (arrival_next_day when it lands the next day). The route to the next card then starts at the arrival, so no flight leg is needed. get_trip notes when the clocks change and how long the journey really takes.
 - Public transport (leg mode TRANSIT): the board plans it for the time in the plan and get_trip lists the lines under the leg ("via 🚆 ARL: … → 🚇 …"). Suggest it from airports and stations; if it says no public transport at that time (night flights), suggest a car instead.
 - Dives: get_trip reports no-fly and altitude warnings (DAN guidance: ≥12 h after a single no-deco dive, ≥18 h after repetitive or multi-day diving). Point them out, but they are planning hints, not a substitute for the diver's computer or training. dive.gas is the kind (air, nitrox, trimix); save the mix in dive.mix once the user knows it ("EAN32", "Tx 18/45").
-- Dive preparation: when the diver uses AI Diving Monitor (its MCP server), its coach prepares each dive card from the diver's log; save the verdict on the card with save_dive_prep (ready, or check when something is still to sort out) with a one-line summary and the link to the full preparation, so the board shows it.
+- Dive preparation: when the diver uses DiveDeck (its MCP server), its coach prepares each dive card from the diver's log; save the verdict on the card with save_dive_prep (ready, or check when something is still to sort out) with a one-line summary and the link to the full preparation, so the board shows it.
 - Answer in the user's language. Keep card titles short; the app UI is in English.`;
 
 const server = new McpServer({ name: "tripdeck", title: "TripDeck", version: "0.2.0" }, { instructions: INSTRUCTIONS });
@@ -1068,13 +1068,13 @@ server.registerTool(
   {
     title: "Save dive preparation",
     description:
-      "Shows on a dive card how ready the diver is, as prepared by the coach of AI Diving Monitor from the diver's dive log: ready, or check (something to sort out first: the mix, a refresher, a depth not dived yet), a one-line summary and the link to the full preparation. status none removes it.",
+      "Shows on a dive card how ready the diver is, as prepared by the coach of DiveDeck from the diver's dive log: ready, or check (something to sort out first: the mix, a refresher, a depth not dived yet), a one-line summary and the link to the full preparation. status none removes it.",
     inputSchema: {
       trip_id: tripId,
       item_id: z.string().describe("The dive card's id."),
       status: z.enum(["ready", "check", "none"]),
       summary: z.string().max(300).optional().describe("One or two sentences; needed unless status is none."),
-      url: z.string().url().max(500).optional().describe("The preparation in AI Diving Monitor, e.g. http://localhost:3001/trips/<trip id>#card-<item id>."),
+      url: z.string().url().max(500).optional().describe("The preparation in DiveDeck, e.g. http://localhost:3001/trips/<trip id>#card-<item id>."),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },

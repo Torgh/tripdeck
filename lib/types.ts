@@ -55,14 +55,14 @@ export type Gas = "air" | "nitrox" | "trimix";
 export type DivePrepStatus = "ready" | "check";
 
 /**
- * The diver's preparation for a dive, saved by their coach from AI Diving Monitor (through the
- * MCP servers of both apps). TripDeck shows it; the preparation itself lives in AI Diving Monitor.
+ * The diver's preparation for a dive, saved by their coach from DiveDeck (through the
+ * MCP servers of both apps). TripDeck shows it; the preparation itself lives in DiveDeck.
  */
 export interface DivePrep {
   status: DivePrepStatus;
   /** One or two sentences: how ready the diver is and what to sort out. */
   summary: string;
-  /** The full preparation in AI Diving Monitor. */
+  /** The full preparation in DiveDeck. */
   url?: string;
   updatedAt: string;
 }

@@ -1,6 +1,6 @@
 import { DIVE_PREP_ICON, DIVE_PREP_LABEL, divePrepUrl, type DivePrep } from "@/lib/types";
 
-/** "✅ Prepared" / "⚠️ Check prep" on a dive card, opening the preparation in AI Diving Monitor. */
+/** "✅ Prepared" / "⚠️ Check prep" on a dive card, opening the preparation in DiveDeck. */
 export function DivePrepBadge({ prep }: { prep: DivePrep }) {
   const url = divePrepUrl(prep);
   const label = (
@@ -15,7 +15,7 @@ export function DivePrepBadge({ prep }: { prep: DivePrep }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      title={`${prep.summary}\nOpen the preparation in AI Diving Monitor`}
+      title={`${prep.summary}\nOpen the preparation in DiveDeck`}
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
     >
