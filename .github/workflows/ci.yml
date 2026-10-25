@@ -14,7 +14,7 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# The checks themselves are in bun-app.yml, shared with AI Diving Monitor.
+# The checks themselves are in bun-app.yml, shared with DiveDeck.
 jobs:
   app:
     name: App

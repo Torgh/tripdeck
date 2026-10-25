@@ -1,6 +1,6 @@
 name: Bun app
 
-# The checks shared by TripDeck and AI Diving Monitor (it calls this file from Torgh/tripdeck@main),
+# The checks shared by TripDeck and DiveDeck (it calls this file from Torgh/tripdeck@main),
 # so the two apps' CI can't drift apart. Each repo's ci.yml decides when it runs.
 on:
   workflow_call:
