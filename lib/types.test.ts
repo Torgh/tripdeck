@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { itemIcon, legKey } from "./types";
+import { diveGas, divePrepUrl, itemIcon, legKey } from "./types";
 
 describe("itemIcon", () => {
   it("shows the vehicle of a rental and the kind of transport", () => {
@@ -18,5 +18,20 @@ describe("itemIcon", () => {
 describe("legKey", () => {
   it("joins both card ids", () => {
     expect(legKey("a", "b")).toBe("a>b");
+  });
+});
+
+describe("dives", () => {
+  it("names the gas by its mix once known", () => {
+    expect(diveGas({ gas: "nitrox" })).toBe("nitrox");
+    expect(diveGas({ gas: "nitrox", mix: " EAN32 " })).toBe("EAN32");
+    expect(diveGas({ gas: "trimix", mix: "  " })).toBe("trimix");
+  });
+
+  it("opens only web links from a preparation", () => {
+    expect(divePrepUrl({ url: "http://localhost:3001/trips/t#card-a" })).toBe("http://localhost:3001/trips/t#card-a");
+    expect(divePrepUrl({ url: "HTTPS://example.com" })).toBe("HTTPS://example.com");
+    expect(divePrepUrl({ url: "javascript:alert(1)" })).toBeUndefined();
+    expect(divePrepUrl({})).toBeUndefined();
   });
 });

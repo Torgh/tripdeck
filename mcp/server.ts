@@ -54,6 +54,9 @@ import * as ops from "../lib/tripOps";
 import {
   BOOKING_STATUS_ICON,
   BOOKING_STATUS_LABEL,
+  DIVE_PREP_LABEL,
+  diveGas,
+  divePrepUrl,
   IDEAS,
   isRoutable,
   ITEM_TYPE_LABEL,
@@ -88,7 +91,8 @@ How to work:
 - Organised tours (type activity): the card's place is the pick-up / meeting point (travel times go there); list the places the tour visits in tour_stops so they show on the map.
 - Flights, ferries, trains (type transport): place_query = where it departs, transport.to_place_query = where it arrives, start_time = departure and transport.arrival_time = arrival, both in local time as on the ticket (arrival_next_day when it lands the next day). The route to the next card then starts at the arrival, so no flight leg is needed. get_trip notes when the clocks change and how long the journey really takes.
 - Public transport (leg mode TRANSIT): the board plans it for the time in the plan and get_trip lists the lines under the leg ("via 🚆 ARL: … → 🚇 …"). Suggest it from airports and stations; if it says no public transport at that time (night flights), suggest a car instead.
-- Dives: get_trip reports no-fly and altitude warnings (DAN guidance: ≥12 h after a single no-deco dive, ≥18 h after repetitive or multi-day diving). Point them out, but they are planning hints, not a substitute for the diver's computer or training.
+- Dives: get_trip reports no-fly and altitude warnings (DAN guidance: ≥12 h after a single no-deco dive, ≥18 h after repetitive or multi-day diving). Point them out, but they are planning hints, not a substitute for the diver's computer or training. dive.gas is the kind (air, nitrox, trimix); save the mix in dive.mix once the user knows it ("EAN32", "Tx 18/45").
+- Dive preparation: when the diver uses AI Diving Monitor (its MCP server), its coach prepares each dive card from the diver's log; save the verdict on the card with save_dive_prep (ready, or check when something is still to sort out) with a one-line summary and the link to the full preparation, so the board shows it.
 - Answer in the user's language. Keep card titles short; the app UI is in English.`;
 
 const server = new McpServer({ name: "tripdeck", title: "TripDeck", version: "0.2.0" }, { instructions: INSTRUCTIONS });
@@ -177,8 +181,10 @@ function itemLine(item: Item): string {
   const bits: string[] = [];
   if (item.dive) {
     bits.push(
-      `${item.dive.dives} dive(s)${item.dive.maxDepthM ? `, max ${item.dive.maxDepthM} m` : ""}, ${item.dive.gas}${item.dive.site ? `, site ${item.dive.site}` : ""}${item.dive.center ? `, with ${item.dive.center}` : ""}`,
+      `${item.dive.dives} dive(s)${item.dive.maxDepthM ? `, max ${item.dive.maxDepthM} m` : ""}, ${diveGas(item.dive)}${item.dive.site ? `, site ${item.dive.site}` : ""}${item.dive.center ? `, with ${item.dive.center}` : ""}`,
     );
+    const prep = item.dive.prep;
+    if (prep) bits.push(`dive prep: ${DIVE_PREP_LABEL[prep.status].toLowerCase()} – ${prep.summary}${prep.url ? ` (${prep.url})` : ""}`);
   }
   if (item.transport) {
     const to = item.transport.toLocation;
@@ -368,6 +374,7 @@ const cardFields = {
       dives: z.number().int().min(1).max(5),
       max_depth_m: z.number().min(0).max(150).optional(),
       gas: z.enum(["air", "nitrox", "trimix"]).optional(),
+      mix: z.string().max(40).optional().describe('The mix once known: "EAN32", "Tx 18/45". "" removes it.'),
       site: z.string().max(120).optional(),
       center: z.string().max(120).optional(),
     })
@@ -460,8 +467,11 @@ async function applyCard(trip: Trip, base: Item, a: CardArgs): Promise<{ item: I
       dives: a.dive.dives,
       maxDepthM: a.dive.max_depth_m,
       gas: a.dive.gas ?? item.dive?.gas ?? "air",
+      mix: a.dive.mix === undefined ? item.dive?.mix : a.dive.mix.trim() || undefined,
       site: a.dive.site,
       center: a.dive.center,
+      // The preparation belongs to the coach (save_dive_prep), not to the card's details.
+      prep: item.dive?.prep,
     };
   } else if (item.type === "dive" && !item.dive) item.dive = { dives: 2, gas: "air" };
   if (a.transport) {
@@ -1050,6 +1060,36 @@ server.registerTool(
       return next;
     });
     return summary;
+  }),
+);
+
+server.registerTool(
+  "save_dive_prep",
+  {
+    title: "Save dive preparation",
+    description:
+      "Shows on a dive card how ready the diver is, as prepared by the coach of AI Diving Monitor from the diver's dive log: ready, or check (something to sort out first: the mix, a refresher, a depth not dived yet), a one-line summary and the link to the full preparation. status none removes it.",
+    inputSchema: {
+      trip_id: tripId,
+      item_id: z.string().describe("The dive card's id."),
+      status: z.enum(["ready", "check", "none"]),
+      summary: z.string().max(300).optional().describe("One or two sentences; needed unless status is none."),
+      url: z.string().url().max(500).optional().describe("The preparation in AI Diving Monitor, e.g. http://localhost:3001/trips/<trip id>#card-<item id>."),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  tool(async (a) => {
+    if (a.url && !divePrepUrl({ url: a.url })) throw new HttpError(400, "The link must be an http(s) address.");
+    if (a.status !== "none" && !a.summary?.trim()) throw new HttpError(400, "Give a short summary of the preparation.");
+    let title = "";
+    await updateTrip(a.trip_id, (t) => {
+      const item = requireItem(t, a.item_id);
+      if (item.type !== "dive" || !item.dive) throw new HttpError(400, `"${item.title}" is not a dive card.`);
+      title = item.title;
+      const prep = a.status === "none" ? undefined : { status: a.status, summary: a.summary!.trim(), url: a.url, updatedAt: new Date().toISOString() };
+      return { ...t, items: { ...t.items, [item.id]: { ...item, dive: { ...item.dive, prep } } } };
+    });
+    return a.status === "none" ? `Removed the preparation from "${title}".` : `"${title}": ${DIVE_PREP_LABEL[a.status].toLowerCase()}.`;
   }),
 );
 

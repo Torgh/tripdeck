@@ -694,6 +694,16 @@ body:has(.home)::before {
   background: var(--info-soft);
   color: var(--info);
 }
+.badge.prep-check {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+a.badge {
+  text-decoration: none;
+}
+a.badge:hover {
+  text-decoration: underline;
+}
 .linklike {
   border: none;
   background: none;

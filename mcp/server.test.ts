@@ -72,6 +72,7 @@ describe.skipIf(!bun)("MCP server", () => {
         "optimize_day",
         "remove_item",
         "reorder_day",
+        "save_dive_prep",
         "save_entry_check",
         "search_places",
         "set_entry_done",
@@ -126,6 +127,35 @@ describe.skipIf(!bun)("MCP server", () => {
 
     await ok("remove_item", { trip_id: tripId, item_id: dive });
     expect(await ok("list_trips")).toMatch(/Malta test.*2 days · 2 cards/);
+  });
+
+  it("keeps the mix and shows the coach's dive preparation on the card", async () => {
+    const tripId = idIn(await ok("create_trip", { name: "Dahab", destination: "Dahab", start_date: "2026-11-14", days: 3 }), /trip_id ([\w-]+)/);
+    const dive = idIn(
+      await ok("add_item", { trip_id: tripId, day: 2, type: "dive", title: "Canyon", dive: { dives: 1, max_depth_m: 30, gas: "nitrox", mix: "EAN32" } }),
+      /\[([\w-]+)\]/,
+    );
+    const food = idIn(await ok("add_item", { trip_id: tripId, day: 2, type: "food", title: "Lunch" }), /\[([\w-]+)\]/);
+    expect(await ok("get_trip", { trip_id: tripId })).toContain("1 dive(s), max 30 m, EAN32");
+
+    const url = `http://localhost:3001/trips/${tripId}#card-${dive}`;
+    expect(await ok("save_dive_prep", { trip_id: tripId, item_id: dive, status: "check", summary: "Deepest so far 24 m: do a 25 m dive first.", url })).toBe(
+      '"Canyon": check prep.',
+    );
+    expect(await ok("get_trip", { trip_id: tripId })).toContain(`dive prep: check prep – Deepest so far 24 m: do a 25 m dive first. (${url})`);
+
+    // Changing the dive keeps the preparation and the mix unless a new mix is given.
+    await ok("update_item", { trip_id: tripId, item_id: dive, dive: { dives: 2, max_depth_m: 28 } });
+    const saved = JSON.parse(fs.readFileSync(path.join(home, "trips", `${tripId}.json`), "utf8")).items[dive].dive;
+    expect(saved).toMatchObject({ dives: 2, maxDepthM: 28, gas: "nitrox", mix: "EAN32", prep: { status: "check", url } });
+    await ok("update_item", { trip_id: tripId, item_id: dive, dive: { dives: 2, mix: "" } });
+    expect(await ok("get_trip", { trip_id: tripId })).toContain("2 dive(s), nitrox");
+
+    expect((await call("save_dive_prep", { trip_id: tripId, item_id: dive, status: "ready" })).text).toContain("short summary");
+    expect((await call("save_dive_prep", { trip_id: tripId, item_id: dive, status: "ready", summary: "x", url: "javascript:alert(1)" })).isError).toBe(true);
+    expect((await call("save_dive_prep", { trip_id: tripId, item_id: food, status: "ready", summary: "x" })).text).toContain("not a dive card");
+    expect(await ok("save_dive_prep", { trip_id: tripId, item_id: dive, status: "none" })).toBe('Removed the preparation from "Canyon".');
+    expect(await ok("get_trip", { trip_id: tripId })).not.toContain("dive prep:");
   });
 
   it("adds up the prices under Budget, paid apart, against a limit", async () => {

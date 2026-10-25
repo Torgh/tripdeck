@@ -51,6 +51,22 @@ export interface PlaceInfo {
 
 export type Gas = "air" | "nitrox" | "trimix";
 
+/** "ready": good to go; "check": something to sort out first (the mix, a refresher, a depth not dived yet). */
+export type DivePrepStatus = "ready" | "check";
+
+/**
+ * The diver's preparation for a dive, saved by their coach from AI Diving Monitor (through the
+ * MCP servers of both apps). TripDeck shows it; the preparation itself lives in AI Diving Monitor.
+ */
+export interface DivePrep {
+  status: DivePrepStatus;
+  /** One or two sentences: how ready the diver is and what to sort out. */
+  summary: string;
+  /** The full preparation in AI Diving Monitor. */
+  url?: string;
+  updatedAt: string;
+}
+
 export interface DiveDetails {
   site?: string;
   center?: string;
@@ -58,7 +74,23 @@ export interface DiveDetails {
   dives: number;
   maxDepthM?: number;
   gas: Gas;
+  /** The mix, once known: "EAN32", "Tx 18/45". `gas` stays its kind. */
+  mix?: string;
+  prep?: DivePrep;
 }
+
+/** The gas as divers write it: the mix when known, else its kind. */
+export function diveGas(dive: Pick<DiveDetails, "gas" | "mix">): string {
+  return dive.mix?.trim() || dive.gas;
+}
+
+/** The preparation's link, only when it is a web address: it comes from the coach, not from TripDeck. */
+export function divePrepUrl(prep: Pick<DivePrep, "url">): string | undefined {
+  return prep.url && /^https?:\/\//i.test(prep.url) ? prep.url : undefined;
+}
+
+export const DIVE_PREP_LABEL: Record<DivePrepStatus, string> = { ready: "Prepared", check: "Check prep" };
+export const DIVE_PREP_ICON: Record<DivePrepStatus, string> = { ready: "✅", check: "⚠️" };
 
 export type TransportKind = "flight" | "ferry" | "train" | "bus" | "car_rental" | "boat" | "other";
 
