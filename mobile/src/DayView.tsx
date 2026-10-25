@@ -9,6 +9,9 @@ import { vehicleIcon } from "@/lib/transit";
 import {
   BOOKING_STATUS_ICON,
   BOOKING_STATUS_LABEL,
+  DIVE_PREP_ICON,
+  DIVE_PREP_LABEL,
+  diveGas,
   itemIcon,
   MODE_LABEL,
   RENTAL_VEHICLE_LABEL,
@@ -210,8 +213,9 @@ function subtitle(trip: Trip, item: Item, dayIndex: number): string | undefined 
         `${d.dives} dive${d.dives > 1 ? "s" : ""}`,
         d.site,
         d.maxDepthM != null && `max ${d.maxDepthM} m`,
-        d.gas !== "air" && d.gas,
+        diveGas(d) !== "air" && diveGas(d),
         d.center,
+        d.prep && `${DIVE_PREP_ICON[d.prep.status]} ${DIVE_PREP_LABEL[d.prep.status]}`,
       ]
         .filter(Boolean)
         .join(" · ");

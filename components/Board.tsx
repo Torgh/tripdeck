@@ -27,6 +27,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { memo, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { DivePrepBadge } from "@/components/DivePrep";
 import { routeKey } from "@/lib/geo";
 import { todayIndex } from "@/lib/itinerary";
 import { dayColor } from "@/lib/mapLayers";
@@ -39,6 +40,7 @@ import { transitStepLine, vehicleIcon } from "@/lib/transit";
 import {
   BOOKING_STATUS_ICON,
   BOOKING_STATUS_LABEL,
+  diveGas,
   IDEAS,
   isRoutable,
   itemIcon,
@@ -596,9 +598,10 @@ const ItemCard = memo(function ItemCard({
         {item.dive && (
           <span>
             {item.dive.dives} dive{item.dive.dives > 1 ? "s" : ""}
-            {item.dive.maxDepthM ? ` · ${item.dive.maxDepthM} m` : ""} · {item.dive.gas}
+            {item.dive.maxDepthM ? ` · ${item.dive.maxDepthM} m` : ""} · {diveGas(item.dive)}
           </span>
         )}
+        {item.dive?.prep && <DivePrepBadge prep={item.dive.prep} />}
         {item.stay && <span>{item.stay.nights} night{item.stay.nights > 1 ? "s" : ""}</span>}
         {item.stay?.checkIn && <span>in {item.stay.checkIn}</span>}
         {item.stay?.checkOut && <span>out {item.stay.checkOut}</span>}

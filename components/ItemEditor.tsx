@@ -18,6 +18,9 @@ import {
   BOOKING_STATUS_ICON,
   BOOKING_STATUS_LABEL,
   BOOKING_STATUSES,
+  DIVE_PREP_ICON,
+  DIVE_PREP_LABEL,
+  divePrepUrl,
   type AiTips,
   type Booking,
   type BookingStatus,
@@ -429,7 +432,28 @@ export function ItemEditor({
                     <option value="trimix">Trimix</option>
                   </select>
                 </label>
+                <label>
+                  Mix
+                  <input
+                    value={draft.dive?.mix ?? ""}
+                    placeholder={draft.dive?.gas === "trimix" ? "Tx 18/45" : draft.dive?.gas === "nitrox" ? "EAN32" : ""}
+                    onChange={(e) => set({ dive: { ...draft.dive!, mix: e.target.value || undefined } })}
+                  />
+                </label>
               </div>
+              {draft.dive?.prep && (
+                <div className={`small prep prep-${draft.dive.prep.status}`}>
+                  {DIVE_PREP_ICON[draft.dive.prep.status]} <strong>{DIVE_PREP_LABEL[draft.dive.prep.status]}:</strong> {draft.dive.prep.summary}{" "}
+                  {divePrepUrl(draft.dive.prep) && (
+                    <a href={divePrepUrl(draft.dive.prep)} target="_blank" rel="noopener noreferrer">
+                      Open in AI Diving Monitor
+                    </a>
+                  )}{" "}
+                  <button type="button" className="linklike" onClick={() => set({ dive: { ...draft.dive!, prep: undefined } })}>
+                    Remove
+                  </button>
+                </div>
+              )}
               <div className="small muted">
                 TripDeck warns about flights and altitude after diving using DAN&apos;s published guidance. Always follow
                 your dive computer and training.

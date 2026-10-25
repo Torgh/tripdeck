@@ -13,7 +13,7 @@ import { dayColor } from "@/lib/mapLayers";
 import { useTrip } from "@/lib/store";
 import { dayDate, formatDayLabel, formatDuration, formatHm } from "@/lib/time";
 import { computeTripTimeline, getLeg, type Issue } from "@/lib/timeline";
-import { BOOKING_STATUS_ICON, BOOKING_STATUS_LABEL, itemIcon, MODE_LABEL, type Item } from "@/lib/types";
+import { BOOKING_STATUS_ICON, BOOKING_STATUS_LABEL, DIVE_PREP_ICON, DIVE_PREP_LABEL, diveGas, itemIcon, MODE_LABEL, type Item } from "@/lib/types";
 import { TripMap } from "./TripMap";
 
 /** Printable itinerary; the browser's print dialog saves it as a PDF. */
@@ -260,10 +260,11 @@ function ItemDetails({ item }: { item: Item }) {
   if (item.dive) {
     const d = item.dive;
     bits.push(
-      [`${d.dives} dive${d.dives > 1 ? "s" : ""}`, d.site, d.maxDepthM ? `max ${d.maxDepthM} m` : "", d.gas, d.center]
+      [`${d.dives} dive${d.dives > 1 ? "s" : ""}`, d.site, d.maxDepthM ? `max ${d.maxDepthM} m` : "", diveGas(d), d.center]
         .filter(Boolean)
         .join(" · "),
     );
+    if (d.prep) bits.push(`${DIVE_PREP_ICON[d.prep.status]} ${DIVE_PREP_LABEL[d.prep.status]}: ${d.prep.summary}`);
   }
   if (item.tour?.stops.length) bits.push(`Visits: ${item.tour.stops.map((s) => s.name).join(" → ")}`);
   const b = item.booking;
