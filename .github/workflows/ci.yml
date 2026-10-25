@@ -14,46 +14,10 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Actions are pinned to a commit (the version tag can be moved); Dependabot keeps them up to date.
+# The checks themselves are in bun-app.yml, shared with AI Diving Monitor.
 jobs:
-  check:
-    name: Typecheck, lint, tests with coverage, build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-      - run: bun install --frozen-lockfile
-      - run: bun run typecheck
-      - run: bun run lint
-      - run: bun run test:coverage
-      - name: Coverage summary
-        if: always() && hashFiles('coverage/coverage-summary.json') != ''
-        run: |
-          bun -e '
-            const { total } = JSON.parse(await Bun.file("coverage/coverage-summary.json").text());
-            const row = (k) => `| ${k} | ${total[k].pct}% | ${total[k].covered}/${total[k].total} |`;
-            console.log(["### Test coverage", "| | % | covered |", "|---|---|---|",
-              ...["statements", "branches", "functions", "lines"].map(row)].join("\n"));
-          ' >> "$GITHUB_STEP_SUMMARY"
-      - run: bun run build
-        env:
-          NEXT_TELEMETRY_DISABLED: "1"
-      # The phone app is only type-checked above; this builds it the way the APK gets it (no keys in CI).
-      - run: bun run build:mobile
-
-  windows:
-    name: Tests on Windows
-    runs-on: windows-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-      - run: bun install --frozen-lockfile
-      - run: bun run test
+  app:
+    name: App
+    uses: ./.github/workflows/bun-app.yml
+    with:
+      mobile: true
