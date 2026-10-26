@@ -63,6 +63,20 @@ jobs:
           cd mobile/android
           sh ./gradlew assembleDebug --no-daemon
 
+      # Alerts only for our code: the build compiles Capacitor's Java from node_modules, and
+      # paths-ignore has no effect on compiled languages, so its results are dropped here.
       - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
+          category: /language:${{ matrix.language }}
+          upload: never
+          output: sarif-results
+      - name: Drop results in dependencies
+        run: |
+          for f in sarif-results/*.sarif; do
+            jq '.runs[].results |= map(select(any(.locations[]?; .physicalLocation.artifactLocation.uri | startswith("node_modules/")) | not))' "$f" > "$f.tmp"
+            mv "$f.tmp" "$f"
+          done
+      - uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: sarif-results
           category: /language:${{ matrix.language }}
