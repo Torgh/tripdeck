@@ -1,4 +1,5 @@
 import { estimateMinutes, routeKey } from "./geo";
+import { translator, type Lang } from "./i18n";
 import { defaultModeTo } from "./rentals";
 import { dayDate, formatHm, parseHm } from "./time";
 import {
@@ -144,7 +145,8 @@ export function opensOn(periods: OpeningPeriod[] | undefined, weekday: number): 
   return periods.some((p) => !p.close || p.open.day === weekday);
 }
 
-export function computeDayTimeline(trip: Trip, dayIndex: number): DayTimeline {
+export function computeDayTimeline(trip: Trip, dayIndex: number, lang: Lang = "en"): DayTimeline {
+  const t = translator(lang);
   const day = trip.days[dayIndex];
   const date = dayDate(trip.startDate, dayIndex);
   const weekday = date.getUTCDay();
@@ -184,13 +186,13 @@ export function computeDayTimeline(trip: Trip, dayIndex: number): DayTimeline {
       // an appointment: arriving later is fine, arriving earlier is worth knowing.
       const checkIn = parseHm(item.stay?.checkIn) ?? fixedStart;
       if (checkIn != null && cursor < checkIn - LATE_TOLERANCE_MIN) {
-        issues.push({ level: "info", message: `Arrives ~${formatHm(cursor)}, check-in from ${formatHm(checkIn)}.` });
+        issues.push({ level: "info", message: t("issue.beforeCheckIn", { at: formatHm(cursor), checkIn: formatHm(checkIn) }) });
       }
     } else if (fixedStart != null) {
       if (cursor > fixedStart + LATE_TOLERANCE_MIN) {
         issues.push({
           level: "warn",
-          message: `Arrives ~${formatHm(cursor)}, ${Math.round(cursor - fixedStart)} min after the fixed start ${item.startTime}.`,
+          message: t("issue.late", { at: formatHm(cursor), min: Math.round(cursor - fixedStart), start: item.startTime! }),
         });
       }
       start = fixedStart;
@@ -199,9 +201,9 @@ export function computeDayTimeline(trip: Trip, dayIndex: number): DayTimeline {
 
     const periods = item.place?.openingPeriods;
     if (opensOn(periods, weekday) === false) {
-      issues.push({ level: "warn", message: "Closed on this weekday according to Google." });
+      issues.push({ level: "warn", message: t("issue.closedDay") });
     } else if (fixedStart == null && isOpenDuring(periods, weekday, start, end) === false) {
-      issues.push({ level: "warn", message: `May be closed ${formatHm(start)}–${formatHm(end)}.` });
+      issues.push({ level: "warn", message: t("issue.mayBeClosed", { from: formatHm(start), to: formatHm(end) }) });
     }
 
     // The first appointment of the day is planned backwards: be there by its start.
@@ -215,6 +217,6 @@ export function computeDayTimeline(trip: Trip, dayIndex: number): DayTimeline {
   return { dayId: day.id, dayIndex, date, base, entries, travelMin, endMin: cursor };
 }
 
-export function computeTripTimeline(trip: Trip): DayTimeline[] {
-  return trip.days.map((_, i) => computeDayTimeline(trip, i));
+export function computeTripTimeline(trip: Trip, lang: Lang = "en"): DayTimeline[] {
+  return trip.days.map((_, i) => computeDayTimeline(trip, i, lang));
 }

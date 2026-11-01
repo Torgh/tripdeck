@@ -1,3 +1,4 @@
+import { LOCALE, translator, type Lang } from "./i18n";
 import { dayDate, isoDate } from "./time";
 import { ITEM_TYPE_LABEL, type EntryCheck, type EntryCountry, type EntryKind, type EntryRequirement, type Trip } from "./types";
 
@@ -12,11 +13,12 @@ export const COUNTRY_CODES = (
   "TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW"
 ).split(" ");
 
-const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
+const regionNames = new Map<Lang, Intl.DisplayNames>();
 
-export function countryName(code: string): string {
+export function countryName(code: string, lang: Lang = "en"): string {
   try {
-    return regionNames.of(code.toUpperCase()) ?? code;
+    if (!regionNames.has(lang)) regionNames.set(lang, new Intl.DisplayNames([LOCALE[lang]], { type: "region" }));
+    return regionNames.get(lang)!.of(code.toUpperCase()) ?? code;
   } catch {
     return code;
   }
@@ -27,17 +29,6 @@ export function flag(code: string): string {
   if (!/^[A-Za-z]{2}$/.test(code)) return "🏳️";
   return String.fromCodePoint(...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
 }
-
-export const ENTRY_KIND_LABEL: Record<EntryKind, string> = {
-  visa: "Visa",
-  passport: "Passport",
-  arrival_form: "Arrival form",
-  health: "Health",
-  insurance: "Insurance",
-  driving: "Driving",
-  customs: "Customs",
-  other: "Other",
-};
 
 /** Where an address is: its last part, which is the country in Google's and OpenStreetMap's addresses. */
 function countryOf(address: string | undefined): string | undefined {
@@ -73,12 +64,13 @@ export function entryRouteKey(trip: Trip): string {
 export type EntryState = { kind: "none" } | { kind: "fresh" } | { kind: "stale"; reasons: string[] };
 
 /** Whether the saved check still matches the trip's passports and route. */
-export function entryState(trip: Trip): EntryState {
+export function entryState(trip: Trip, lang: Lang = "en"): EntryState {
   if (!trip.entry) return { kind: "none" };
+  const t = translator(lang);
   const reasons: string[] = [];
   const same = (a: string[], b: string[]) => [...a].sort().join() === [...b].sort().join();
-  if (!same(trip.entry.passports, trip.passports ?? [])) reasons.push("the passports changed");
-  if (trip.entry.routeKey !== entryRouteKey(trip)) reasons.push("the dates or countries in the plan changed");
+  if (!same(trip.entry.passports, trip.passports ?? [])) reasons.push(t("entry.passportsChanged"));
+  if (trip.entry.routeKey !== entryRouteKey(trip)) reasons.push(t("entry.routeChanged"));
   return reasons.length ? { kind: "stale", reasons } : { kind: "fresh" };
 }
 

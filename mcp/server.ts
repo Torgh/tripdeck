@@ -240,7 +240,7 @@ async function budgetOf(trip: Trip): Promise<Budget> {
 
 /** The saved entry check: one line per country, its warnings and what is still to do (also under To sort out). */
 function entryLines(trip: Trip): string[] {
-  const passports = trip.passports?.length ? trip.passports.map(countryName).join(", ") : "not set";
+  const passports = trip.passports?.length ? trip.passports.map((c) => countryName(c)).join(", ") : "not set";
   const state = entryState(trip);
   if (!trip.entry) {
     return ["## Entry & paperwork", `Passports: ${passports}. Not checked yet – research it and save it with save_entry_check.`, ""];
@@ -302,7 +302,7 @@ function renderTrip(trip: Trip, budget?: Budget): string {
         const rides = from && freshRoute(trip, from, item);
         if (rides?.transit?.length) {
           lines.push(
-            `     via ${rides.transit.map(transitStepLine).join(" → ")}${rides.walkMin ? ` · 🚶 ${rides.walkMin} min on foot` : ""}${rides.at ? ` · timetable for ${rides.at}` : ""}${rides.sampledOn ? ` (not published yet – same weekday on ${rides.sampledOn})` : ""}`,
+            `     via ${rides.transit.map((s) => transitStepLine(s)).join(" → ")}${rides.walkMin ? ` · 🚶 ${rides.walkMin} min on foot` : ""}${rides.at ? ` · timetable for ${rides.at}` : ""}${rides.sampledOn ? ` (not published yet – same weekday on ${rides.sampledOn})` : ""}`,
           );
         }
       }

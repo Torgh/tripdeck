@@ -2,6 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { LANGS, type Lang } from "../i18n";
 import { HttpError } from "./errors";
 
 export { HttpError };
@@ -70,3 +71,6 @@ function errorMessage(err: unknown): string {
 }
 
 export const latLngSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
+
+/** The app's language, for in-app AI answers; older clients send none. */
+export const langSchema = z.enum(LANGS as [Lang, ...Lang[]]).default("en");

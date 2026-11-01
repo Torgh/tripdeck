@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { useT } from "@/lib/useLang";
 
 export function Modal({
   title,
@@ -15,6 +16,7 @@ export function Modal({
   footer?: ReactNode;
   wide?: boolean;
 }) {
+  const t = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -26,7 +28,7 @@ export function Modal({
       <div className={`modal${wide ? " wide" : ""}`} role="dialog" aria-modal="true">
         <div className="modal-head">
           <h2>{title}</h2>
-          <button className="btn ghost" onClick={onClose} aria-label="Close">
+          <button className="btn ghost" onClick={onClose} aria-label={t("common.close")}>
             ✕
           </button>
         </div>
@@ -38,5 +40,6 @@ export function Modal({
 }
 
 export function Spinner() {
-  return <span className="spinner" aria-label="Loading" />;
+  const t = useT();
+  return <span className="spinner" aria-label={t("common.loading")} />;
 }

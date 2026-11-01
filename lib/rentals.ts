@@ -1,3 +1,4 @@
+import { translator, type Lang } from "./i18n";
 import { dayDate, formatDayLabel } from "./time";
 import type { Item, RentalVehicle, TravelMode, Trip } from "./types";
 
@@ -12,14 +13,14 @@ export interface RentalDay {
 }
 
 /** For each day, the rentals you have on it, in pick-up order. A rental from Ideas has no dates. */
-export function rentalsOf(trip: Trip): RentalDay[][] {
+export function rentalsOf(trip: Trip, lang: Lang = "en"): RentalDay[][] {
   const out: RentalDay[][] = trip.days.map(() => []);
   trip.days.forEach((day, start) => {
     for (const id of day.itemIds) {
       const rental = trip.items[id];
       if (rental?.type !== "rental") continue;
       const days = Math.max(1, rental.rental?.days ?? 1);
-      const returnLabel = formatDayLabel(dayDate(trip.startDate, start + days));
+      const returnLabel = formatDayLabel(dayDate(trip.startDate, start + days), lang);
       for (let i = start; i <= start + days && i < trip.days.length; i++) {
         out[i].push({ rental, days, returnLabel, phase: i === start ? "pickup" : i === start + days ? "return" : "during" });
       }
@@ -61,10 +62,11 @@ export function defaultModeTo(trip: Trip, toId: string): TravelMode {
 }
 
 /** "9 days · back Sat 23 Jan 18:00" for a rental picked up on day `dayIndex`; empty in Ideas. */
-export function rentalSummary(trip: Trip, rental: Item, dayIndex: number): string {
+export function rentalSummary(trip: Trip, rental: Item, dayIndex: number, lang: Lang = "en"): string {
+  const t = translator(lang);
   const days = Math.max(1, rental.rental?.days ?? 1);
-  const length = `${days} day${days > 1 ? "s" : ""}`;
+  const length = t("rental.days", { n: days });
   if (dayIndex < 0) return length;
-  const back = formatDayLabel(dayDate(trip.startDate, dayIndex + days));
-  return `${length} · back ${back}${rental.rental?.returnTime ? ` ${rental.rental.returnTime}` : ""}`;
+  const back = formatDayLabel(dayDate(trip.startDate, dayIndex + days), lang);
+  return t("rental.back", { length, date: `${back}${rental.rental?.returnTime ? ` ${rental.rental.returnTime}` : ""}` });
 }

@@ -1,3 +1,4 @@
+import { translator, type Lang } from "./i18n";
 import { daysBetween } from "./time";
 import type { Item, TravelMode, Trip } from "./types";
 
@@ -20,11 +21,12 @@ export function defaultDayIndex(trip: Trip, now: Date): number {
 }
 
 /** "In 12 days", "Day 3 of 9" or "Ended", for the trip list. */
-export function tripStatus(trip: Trip, now: Date): string {
+export function tripStatus(trip: Trip, now: Date, lang: Lang = "en"): string {
+  const t = translator(lang);
   const i = daysBetween(trip.startDate, localIsoDate(now));
-  if (i < 0) return i === -1 ? "Starts tomorrow" : `Starts in ${-i} days`;
-  if (i < trip.days.length) return `Day ${i + 1} of ${trip.days.length}`;
-  return "Ended";
+  if (i < 0) return i === -1 ? t("status.tomorrow") : t("status.startsIn", { n: -i });
+  if (i < trip.days.length) return t("status.dayOf", { day: i + 1, days: trip.days.length });
+  return t("status.ended");
 }
 
 /** The trip list's countdown tile: days to go, the day of the trip it is, or ended. */
@@ -35,11 +37,12 @@ export interface TripCountdown {
   label: string;
 }
 
-export function tripCountdown(trip: Trip, now: Date): TripCountdown {
+export function tripCountdown(trip: Trip, now: Date, lang: Lang = "en"): TripCountdown {
+  const t = translator(lang);
   const i = daysBetween(trip.startDate, localIsoDate(now));
-  if (i < 0) return { phase: "upcoming", value: String(-i), label: i === -1 ? "day" : "days" };
-  if (i < trip.days.length) return { phase: "ongoing", value: `${i + 1}/${trip.days.length}`, label: "today" };
-  return { phase: "ended", value: "✓", label: "ended" };
+  if (i < 0) return { phase: "upcoming", value: String(-i), label: t("status.days", { n: -i }) };
+  if (i < trip.days.length) return { phase: "ongoing", value: `${i + 1}/${trip.days.length}`, label: t("status.today") };
+  return { phase: "ended", value: "✓", label: t("status.endedShort") };
 }
 
 /** The trip list's order: under way and upcoming first, soonest first; ended trips last, the latest first. */

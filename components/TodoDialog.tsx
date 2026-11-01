@@ -3,7 +3,8 @@
 import { flag } from "@/lib/entry";
 import { dayDate, formatDayLabel } from "@/lib/time";
 import type { Todo } from "@/lib/todo";
-import { BOOKING_STATUS_ICON, BOOKING_STATUS_LABEL, itemIcon, type Trip } from "@/lib/types";
+import { BOOKING_STATUS_ICON, itemIcon, type Trip } from "@/lib/types";
+import { useLang, useT } from "@/lib/useLang";
 import { Modal } from "./Modal";
 
 /** Visas and forms to apply for, bookings still to make or confirm, and nights without a bed – each one click from being sorted out. */
@@ -22,53 +23,57 @@ export function TodoDialog({
   onEntry: () => void;
   onClose: () => void;
 }) {
-  const day = (i: number) => `Day ${i + 1} · ${formatDayLabel(dayDate(trip.startDate, i))}`;
+  const t = useT();
+  const lang = useLang();
+  const day = (i: number) => `${t("common.day", { day: i + 1 })} · ${formatDayLabel(dayDate(trip.startDate, i), lang)}`;
   return (
-    <Modal title="📝 To sort out" onClose={onClose}>
+    <Modal title={t("todoDialog.title")} onClose={onClose}>
       {todos.length === 0 ? (
-        <p className="muted">Nothing left: every booking is confirmed, every night has a bed and no entry formality is open.</p>
+        <p className="muted">{t("todoDialog.empty")}</p>
       ) : (
         <ul className="todo-list">
-          {todos.map((t) =>
-            t.kind === "entry" ? (
-              <li key={`entry-${t.country.code}-${t.requirement.title}`}>
+          {todos.map((todo) =>
+            todo.kind === "entry" ? (
+              <li key={`entry-${todo.country.code}-${todo.requirement.title}`}>
                 <span className="grow">
-                  {flag(t.country.code)} <strong>{t.requirement.title}</strong>
-                  <span className="muted"> · {t.country.name}</span>
-                  {t.requirement.dueBy && (
+                  {flag(todo.country.code)} <strong>{todo.requirement.title}</strong>
+                  <span className="muted"> · {todo.country.name}</span>
+                  {todo.requirement.dueBy && (
                     <>
                       <br />
-                      <span className="badge status-pending">📝 by {formatDayLabel(dayDate(t.requirement.dueBy, 0))}</span>
+                      <span className="badge status-pending">
+                        {t("todoDialog.by", { date: formatDayLabel(dayDate(todo.requirement.dueBy, 0), lang) })}
+                      </span>
                     </>
                   )}
                 </span>
                 <button className="btn small" onClick={onEntry}>
-                  Details
+                  {t("todoDialog.details")}
                 </button>
               </li>
-            ) : t.kind === "night" ? (
-              <li key={`night-${t.dayIndex}`}>
+            ) : todo.kind === "night" ? (
+              <li key={`night-${todo.dayIndex}`}>
                 <span className="grow">
-                  🌙 <strong>Night after {day(t.dayIndex)}</strong>
-                  <span className="muted"> · nowhere to sleep yet</span>
+                  🌙 <strong>{t("todoDialog.nightAfter", { day: day(todo.dayIndex) })}</strong>
+                  <span className="muted">{t("todoDialog.nowhere")}</span>
                 </span>
-                <button className="btn small" onClick={() => onAddStay(trip.days[t.dayIndex].id)}>
-                  + Add stay
+                <button className="btn small" onClick={() => onAddStay(trip.days[todo.dayIndex].id)}>
+                  {t("todoDialog.addStay")}
                 </button>
               </li>
             ) : (
-              <li key={t.item.id}>
+              <li key={todo.item.id}>
                 <span className="grow">
-                  {itemIcon(t.item)} <strong>{t.item.title}</strong>
-                  <span className="muted"> · {t.dayIndex === undefined ? "Ideas" : day(t.dayIndex)}</span>
+                  {itemIcon(todo.item)} <strong>{todo.item.title}</strong>
+                  <span className="muted"> · {todo.dayIndex === undefined ? t("common.ideas") : day(todo.dayIndex)}</span>
                   <br />
-                  <span className={`badge status-${t.status}`}>
-                    {BOOKING_STATUS_ICON[t.status]} {BOOKING_STATUS_LABEL[t.status]}
+                  <span className={`badge status-${todo.status}`}>
+                    {BOOKING_STATUS_ICON[todo.status]} {t(`bookingStatus.${todo.status}`)}
                   </span>
-                  {t.item.booking?.provider && <span className="muted"> · {t.item.booking.provider}</span>}
+                  {todo.item.booking?.provider && <span className="muted"> · {todo.item.booking.provider}</span>}
                 </span>
-                <button className="btn small" onClick={() => onEdit(t.item.id)}>
-                  Edit
+                <button className="btn small" onClick={() => onEdit(todo.item.id)}>
+                  {t("common.edit")}
                 </button>
               </li>
             ),

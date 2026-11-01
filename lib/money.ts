@@ -1,3 +1,4 @@
+import { translator, type Lang } from "./i18n";
 import type { Item, ItemType, Trip } from "./types";
 
 /** Currencies with daily ECB reference rates (frankfurter.dev): the ones a budget can be kept in. */
@@ -236,10 +237,14 @@ export function tripBudget(trip: Trip, rates?: Rates): Budget {
 }
 
 /** One line for the trip header and get_trip: "€1,235 · €420 paid · €815 to pay · €765 left of €2,000". */
-export function budgetSummary(b: Budget): string {
+export function budgetSummary(b: Budget, lang: Lang = "en"): string {
+  const t = translator(lang);
   const m = (n: number) => formatMoney(n, b.currency);
   const bits = [m(b.total)];
-  if (b.paid > 0) bits.push(`${m(b.paid)} paid`, `${m(b.total - b.paid)} to pay`);
-  if (b.limit) bits.push(b.total <= b.limit ? `${m(b.limit - b.total)} left of ${m(b.limit)}` : `${m(b.total - b.limit)} over ${m(b.limit)}`);
+  if (b.paid > 0) bits.push(t("budget.paid", { amount: m(b.paid) }), t("budget.toPay", { amount: m(b.total - b.paid) }));
+  if (b.limit) {
+    const limit = m(b.limit);
+    bits.push(b.total <= b.limit ? t("budget.left", { amount: m(b.limit - b.total), limit }) : t("budget.over", { amount: m(b.total - b.limit), limit }));
+  }
   return bits.join(" · ");
 }

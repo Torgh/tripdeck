@@ -3,12 +3,14 @@ import { z } from "zod";
 import { haversineM } from "@/lib/geo";
 import { agent } from "@/lib/server/claude";
 import { nearbyPlaces, OSM_CATEGORIES, searchPlaces, type PlaceResult } from "@/lib/server/maps";
-import { handle, latLngSchema, readBody } from "@/lib/server/http";
+import { writeIn } from "@/lib/i18n";
+import { handle, langSchema, latLngSchema, readBody } from "@/lib/server/http";
 import { dayDate } from "@/lib/time";
 
 export const maxDuration = 120;
 
 const schema = z.object({
+  lang: langSchema,
   destination: z.string().max(200),
   interests: z.string().max(500).default(""),
   date: z
@@ -47,7 +49,7 @@ Rules:
 - Weigh rating together with the number of reviews; avoid obscure places with only a handful of reviews unless they fit the interests unusually well.
 - Fit the traveller's interests and the rest of their day; offer variety unless the request is specific.
 - Skip places that are closed on the given date when hours are known, and places that duplicate what is already planned.
-- Use a few targeted searches (2–5 tool calls), then answer. Write in English, concise and concrete.`;
+- Use a few targeted searches (2–5 tool calls), then answer. Be concise and concrete.`;
 
 function compact(p: PlaceResult, anchor: { lat: number; lng: number }, weekday?: number) {
   // weekdayDescriptions start on Monday; Date.getUTCDay() is 0 = Sunday
@@ -113,7 +115,7 @@ export const POST = handle(async (req) => {
   };
 
   const result = await agent({
-    system: SYSTEM,
+    system: `${SYSTEM} ${writeIn(input.lang)}`,
     content: `Suggest places to visit for this request:\n${JSON.stringify(request, null, 2)}`,
     tools,
     schema: outputSchema,

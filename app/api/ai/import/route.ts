@@ -2,7 +2,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { structured } from "@/lib/server/claude";
 import { searchPlaces, type PlaceResult } from "@/lib/server/maps";
-import { handle, HttpError, readBody } from "@/lib/server/http";
+import { writeIn } from "@/lib/i18n";
+import { handle, HttpError, langSchema, readBody } from "@/lib/server/http";
 
 export const maxDuration = 120;
 
@@ -18,6 +19,7 @@ const schema = z.object({
     .optional(),
   destination: z.string().max(200).optional(),
   tripStartDate: z.string().optional(),
+  lang: langSchema,
 });
 
 const bookingSchema = z.object({
@@ -81,6 +83,7 @@ export const POST = handle(async (req) => {
       "Extract the bookings from this confirmation.",
       input.destination ? `The trip is to ${input.destination}.` : "",
       input.tripStartDate ? `The trip starts on ${input.tripStartDate} (use it to resolve dates without a year).` : "",
+      `${writeIn(input.lang)} Keep names, addresses and booking references as written.`,
       input.text ? `\n<confirmation>\n${input.text}\n</confirmation>` : "",
     ]
       .filter(Boolean)

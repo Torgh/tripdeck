@@ -13,20 +13,24 @@ import { dayColor } from "@/lib/mapLayers";
 import { useTrip } from "@/lib/store";
 import { dayDate, formatDayLabel, formatDuration, formatHm } from "@/lib/time";
 import { computeTripTimeline, getLeg, type Issue } from "@/lib/timeline";
-import { BOOKING_STATUS_ICON, BOOKING_STATUS_LABEL, DIVE_PREP_ICON, DIVE_PREP_LABEL, diveGas, itemIcon, MODE_LABEL, type Item } from "@/lib/types";
+import type { T } from "@/lib/i18n";
+import { BOOKING_STATUS_ICON, DIVE_PREP_ICON, diveGas, itemIcon, type Item } from "@/lib/types";
+import { useLang, useT } from "@/lib/useLang";
 import { TripMap } from "./TripMap";
 
 /** Printable itinerary; the browser's print dialog saves it as a PDF. */
 export function TripPrint({ tripId }: { tripId: string | null }) {
   const hydrated = useHydrated();
   const trip = useTrip(tripId);
-  const timelines = useMemo(() => (trip ? computeTripTimeline(trip) : []), [trip]);
+  const t = useT();
+  const lang = useLang();
+  const timelines = useMemo(() => (trip ? computeTripTimeline(trip, lang) : []), [trip, lang]);
   const warnings = useMemo(
-    () => (trip ? mergeIssues(computeDiveWarnings(trip, timelines), computeClockNotes(trip, timelines)) : new Map()),
-    [trip, timelines],
+    () => (trip ? mergeIssues(computeDiveWarnings(trip, timelines, lang), computeClockNotes(trip, timelines, lang)) : new Map()),
+    [trip, timelines, lang],
   );
   const nights = useMemo(() => (trip ? nightsOf(trip) : []), [trip]);
-  const rentals = useMemo(() => (trip ? rentalsOf(trip) : []), [trip]);
+  const rentals = useMemo(() => (trip ? rentalsOf(trip, lang) : []), [trip, lang]);
   const budget = useTripBudget(trip);
   const focus = useMemo(() => {
     const items = trip ? focusItems(Object.values(trip.items)) : [];
@@ -37,23 +41,24 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
     if (!trip) return;
     // The title becomes the suggested PDF file name.
     const previous = document.title;
-    document.title = `${trip.name} – itinerary`;
+    document.title = t("print.docTitle", { name: trip.name });
     return () => {
       document.title = previous;
     };
-  }, [trip]);
+  }, [trip, t]);
 
-  if (!hydrated) return <main className="home muted">Loading…</main>;
+  if (!hydrated) return <main className="home muted">{t("common.loading")}</main>;
   if (!trip) {
     return (
       <main className="home">
-        <p>Trip not found in this browser.</p>
-        <Link href="/">← All trips</Link>
+        <p>{t("trip.notFound")}</p>
+        <Link href="/">{t("trip.allTrips")}</Link>
       </main>
     );
   }
 
   const last = trip.days.length - 1;
+  const date = (i: number) => formatDayLabel(dayDate(trip.startDate, i), lang);
   const booked = trip.days.flatMap((d, i) =>
     d.itemIds.map((id) => trip.items[id]).filter((it): it is Item => !!it?.booking).map((item) => ({ item, day: i })),
   );
@@ -62,11 +67,11 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
     <div className="print-page">
       <div className="print-toolbar">
         <Link className="btn" href={`/trip?id=${encodeURIComponent(trip.id)}`}>
-          ← Back to the board
+          {t("print.backToBoard")}
         </Link>
-        <span className="grow muted small">In the print dialog choose “Save as PDF” as the printer.</span>
+        <span className="grow muted small">{t("print.hint")}</span>
         <button className="btn primary" onClick={() => window.print()}>
-          📄 Save as PDF
+          {t("print.save")}
         </button>
       </div>
 
@@ -74,14 +79,13 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
         <header className="print-head">
           <h1>{trip.name}</h1>
           <p>
-            {trip.destination} · {formatDayLabel(dayDate(trip.startDate, 0))} – {formatDayLabel(dayDate(trip.startDate, last))}{" "}
-            · {trip.days.length} days
+            {trip.destination} · {date(0)} – {date(last)} · {t("home.days", { n: trip.days.length })}
           </p>
         </header>
 
         {focus.ids.size > 0 && (
           <section className="print-section">
-            <h2>Map</h2>
+            <h2>{t("print.map")}</h2>
             {/* Tall trips get a tall map; the height stays within one page. */}
             <div className="print-map" style={{ height: Math.round(Math.min(640, Math.max(320, 680 * focus.aspect))) }}>
               <TripMap trip={trip} selectedDayId={null} onlyItemIds={focus.ids} staticView />
@@ -90,14 +94,14 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
         )}
 
         <section className="print-section">
-          <h2>Overview</h2>
+          <h2>{t("print.overview")}</h2>
           <table>
             <thead>
               <tr>
-                <th>Day</th>
-                <th>Date</th>
-                <th>Plan</th>
-                <th>Night</th>
+                <th>{t("print.day")}</th>
+                <th>{t("print.date")}</th>
+                <th>{t("print.plan")}</th>
+                <th>{t("print.night")}</th>
               </tr>
             </thead>
             <tbody>
@@ -106,7 +110,7 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
                   <td className="nowrap">
                     <span className="day-dot" style={{ background: dayColor(i) }} /> {i + 1}
                   </td>
-                  <td className="nowrap">{formatDayLabel(dayDate(trip.startDate, i))}</td>
+                  <td className="nowrap">{date(i)}</td>
                   <td>
                     {d.itemIds
                       .map((id) => trip.items[id])
@@ -114,7 +118,7 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
                       .map((it) => it!.title)
                       .join(" · ") || "–"}
                   </td>
-                  <td>{nightLabel(nights[i])}</td>
+                  <td>{nightLabel(nights[i], t)}</td>
                 </tr>
               ))}
             </tbody>
@@ -123,22 +127,22 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
 
         {booked.length > 0 && (
           <section className="print-section">
-            <h2>Bookings</h2>
+            <h2>{t("print.bookings")}</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Day</th>
-                  <th>Booking</th>
-                  <th>Provider</th>
-                  <th>Reference</th>
-                  <th>Price</th>
+                  <th>{t("print.day")}</th>
+                  <th>{t("print.booking")}</th>
+                  <th>{t("print.provider")}</th>
+                  <th>{t("print.reference")}</th>
+                  <th>{t("print.price")}</th>
                 </tr>
               </thead>
               <tbody>
                 {booked.map(({ item, day }) => (
                   <tr key={item.id}>
                     <td className="nowrap">
-                      {day + 1} · {formatDayLabel(dayDate(trip.startDate, day))}
+                      {day + 1} · {date(day)}
                     </td>
                     <td>
                       {itemIcon(item)} {item.title}
@@ -148,13 +152,13 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
                       {item.booking?.reference ?? "–"}
                       {item.booking?.status && item.booking.status !== "confirmed" && (
                         <div className="nowrap">
-                          {BOOKING_STATUS_ICON[item.booking.status]} {BOOKING_STATUS_LABEL[item.booking.status]}
+                          {BOOKING_STATUS_ICON[item.booking.status]} {t(`bookingStatus.${item.booking.status}`)}
                         </div>
                       )}
                     </td>
                     <td>
                       {item.booking?.price ?? "–"}
-                      {item.booking?.paid && <div className="nowrap muted">Paid</div>}
+                      {item.booking?.paid && <div className="nowrap muted">{t("print.paid")}</div>}
                     </td>
                   </tr>
                 ))}
@@ -162,30 +166,30 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
             </table>
             {budget && budget.lines.length > 0 && (
               <p className="small">
-                <strong>Total:</strong> {budgetSummary(budget)}
-                {budget.ratesDate && <span className="muted"> (converted at ECB rates of {budget.ratesDate})</span>}
+                <strong>{t("print.total")}</strong> {budgetSummary(budget, lang)}
+                {budget.ratesDate && <span className="muted">{t("print.ecb", { date: budget.ratesDate })}</span>}
                 {(budget.unconverted.length > 0 || budget.noCurrency.length > 0) && (
-                  <span className="muted"> · some prices are not included (no currency or exchange rate)</span>
+                  <span className="muted">{t("print.missing")}</span>
                 )}
               </p>
             )}
           </section>
         )}
 
-        <h2 className="print-days-title">Day by day</h2>
+        <h2 className="print-days-title">{t("print.dayByDay")}</h2>
         {trip.days.map((d, i) => {
           const tl = timelines[i];
           return (
             <section key={d.id} className="print-day">
               <h3>
-                Day {i + 1} · {formatDayLabel(dayDate(trip.startDate, i))}
+                {t("common.day", { day: i + 1 })} · {date(i)}
               </h3>
-              {tl?.base && <p className="muted small">Wake up at {tl.base.title}</p>}
+              {tl?.base && <p className="muted small">{t("print.wakeUp", { place: tl.base.title })}</p>}
               {rentals[i]
                 ?.filter((r) => r.phase !== "pickup")
                 .map((r) => (
                   <p key={r.rental.id} className="muted small">
-                    {itemIcon(r.rental)} {rentalLabel(r)}
+                    {itemIcon(r.rental)} {rentalLabel(r, t)}
                   </p>
                 ))}
               {tl?.entries.length ? (
@@ -199,8 +203,8 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
                       <li key={e.itemId}>
                         {from && e.legMin !== undefined && (
                           <div className="print-leg">
-                            ↓ {MODE_LABEL[getLeg(trip, from.id, item.id).mode]} {formatDuration(e.legMin)}
-                            {e.legEstimated ? " (estimate)" : ""}
+                            ↓ {t(`mode.${getLeg(trip, from.id, item.id).mode}`)} {formatDuration(e.legMin, lang)}
+                            {e.legEstimated ? t("print.estimate") : ""}
                           </div>
                         )}
                         <div className="print-entry">
@@ -226,33 +230,38 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
                   })}
                 </ol>
               ) : (
-                <p className="muted small">Free day – nothing planned.</p>
+                <p className="muted small">{t("print.free")}</p>
               )}
-              {nights[i] && nights[i].kind !== "end" && <p className="print-night">🌙 {nightLabel(nights[i])}</p>}
+              {nights[i] && nights[i].kind !== "end" && <p className="print-night">🌙 {nightLabel(nights[i], t)}</p>}
             </section>
           );
         })}
-        <footer className="print-foot muted small">Made with TripDeck</footer>
+        <footer className="print-foot muted small">{t("print.footer")}</footer>
       </article>
     </div>
   );
 }
 
 function ItemDetails({ item }: { item: Item }) {
+  const t = useT();
   const bits: string[] = [];
   if (item.transport) {
-    const t = item.transport;
-    bits.push([t.number, t.from && t.to ? `${t.from} → ${t.to}` : (t.from ?? t.to)].filter(Boolean).join(" · "));
+    const tr = item.transport;
+    bits.push([tr.number, tr.from && tr.to ? `${tr.from} → ${tr.to}` : (tr.from ?? tr.to)].filter(Boolean).join(" · "));
   }
   if (item.stay) {
-    bits.push(`${item.stay.nights} night${item.stay.nights > 1 ? "s" : ""}`);
-    if (item.stay.checkIn) bits.push(`check-in from ${item.stay.checkIn}`);
-    if (item.stay.checkOut) bits.push(`check-out by ${item.stay.checkOut}`);
+    bits.push(t("board.nights", { n: item.stay.nights }));
+    if (item.stay.checkIn) bits.push(t("print.checkIn", { time: item.stay.checkIn }));
+    if (item.stay.checkOut) bits.push(t("print.checkOut", { time: item.stay.checkOut }));
   }
   if (item.rental) {
     const r = item.rental;
     bits.push(
-      [`${r.days} day${r.days > 1 ? "s" : ""}`, r.returnTime && `return by ${r.returnTime}`, r.returnPlace && `at ${r.returnPlace}`]
+      [
+        t("board.days", { n: r.days }),
+        r.returnTime && t("print.returnBy", { time: r.returnTime }),
+        r.returnPlace && t("print.at", { place: r.returnPlace }),
+      ]
         .filter(Boolean)
         .join(" · "),
     );
@@ -260,27 +269,27 @@ function ItemDetails({ item }: { item: Item }) {
   if (item.dive) {
     const d = item.dive;
     bits.push(
-      [`${d.dives} dive${d.dives > 1 ? "s" : ""}`, d.site, d.maxDepthM ? `max ${d.maxDepthM} m` : "", diveGas(d), d.center]
+      [t("board.dives", { n: d.dives }), d.site, d.maxDepthM ? t("print.maxDepth", { m: d.maxDepthM }) : "", diveGas(d), d.center]
         .filter(Boolean)
         .join(" · "),
     );
-    if (d.prep) bits.push(`${DIVE_PREP_ICON[d.prep.status]} ${DIVE_PREP_LABEL[d.prep.status]}: ${d.prep.summary}`);
+    if (d.prep) bits.push(`${DIVE_PREP_ICON[d.prep.status]} ${t(`divePrep.${d.prep.status}`)}: ${d.prep.summary}`);
   }
-  if (item.tour?.stops.length) bits.push(`Visits: ${item.tour.stops.map((s) => s.name).join(" → ")}`);
+  if (item.tour?.stops.length) bits.push(t("print.visits", { stops: item.tour.stops.map((s) => s.name).join(" → ") }));
   const b = item.booking;
   if (b && (b.provider || b.reference || b.price)) {
-    bits.push(["Booked", b.provider, b.reference && `ref ${b.reference}`, b.price].filter(Boolean).join(" · "));
+    bits.push([t("print.booked"), b.provider, b.reference && t("print.ref", { ref: b.reference }), b.price].filter(Boolean).join(" · "));
   }
   return (
     <>
-      {bits.filter(Boolean).map((t, k) => (
+      {bits.filter(Boolean).map((bit, k) => (
         <div key={k} className="small">
-          {t}
+          {bit}
         </div>
       ))}
       {item.location?.address && (
         <div className="small muted">
-          📍 {item.tour?.stops.length ? "Pick-up: " : ""}
+          📍 {item.tour?.stops.length ? t("print.pickUp") : ""}
           {item.location.address}
         </div>
       )}
@@ -289,17 +298,21 @@ function ItemDetails({ item }: { item: Item }) {
   );
 }
 
-function nightLabel(night: Night | undefined): string {
+function nightLabel(night: Night | undefined, t: T): string {
   if (!night || night.kind === "end") return "–";
-  if (night.kind === "transport") return `Overnight · ${night.item.title}`;
-  if (night.kind === "none") return "No accommodation";
+  if (night.kind === "transport") return t("print.overnight", { title: night.item.title });
+  if (night.kind === "none") return t("print.noStay");
   return night.nights > 1 ? `${night.stay.title} (${night.night}/${night.nights})` : night.stay.title;
 }
 
-function rentalLabel({ rental, phase, returnLabel }: RentalDay): string {
+function rentalLabel({ rental, phase, returnLabel }: RentalDay, t: T): string {
   const r = rental.rental;
   if (phase === "return") {
-    return `Return ${rental.title} today${r?.returnTime ? ` by ${r.returnTime}` : ""}${r?.returnPlace ? ` at ${r.returnPlace}` : ""}`;
+    return t("print.returnToday", {
+      title: rental.title,
+      by: r?.returnTime ? t("print.by", { time: r.returnTime }) : "",
+      at: r?.returnPlace ? t("print.atPlace", { place: r.returnPlace }) : "",
+    });
   }
-  return `${rental.title} · back ${returnLabel}`;
+  return t("print.back", { title: rental.title, date: returnLabel });
 }

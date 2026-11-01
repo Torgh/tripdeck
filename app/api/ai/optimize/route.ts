@@ -2,7 +2,8 @@ import { z } from "zod";
 import { bestOrder, evaluate, travelMatrix, type OptInput, type OptMetrics } from "@/lib/optimize";
 import { aiConfigured, structured } from "@/lib/server/claude";
 import { routeMatrix } from "@/lib/server/maps";
-import { handle, HttpError, latLngSchema, readBody } from "@/lib/server/http";
+import { translator, writeIn } from "@/lib/i18n";
+import { handle, HttpError, langSchema, latLngSchema, readBody } from "@/lib/server/http";
 import { dayDate, formatHm, parseHm } from "@/lib/time";
 import { legKey, ROUTABLE_MODES, MANUAL_MODES, type OpeningPeriod } from "@/lib/types";
 
@@ -11,6 +12,7 @@ export const maxDuration = 120;
 const point = z.object({ day: z.number().int().min(0).max(6), hour: z.number(), minute: z.number() });
 
 const schema = z.object({
+  lang: langSchema,
   destination: z.string().max(200),
   interests: z.string().max(500).default(""),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -52,7 +54,7 @@ You reorder the stops of one day of a trip to make it as enjoyable and efficient
 
 You get a travel-time matrix, durations, fixed start times, opening hours, and a baseline order computed by an algorithm that only minimises travel time, lateness and closed visits.
 Start from the baseline and change it only when there is a real benefit the algorithm cannot see: meals at sensible times, viewpoints or beaches at the best time of day, museums before crowds, heat in the middle of the day, avoiding backtracking.
-Never move a stop so it misses a fixed start time or arrives outside its opening hours. Write in English.`;
+Never move a stop so it misses a fixed start time or arrives outside its opening hours.`;
 
 function hoursOn(periods: OpeningPeriod[] | undefined, weekday: number): string {
   if (!periods?.length) return "unknown";
@@ -66,6 +68,7 @@ function hoursOn(periods: OpeningPeriod[] | undefined, weekday: number): string 
 
 export const POST = handle(async (req) => {
   const input = await readBody(req, schema);
+  const t = translator(input.lang);
   const ids = new Set(input.items.map((i) => i.id));
   if (ids.size !== input.items.length) throw new HttpError(400, "Stop ids must be unique.");
 
@@ -132,14 +135,14 @@ export const POST = handle(async (req) => {
   // Without an API key the in-app optimizer returns the algorithmic order (Claude can still refine it via MCP).
   const ai = aiConfigured()
     ? await structured({
-        system: SYSTEM,
+        system: `${SYSTEM} ${writeIn(input.lang)}`,
         content: `Recommend the visiting order for this day:\n${JSON.stringify(prompt, null, 2)}`,
         schema: outputSchema,
         effort: "medium",
       })
     : {
         order: toIds(baselineIdx),
-        reasoning: "Fastest order by travel time, keeping fixed start times and opening hours.",
+        reasoning: t("optimize.fallback"),
         tips: [],
       };
 
@@ -159,7 +162,7 @@ export const POST = handle(async (req) => {
     baselineOrder: toIds(baselineIdx),
     reasoning: valid
       ? ai.reasoning
-      : "Claude's answer did not contain every stop exactly once, so the travel-time optimised order is shown instead.",
+      : t("optimize.invalid"),
     tips: ai.tips.slice(0, 3),
     metrics,
     estimated,

@@ -39,7 +39,6 @@ import { freshRoute, getLeg, type DayTimeline, type Issue, type TimelineEntry } 
 import { transitStepLine, vehicleIcon } from "@/lib/transit";
 import {
   BOOKING_STATUS_ICON,
-  BOOKING_STATUS_LABEL,
   diveGas,
   IDEAS,
   isRoutable,
@@ -47,7 +46,6 @@ import {
   leavesFrom,
   legKey,
   MANUAL_MODES,
-  MODE_LABEL,
   ROUTABLE_MODES,
   type ContainerId,
   type Item,
@@ -56,6 +54,7 @@ import {
   type TravelMode,
   type Trip,
 } from "@/lib/types";
+import { useLang, useT } from "@/lib/useLang";
 
 /** Hues kept apart from DAY_COLORS so a stay never looks like a day. */
 export const STAY_COLORS = ["#0d9488", "#d97706", "#db2777", "#4f46e5", "#65a30d", "#dc2626", "#0891b2", "#9333ea"];
@@ -92,6 +91,8 @@ function findIn(containers: Containers, id: string): ContainerId | undefined {
 
 export function Board(props: BoardProps) {
   const { trip } = props;
+  const t = useT();
+  const lang = useLang();
   const setContainers = useStore((s) => s.setContainers);
   const moveDay = useStore((s) => s.moveDay);
   const [drag, setDrag] = useState<Containers | null>(null);
@@ -100,7 +101,7 @@ export function Board(props: BoardProps) {
   const containers = drag ?? containersOf(trip);
   const nights = useMemo(() => nightsOf(trip), [trip]);
   const staySlots = useMemo(() => stayColorIndex(nights), [nights]);
-  const rentals = useMemo(() => rentalsOf(trip), [trip]);
+  const rentals = useMemo(() => rentalsOf(trip, lang), [trip, lang]);
   const today = todayIndex(trip, new Date());
   const rentalColors = useMemo(() => {
     const ids = [...new Set(rentals.flat().map((r) => r.rental.id))];
@@ -233,7 +234,7 @@ export function Board(props: BoardProps) {
           <div className="column" style={{ opacity: 0.9 }}>
             <div className="column-head">
               <strong>
-                Day {activeDayIndex + 1} · {trip.days[activeDayIndex].itemIds.length} items
+                {t("board.dayItems", { day: activeDayIndex + 1, n: trip.days[activeDayIndex].itemIds.length })}
               </strong>
             </div>
           </div>
@@ -244,32 +245,34 @@ export function Board(props: BoardProps) {
 }
 
 function AddDayButton({ tripId }: { tripId: string }) {
+  const t = useT();
   const addDay = useStore((s) => s.addDay);
   return (
     <button className="btn" style={{ flex: "none" }} onClick={() => addDay(tripId)}>
-      + Day
+      {t("board.addDay")}
     </button>
   );
 }
 
 function IdeasColumn(props: BoardProps & { itemIds: string[]; dragging: boolean }) {
+  const t = useT();
   const { setNodeRef } = useDroppable({ id: COL + IDEAS, data: { type: "column" } });
   return (
     <section ref={setNodeRef} className="column">
       <div className="column-head">
         <div className="title">
-          <h2 className="grow">💡 Ideas & unscheduled</h2>
+          <h2 className="grow">{t("board.ideasTitle")}</h2>
         </div>
         <div className="row">
           <button className="btn small" onClick={() => props.onAdd(IDEAS)}>
-            + Add
+            {t("board.add")}
           </button>
           <button className="btn small ai" onClick={() => props.onSuggest(IDEAS)}>
-            {props.ai ? "✨ Suggest" : "🔍 Nearby"}
+            {t(props.ai ? "board.suggest" : "board.nearby")}
           </button>
         </div>
       </div>
-      <ColumnBody {...props} empty="Drop places here to keep them for later.">
+      <ColumnBody {...props} empty={t("board.ideasEmpty")}>
         <SortableContext items={props.itemIds} strategy={verticalListSortingStrategy}>
           {props.itemIds.map((id) =>
             props.trip.items[id] ? <SortableItem key={id} item={props.trip.items[id]} {...props} /> : null,
@@ -293,6 +296,8 @@ function DayColumn(
   },
 ) {
   const { trip, dayIndex, timelines, selectedDayId } = props;
+  const t = useT();
+  const lang = useLang();
   const day = trip.days[dayIndex];
   const tl = timelines[dayIndex];
   const updateDay = useStore((s) => s.updateDay);
@@ -312,58 +317,58 @@ function DayColumn(
     >
       <div className="column-head">
         <div className="title">
-          <button className="handle" {...attributes} {...listeners} aria-label="Drag to move this day" title="Drag to move this day">
+          <button className="handle" {...attributes} {...listeners} aria-label={t("board.dragDay")} title={t("board.dragDay")}>
             ⠿
           </button>
           <span className="day-dot" style={{ background: dayColor(dayIndex) }} />
           <h2
             className="grow"
             onClick={() => props.onSelectDay(selectedDayId === day.id ? null : day.id)}
-            title="Show this day on the map"
+            title={t("board.showDay")}
           >
-            Day {dayIndex + 1} · {tl ? formatDayLabel(tl.date) : ""}
+            {t("common.day", { day: dayIndex + 1 })} · {tl ? formatDayLabel(tl.date, lang) : ""}
           </h2>
           <input
             type="time"
             value={day.startTime}
             onChange={(e) => updateDay(trip.id, day.id, { startTime: e.target.value || "09:00" })}
             style={{ width: 84, padding: "2px 4px", fontSize: 12 }}
-            title="Day starts at"
+            title={t("board.dayStarts")}
           />
         </div>
         <div className="row wrap">
           <button className="btn small" onClick={() => props.onAdd(day.id)}>
-            + Add
+            {t("board.add")}
           </button>
           <button className="btn small ai" onClick={() => props.onSuggest(day.id)}>
-            {props.ai ? "✨ Suggest" : "🔍 Nearby"}
+            {t(props.ai ? "board.suggest" : "board.nearby")}
           </button>
           <button
             className="btn small ai"
             disabled={located < 2}
-            title={located < 2 ? "Needs at least two places with a location" : "Find the best order for this day"}
+            title={t(located < 2 ? "board.needsTwo" : "board.bestOrder")}
             onClick={() => props.onOptimize(day.id)}
           >
-            ⚡ Optimize
+            {t("board.optimize")}
           </button>
           {trip.days.length > 1 && (
             <button
               className="btn small ghost danger"
-              title="Remove day (its cards move to Ideas)"
-              onClick={() => confirm(`Remove day ${dayIndex + 1}? Its cards move to Ideas.`) && removeDay(trip.id, day.id)}
+              title={t("board.removeDayTitle")}
+              onClick={() => confirm(t("board.removeDayConfirm", { day: dayIndex + 1 })) && removeDay(trip.id, day.id)}
             >
               🗑
             </button>
           )}
-          {props.isToday && <span className="today-badge">● Today</span>}
+          {props.isToday && <span className="today-badge">{t("board.today")}</span>}
         </div>
       </div>
       {props.rentals?.map((r) => (
         <RentalStrip key={r.rental.id} rental={r} color={props.rentalColors.get(r.rental.id)} onHighlight={props.onHighlight} />
       ))}
-      <ColumnBody {...props} empty="Drag places here">
+      <ColumnBody {...props} empty={t("board.dayEmpty")}>
         {!props.dragging && tl?.base && props.itemIds.length > 0 && (
-          <div className="start-from">From {tl.base.title}</div>
+          <div className="start-from">{t("board.from", { place: tl.base.title })}</div>
         )}
         <SortableContext items={props.itemIds} strategy={verticalListSortingStrategy}>
           {props.itemIds.map((id) => {
@@ -381,8 +386,8 @@ function DayColumn(
       </ColumnBody>
       {tl && tl.entries.length > 0 && (
         <div className="column-foot">
-          {Math.round(tl.travelMin) > 0 && <>Travel {formatDuration(tl.travelMin)} · </>}
-          ends ~{formatHm(tl.endMin)}
+          {Math.round(tl.travelMin) > 0 && t("board.travel", { duration: formatDuration(tl.travelMin, lang) })}
+          {t("board.ends", { time: formatHm(tl.endMin) })}
         </div>
       )}
       {props.night && <NightStrip night={props.night} color={props.nightColor} dayId={day.id} {...props} />}
@@ -398,12 +403,13 @@ function NightStrip({
   onHighlight,
   onAdd,
 }: BoardHandlers & { night: Night; color?: string; dayId: string }) {
+  const t = useT();
   if (night.kind === "end") return null;
   if (night.kind === "transport") {
     return (
       <div className="night-strip muted">
         <span>{itemIcon(night.item)}</span>
-        <span className="grow">Overnight · {night.item.title}</span>
+        <span className="grow">{t("board.overnight", { title: night.item.title })}</span>
       </div>
     );
   }
@@ -411,24 +417,24 @@ function NightStrip({
     return (
       <div className="night-strip gap">
         <span>🌙</span>
-        <span className="grow">No accommodation</span>
+        <span className="grow">{t("board.noStay")}</span>
         <button className="btn small" onClick={() => onAdd(dayId, "stay")}>
-          + Add stay
+          {t("board.addStay")}
         </button>
       </div>
     );
   }
   const { stay, night: n, nights } = night;
-  const checkIn = `check-in${stay.stay?.checkIn ? ` from ${stay.stay.checkIn}` : ""}`;
-  const checkOut = `check-out tomorrow${stay.stay?.checkOut ? ` by ${stay.stay.checkOut}` : ""}`;
-  const detail = [nights === 1 ? "1 night" : `Night ${n} of ${nights}`, n === 1 && checkIn, n === nights && checkOut]
+  const checkIn = stay.stay?.checkIn ? t("board.checkInFrom", { time: stay.stay.checkIn }) : t("board.checkIn");
+  const checkOut = stay.stay?.checkOut ? t("board.checkOutBy", { time: stay.stay.checkOut }) : t("board.checkOut");
+  const detail = [nights === 1 ? t("board.oneNight") : t("board.nightOf", { n, nights }), n === 1 && checkIn, n === nights && checkOut]
     .filter(Boolean)
     .join(" · ");
   return (
     <button
       className="night-strip stay"
       style={{ "--stay-color": color } as CSSProperties}
-      title="Show this stay"
+      title={t("board.showStay")}
       onClick={() => {
         onHighlight(stay.id);
         document.getElementById(`item-${stay.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -445,20 +451,26 @@ function NightStrip({
 
 /** A car, scooter or bike you have on this day: picked up, in use, or going back. */
 function RentalStrip({ rental: r, color, onHighlight }: { rental: RentalDay; color?: string; onHighlight: (id: string) => void }) {
+  const t = useT();
   const { rental, phase, days, returnLabel } = r;
-  const by = rental.rental?.returnTime ? ` by ${rental.rental.returnTime}` : "";
-  const where = rental.rental?.returnPlace ? ` at ${rental.rental.returnPlace}` : "";
+  const by = rental.rental?.returnTime ? t("board.by", { time: rental.rental.returnTime }) : "";
+  const where = rental.rental?.returnPlace ? t("board.at", { place: rental.rental.returnPlace }) : "";
   const detail =
     phase === "pickup"
-      ? `Pick-up${rental.startTime ? ` ${rental.startTime}` : ""} · ${days} day${days > 1 ? "s" : ""}, back ${returnLabel}${by}`
+      ? t("board.pickUp", {
+          time: rental.startTime ? ` ${rental.startTime}` : "",
+          days: t("board.days", { n: days }),
+          date: returnLabel,
+          by,
+        })
       : phase === "return"
-        ? `Return today${by}${where}`
-        : `Rented · back ${returnLabel}${by}`;
+        ? t("board.returnToday", { by, where })
+        : t("board.rented", { date: returnLabel, by });
   return (
     <button
       className={`rental-strip ${phase}`}
       style={{ "--rental-color": color } as CSSProperties}
-      title="Show this rental"
+      title={t("board.showRental")}
       onClick={() => {
         onHighlight(rental.id);
         document.getElementById(`item-${rental.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -556,6 +568,7 @@ const ItemCard = memo(function ItemCard({
   onEdit,
   onSuggest,
 }: CardProps) {
+  const t = useT();
   const stop = (fn: () => void) => (e: React.MouseEvent) => {
     e.stopPropagation();
     fn();
@@ -572,16 +585,16 @@ const ItemCard = memo(function ItemCard({
         <span aria-hidden>{itemIcon(item)}</span>
         <span className="title">{item.title}</span>
         <span className="tools">
-          <button className="btn ghost small" title="Edit" onClick={stop(() => onEdit(item.id))}>
+          <button className="btn ghost small" title={t("common.edit")} onClick={stop(() => onEdit(item.id))}>
             ✏️
           </button>
           {ai && (
-            <button className="btn ghost small" title="AI visiting tips" onClick={stop(() => onEdit(item.id, "tips"))}>
+            <button className="btn ghost small" title={t("board.tips")} onClick={stop(() => onEdit(item.id, "tips"))}>
               💡
             </button>
           )}
           {item.location && (
-            <button className="btn ghost small" title="What's nearby?" onClick={stop(() => onSuggest(IDEAS, item.id))}>
+            <button className="btn ghost small" title={t("board.whatsNearby")} onClick={stop(() => onSuggest(IDEAS, item.id))}>
               🔍
             </button>
           )}
@@ -589,7 +602,7 @@ const ItemCard = memo(function ItemCard({
       </div>
       <div className="meta">
         {entry && (
-          <span title={entry.fixed ? "Fixed start time" : "Estimated time"}>
+          <span title={t(entry.fixed ? "board.fixedStart" : "board.estimated")}>
             {entry.fixed ? "🔒 " : "~"}
             {formatHm(entry.start)}–{formatHm(entry.end)}
           </span>
@@ -597,27 +610,27 @@ const ItemCard = memo(function ItemCard({
         {!entry && item.startTime && <span>🔒 {item.startTime}</span>}
         {item.dive && (
           <span>
-            {item.dive.dives} dive{item.dive.dives > 1 ? "s" : ""}
+            {t("board.dives", { n: item.dive.dives })}
             {item.dive.maxDepthM ? ` · ${item.dive.maxDepthM} m` : ""} · {diveGas(item.dive)}
           </span>
         )}
         {item.dive?.prep && <DivePrepBadge prep={item.dive.prep} />}
-        {item.stay && <span>{item.stay.nights} night{item.stay.nights > 1 ? "s" : ""}</span>}
-        {item.stay?.checkIn && <span>in {item.stay.checkIn}</span>}
-        {item.stay?.checkOut && <span>out {item.stay.checkOut}</span>}
+        {item.stay && <span>{t("board.nights", { n: item.stay.nights })}</span>}
+        {item.stay?.checkIn && <span>{t("board.in", { time: item.stay.checkIn })}</span>}
+        {item.stay?.checkOut && <span>{t("board.out", { time: item.stay.checkOut })}</span>}
         {item.rental && (
           <span>
-            {item.rental.days} day{item.rental.days > 1 ? "s" : ""}
-            {item.rental.returnTime ? ` · back ${item.rental.returnTime}` : ""}
+            {t("board.days", { n: item.rental.days })}
+            {item.rental.returnTime ? t("board.backAt", { time: item.rental.returnTime }) : ""}
           </span>
         )}
         {item.tour?.stops.length ? (
-          <span title={`Pick-up: ${item.location?.address ?? item.title}`}>
+          <span title={t("board.pickUpAt", { place: item.location?.address ?? item.title })}>
             🗺️ {item.tour.stops.map((s) => s.name).join(" → ")}
           </span>
         ) : null}
         {item.transport && (item.transport.from || item.transport.to) && (
-          <span title={item.transport.toLocation?.address && `Arrives at ${item.transport.toLocation.address}`}>
+          <span title={item.transport.toLocation?.address && t("board.arrivesAt", { place: item.transport.toLocation.address })}>
             {item.transport.from ?? "?"} → {item.transport.to ?? "?"}
           </span>
         )}
@@ -629,12 +642,12 @@ const ItemCard = memo(function ItemCard({
         )}
         {item.booking?.provider && <span className="badge">{item.booking.provider}</span>}
         {item.booking?.status && (
-          <span className={`badge status-${item.booking.status}`} title={BOOKING_STATUS_LABEL[item.booking.status]}>
+          <span className={`badge status-${item.booking.status}`} title={t(`bookingStatus.${item.booking.status}`)}>
             {BOOKING_STATUS_ICON[item.booking.status]}
-            {item.booking.status !== "confirmed" && ` ${BOOKING_STATUS_LABEL[item.booking.status]}`}
+            {item.booking.status !== "confirmed" && ` ${t(`bookingStatus.${item.booking.status}`)}`}
           </span>
         )}
-        {!item.location && <span title="No location – add one to get routes">📍?</span>}
+        {!item.location && <span title={t("board.noLocation")}>📍?</span>}
       </div>
       {item.aiReason && <div className="small muted">✨ {item.aiReason}</div>}
       {issues.map((i, n) => (
@@ -703,6 +716,8 @@ const LegRow = memo(function LegRow({
   legMin?: number;
   directions?: string;
 }) {
+  const t = useT();
+  const lang = useLang();
   const setLeg = useStore((s) => s.setLeg);
   if (!key || !mode) return null;
   const routed = isRoutable(mode);
@@ -712,11 +727,11 @@ const LegRow = memo(function LegRow({
       <select
         value={mode}
         onChange={(e) => setLeg(tripId, key, { mode: e.target.value as TravelMode, auto: false })}
-        aria-label="How you get there"
+        aria-label={t("board.howThere")}
       >
         {[...ROUTABLE_MODES, ...MANUAL_MODES].map((m) => (
           <option key={m} value={m}>
-            {MODE_LABEL[m]}
+            {t(`mode.${m}`)}
           </option>
         ))}
       </select>
@@ -725,28 +740,29 @@ const LegRow = memo(function LegRow({
           <input
             type="number"
             min={0}
-            placeholder="min"
+            placeholder={t("common.min")}
             value={manualMin ?? ""}
             onChange={(e) => setLeg(tripId, key, { manualMin: e.target.value === "" ? undefined : Number(e.target.value) })}
-            aria-label="Duration in minutes"
+            aria-label={t("board.durationMin")}
           />
-          <span>min</span>
+          <span>{t("common.min")}</span>
         </>
       ) : fresh ? (
         <span>
-          {formatDuration(fresh.durationSec / 60)} · {formatDistance(fresh.distanceM)}
+          {formatDuration(fresh.durationSec / 60, lang)} · {formatDistance(fresh.distanceM)}
         </span>
       ) : failed ? (
         <span title={error}>
-          no route{legMin != null ? ` · ~${formatDuration(legMin)}` : ""}
+          {t("board.noRoute")}
+          {legMin != null ? ` · ~${formatDuration(legMin, lang)}` : ""}
         </span>
       ) : legMin != null ? (
-        <span title="Straight-line estimate">~{formatDuration(legMin)}</span>
+        <span title={t("board.straightLine")}>~{formatDuration(legMin, lang)}</span>
       ) : (
-        <span>add locations for routing</span>
+        <span>{t("board.addLocations")}</span>
       )}
       {directions && (
-        <a href={directions} target="_blank" rel="noreferrer" title="Open directions in Google Maps" style={{ marginLeft: "auto" }}>
+        <a href={directions} target="_blank" rel="noreferrer" title={t("board.directions")} style={{ marginLeft: "auto" }}>
           ↗
         </a>
       )}
@@ -757,6 +773,8 @@ const LegRow = memo(function LegRow({
 
 /** The lines of a public-transport leg as coloured chips; opens to the rides with their stops and times. */
 function TransitRoute({ route }: { route: RouteResult }) {
+  const t = useT();
+  const lang = useLang();
   return (
     <details className="transit">
       <summary>
@@ -770,20 +788,22 @@ function TransitRoute({ route }: { route: RouteResult }) {
             {vehicleIcon(s.vehicle)} {s.line}
           </span>
         ))}
-        {route.walkMin ? <span>🚶 {route.walkMin} min</span> : null}
+        {route.walkMin ? <span>🚶 {t("time.min", { n: route.walkMin })}</span> : null}
       </summary>
       <ol>
         {route.transit!.map((s, i) => (
           <li key={i}>
-            {transitStepLine(s)}
-            {s.headsign ? ` · towards ${s.headsign}` : ""}
+            {transitStepLine(s, lang)}
+            {s.headsign ? t("board.towards", { stop: s.headsign }) : ""}
           </li>
         ))}
       </ol>
       {route.at && (
         <div className="muted">
-          Timetable for {route.at.replace(/^by /, "arriving by ")}
-          {route.sampledOn && ` – not published yet, so this is the same weekday on ${route.sampledOn}`}
+          {route.at.startsWith("by ")
+            ? t("board.timetableBy", { at: route.at.slice(3) })
+            : t("board.timetableFor", { at: route.at })}
+          {route.sampledOn && t("board.sampled", { date: route.sampledOn })}
         </div>
       )}
     </details>

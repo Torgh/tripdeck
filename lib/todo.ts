@@ -1,4 +1,5 @@
 import { entryActions } from "./entry";
+import { translator, type Lang } from "./i18n";
 import { nightsOf } from "./stays";
 import type { BookingStatus, EntryCountry, EntryRequirement, Item, Trip } from "./types";
 
@@ -31,12 +32,14 @@ export function tripTodos(trip: Trip): Todo[] {
   return out;
 }
 
-export function todoLabel(todo: Todo): string {
+export function todoLabel(todo: Todo, lang: Lang = "en"): string {
+  const t = translator(lang);
   if (todo.kind === "entry") {
     const { country, requirement: r } = todo;
-    return `${country.name}: ${r.title}${r.dueBy ? ` – by ${r.dueBy}` : ""}`;
+    const params = { country: country.name, title: r.title };
+    return r.dueBy ? t("todo.entryBy", { ...params, date: r.dueBy }) : t("todo.entry", params);
   }
-  if (todo.kind === "night") return `Night after day ${todo.dayIndex + 1}: nowhere to sleep yet`;
-  const where = todo.dayIndex === undefined ? "Ideas" : `day ${todo.dayIndex + 1}`;
-  return `${todo.item.title} (${where}): ${todo.status === "todo" ? "to book" : "waiting for confirmation"}`;
+  if (todo.kind === "night") return t("todo.night", { day: todo.dayIndex + 1 });
+  const where = todo.dayIndex === undefined ? t("todo.ideas") : t("todo.day", { day: todo.dayIndex + 1 });
+  return t(todo.status === "todo" ? "todo.toBook" : "todo.pending", { title: todo.item.title, where });
 }

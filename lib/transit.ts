@@ -1,3 +1,4 @@
+import { translate, type Lang } from "./i18n";
 import { dayDate, formatHm, isoDate } from "./time";
 import type { TimelineEntry } from "./timeline";
 import type { RouteTime, TransitStep } from "./types";
@@ -50,6 +51,7 @@ export function vehicleIcon(vehicle: string): string {
 }
 
 /** "13:53 🚆 ARL: Suvarnabhumi → Phaya Thai (7 stops)" */
-export function transitStepLine(s: TransitStep): string {
-  return `${s.departs ? `${s.departs} ` : ""}${vehicleIcon(s.vehicle)} ${s.line}: ${s.from} → ${s.to}${s.stops ? ` (${s.stops} stop${s.stops > 1 ? "s" : ""})` : ""}`;
+export function transitStepLine(s: TransitStep, lang: Lang = "en"): string {
+  const stops = s.stops ? ` (${translate(lang, "transit.stops", { n: s.stops })})` : "";
+  return `${s.departs ? `${s.departs} ` : ""}${vehicleIcon(s.vehicle)} ${s.line}: ${s.from} → ${s.to}${stops}`;
 }
