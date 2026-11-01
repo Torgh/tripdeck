@@ -10,6 +10,8 @@ import { nightsOf } from "@/lib/stays";
 import { dayDate, formatHm } from "@/lib/time";
 import { computeTripTimeline } from "@/lib/timeline";
 import { itemIcon, type Trip } from "@/lib/types";
+import { LOCALE, translate } from "@/lib/i18n";
+import { readLang, useLang, useT } from "@/lib/useLang";
 import { useTripBudgetFrom } from "@/lib/useRates";
 import { BudgetView } from "./BudgetView";
 import { EntryView } from "./EntryView";
@@ -25,7 +27,7 @@ const ENTRY_TAB = -3;
 /** The phone has no TripDeck server: it asks frankfurter.dev directly. */
 async function fetchRates(base: string): Promise<Rates> {
   const res = await fetch(ratesUrl(base));
-  if (!res.ok) throw new Error(`Exchange rates are unavailable (${res.status}).`);
+  if (!res.ok) throw new Error(translate(readLang(), "phone.ratesUnavailable", { status: res.status }));
   return toRates((await res.json()) as Rates);
 }
 
@@ -59,18 +61,20 @@ interface Props {
 }
 
 export function TripScreen({ trip, now, onBack }: Props) {
+  const t = useT();
+  const lang = useLang();
   const [picked, setSelected] = useState(() => defaultDayIndex(trip, now));
   // A re-imported trip can be shorter than the day that was open.
   const selected = picked < 0 ? picked : Math.min(picked, trip.days.length - 1);
   const today = todayIndex(trip, now);
 
-  const timelines = useMemo(() => computeTripTimeline(trip), [trip]);
+  const timelines = useMemo(() => computeTripTimeline(trip, lang), [trip, lang]);
   const warnings = useMemo(
-    () => mergeIssues(computeDiveWarnings(trip, timelines), computeClockNotes(trip, timelines)),
-    [trip, timelines],
+    () => mergeIssues(computeDiveWarnings(trip, timelines, lang), computeClockNotes(trip, timelines, lang)),
+    [trip, timelines, lang],
   );
   const nights = useMemo(() => nightsOf(trip), [trip]);
-  const rentals = useMemo(() => rentalsOf(trip), [trip]);
+  const rentals = useMemo(() => rentalsOf(trip, lang), [trip, lang]);
   const budget = useTripBudgetFrom(trip, fetchRates);
   const hasBudget = !!budget && (budget.lines.length > 0 || !!budget.limit || budget.noCurrency.length > 0);
 
@@ -153,7 +157,7 @@ export function TripScreen({ trip, now, onBack }: Props) {
     // The map's state is on the screen: held sideways, an open map moves beside the plan (app.css).
     <div className={`screen${hasMap ? ` map-${mapMode}` : ""}`}>
       <header className="appbar">
-        <button className="icon-btn" aria-label="All trips" onClick={onBack}>
+        <button className="icon-btn" aria-label={t("common.allTrips")} onClick={onBack}>
           ←
         </button>
         <div className="appbar-title">
@@ -162,14 +166,14 @@ export function TripScreen({ trip, now, onBack }: Props) {
         </div>
         {today != null && selected !== today && (
           <button className="btn small today-btn" onClick={() => select(today)}>
-            Today
+            {t("phone.today")}
           </button>
         )}
         {/* In the bar, not at the end of the day strip, so they show whichever day is open. */}
         {hasBudget && (
           <button
             className="appbar-tab"
-            aria-label="Budget"
+            aria-label={t("phone.budget")}
             aria-current={selected === BUDGET_TAB}
             onClick={() => select(BUDGET_TAB)}
           >
@@ -178,7 +182,7 @@ export function TripScreen({ trip, now, onBack }: Props) {
         )}
         <button
           className="appbar-tab"
-          aria-label={`Entry & paperwork${entryTodo ? `, ${entryTodo} to do` : ""}`}
+          aria-label={entryTodo ? t("phone.entryTodo", { n: entryTodo }) : t("phone.entry")}
           aria-current={selected === ENTRY_TAB}
           onClick={() => select(ENTRY_TAB)}
         >
@@ -199,7 +203,7 @@ export function TripScreen({ trip, now, onBack }: Props) {
               onClick={() => select(i)}
             >
               <span className="chip-weekday">
-                {i === today ? "Today" : date.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}
+                {i === today ? t("phone.today") : date.toLocaleDateString(LOCALE[lang], { weekday: "short", timeZone: "UTC" })}
               </span>
               <span className="chip-date">{date.getUTCDate()}</span>
             </button>
@@ -212,14 +216,14 @@ export function TripScreen({ trip, now, onBack }: Props) {
             className="day-chip ideas"
             onClick={() => select(IDEAS_TAB)}
           >
-            <span className="chip-weekday">Ideas</span>
+            <span className="chip-weekday">{t("common.ideas")}</span>
             <span className="chip-date">{trip.ideas.length}</span>
           </button>
         )}
       </div>
 
       {hasMap && (
-        <section className={`map-pane ${mapMode}`} aria-label="Map of the day">
+        <section className={`map-pane ${mapMode}`} aria-label={t("phone.mapOfDay")}>
           <div className="map-frame">
             <Suspense fallback={<div className="map" />}>
               <MapView layers={layers} fitKey={`${selected}|${mapMode}|${landscape}`} highlightId={highlightId} onPinTap={onPinTap} />
@@ -240,17 +244,17 @@ export function TripScreen({ trip, now, onBack }: Props) {
                 {pinnedStop && <span className="muted small">{pinned.title}</span>}
               </span>
               {pinnedEntry && <span className="muted small">{formatHm(pinnedEntry.start)}</span>}
-              <span className="muted small">Show in plan ›</span>
+              <span className="muted small">{t("phone.showInPlan")}</span>
             </button>
           )}
           <div className="map-bar">
             {mapMode !== "full" && (
               <button className="map-btn" onClick={() => setMapMode(mapMode === "collapsed" ? "open" : "collapsed")}>
-                {mapMode === "collapsed" ? "🗺️ Show map ▾" : "▴ Hide map"}
+                {t(mapMode === "collapsed" ? "phone.showMap" : "phone.hideMap")}
               </button>
             )}
             <button className="map-btn" onClick={() => setMapMode(mapMode === "full" ? "open" : "full")}>
-              {mapMode === "full" ? "✕ Close map" : "⛶ Full screen"}
+              {t(mapMode === "full" ? "phone.closeMap" : "phone.fullScreen")}
             </button>
           </div>
         </section>

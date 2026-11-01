@@ -7,7 +7,9 @@ import { fileToBase64, postJSON } from "@/lib/api";
 import { itemFieldsFromPlace } from "@/lib/places";
 import { newId, useStore } from "@/lib/store";
 import { daysBetween } from "@/lib/time";
+import { rich } from "@/lib/i18n/rich";
 import { IDEAS, itemIcon, type ContainerId, type Item, type TransportKind, type Trip } from "@/lib/types";
+import { useLang, useT } from "@/lib/useLang";
 import { Modal, Spinner } from "./Modal";
 
 const ACCEPT = "application/pdf,image/png,image/jpeg,image/webp";
@@ -55,6 +57,8 @@ function toCard(b: ImportedBooking, trip: Trip): { item: Item; container: Contai
 }
 
 export function ImportDialog({ trip, ai, onClose }: { trip: Trip; ai: boolean; onClose: () => void }) {
+  const t = useT();
+  const lang = useLang();
   const addItem = useStore((s) => s.addItem);
   const [text, setText] = useState("");
   const [file, setFile] = useState<File>();
@@ -66,7 +70,7 @@ export function ImportDialog({ trip, ai, onClose }: { trip: Trip; ai: boolean; o
 
   const run = async () => {
     if (file && file.size > MAX_FILE_MB * 1024 * 1024) {
-      setError(`Files up to ${MAX_FILE_MB} MB, please.`);
+      setError(t("importDialog.tooBig", { mb: MAX_FILE_MB }));
       return;
     }
     setLoading(true);
@@ -77,8 +81,9 @@ export function ImportDialog({ trip, ai, onClose }: { trip: Trip; ai: boolean; o
         file: file && { mediaType: file.type, data: await fileToBase64(file) },
         destination: trip.destination,
         tripStartDate: trip.startDate,
+        lang,
       });
-      if (!bookings.length) setError("No bookings found in this document.");
+      if (!bookings.length) setError(t("importDialog.none"));
       setCards(bookings.map((b) => ({ ...toCard(b, trip), selected: true, booking: b })));
     } catch (err) {
       setError((err as Error).message);
@@ -94,17 +99,17 @@ export function ImportDialog({ trip, ai, onClose }: { trip: Trip; ai: boolean; o
 
   return (
     <Modal
-      title="📥 Import a booking"
+      title={t("importDialog.title")}
       onClose={onClose}
       wide
       footer={
         cards?.length ? (
           <>
             <button className="btn" onClick={() => setCards(undefined)}>
-              Back
+              {t("common.back")}
             </button>
             <button className="btn primary" onClick={addSelected} disabled={!cards.some((c) => c.selected)}>
-              Add {cards.filter((c) => c.selected).length} to trip
+              {t("importDialog.addN", { n: cards.filter((c) => c.selected).length })}
             </button>
           </>
         ) : undefined
@@ -113,34 +118,29 @@ export function ImportDialog({ trip, ai, onClose }: { trip: Trip; ai: boolean; o
       {!cards?.length ? (
         <>
           <p className="muted" style={{ margin: 0 }}>
-            Paste a confirmation email from Booking.com, GetYourGuide, Viator, Airbnb, an airline or a dive centre – or
-            attach the PDF / a screenshot. Claude extracts dates, times, addresses and booking numbers, and each booking
-            lands on the right day.
+            {t("importDialog.intro")}
           </p>
           <label>
-            Confirmation text
-            <textarea rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste the email here…" />
+            {t("importDialog.text")}
+            <textarea rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder={t("importDialog.textPlaceholder")} />
           </label>
           <label>
-            …or a file (PDF, PNG, JPG, WebP – max {MAX_FILE_MB} MB)
+            {t("importDialog.file", { mb: MAX_FILE_MB })}
             <input type="file" accept={ACCEPT} onChange={(e) => setFile(e.target.files?.[0])} />
           </label>
-          <div className="small muted">
-            The text is sent to the Claude API for extraction. Remove anything you don&apos;t want to share (e.g. payment
-            details) first.
-          </div>
+          <div className="small muted">{t("importDialog.privacy")}</div>
           {error && <div className="error">{error}</div>}
           <div className="row">
             <span className="grow" />
             <button className="btn ai" onClick={run} disabled={loading || (!text.trim() && !file)}>
-              {loading ? <Spinner /> : "✨"} Extract bookings
+              {loading ? <Spinner /> : "✨"} {t("importDialog.extract")}
             </button>
           </div>
         </>
       ) : (
         <>
           <p className="muted" style={{ margin: 0 }}>
-            Check what was found. You can edit each card after adding it.
+            {t("importDialog.check")}
           </p>
           {cards.map((c, i) => (
             <div key={c.item.id} className="suggestion">
@@ -159,10 +159,10 @@ export function ImportDialog({ trip, ai, onClose }: { trip: Trip; ai: boolean; o
                   value={c.container}
                   onChange={(e) => setCards(cards.map((x, j) => (j === i ? { ...x, container: e.target.value } : x)))}
                 >
-                  <option value={IDEAS}>💡 Ideas</option>
+                  <option value={IDEAS}>{t("editor.ideas")}</option>
                   {trip.days.map((d, n) => (
                     <option key={d.id} value={d.id}>
-                      Day {n + 1}
+                      {t("common.day", { day: n + 1 })}
                     </option>
                   ))}
                 </select>
@@ -173,17 +173,17 @@ export function ImportDialog({ trip, ai, onClose }: { trip: Trip; ai: boolean; o
                   c.booking.reference && `#${c.booking.reference}`,
                   c.booking.date,
                   c.booking.start_time,
-                  c.booking.nights && `${c.booking.nights} nights`,
+                  c.booking.nights && t("importDialog.nights", { n: c.booking.nights }),
                   c.booking.price,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
               </div>
               <div className="small">
-                {c.item.location ? `📍 ${c.item.location.address ?? "Located"}` : "📍 Location not found – add it later"}
+                {c.item.location ? `📍 ${c.item.location.address ?? t("importDialog.located")}` : t("importDialog.notFound")}
               </div>
               {c.booking.date && c.container === IDEAS && (
-                <div className="issue info">ℹ️ {c.booking.date} is outside the trip dates – added to Ideas.</div>
+                <div className="issue info">{t("importDialog.outside", { date: c.booking.date })}</div>
               )}
             </div>
           ))}
@@ -195,19 +195,13 @@ export function ImportDialog({ trip, ai, onClose }: { trip: Trip; ai: boolean; o
 
 /** Without an API key, bookings are imported by Claude / ChatGPT through the MCP server. */
 function ImportWithClaude({ trip, onClose }: { trip: Trip; onClose: () => void }) {
+  const t = useT();
   return (
-    <Modal title="📥 Import bookings" onClose={onClose}>
-      <p style={{ margin: 0 }}>
-        Let Claude (Claude Code / Desktop) or ChatGPT (Codex) do it with your subscription – no API key needed. With the
-        Gmail connector enabled, just ask:
-      </p>
-      <div className="tips">
-        “Find my Booking.com, GetYourGuide and airline confirmations in Gmail and add them to my trip “{trip.name}” in
-        TripDeck.”
-      </div>
+    <Modal title={t("importDialog.claudeTitle")} onClose={onClose}>
+      <p style={{ margin: 0 }}>{t("importDialog.claudeIntro")}</p>
+      <div className="tips">{t("importDialog.claudePrompt", { name: trip.name })}</div>
       <p className="small muted" style={{ margin: 0 }}>
-        Or paste a confirmation into the chat. Each booking lands on the right day within a few seconds. Set up the
-        TripDeck MCP server in <Link href="/settings">Settings</Link>; for in-app import add an Anthropic API key there.
+        {rich(t("importDialog.claudeNote"), { a: (s) => <Link href="/settings">{s}</Link> })}
       </p>
     </Modal>
   );

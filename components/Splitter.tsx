@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import { useT } from "@/lib/useLang";
 
 const STORAGE_KEY = "tripdeck.mapWidth";
 const DEFAULT_PCT = 38;
@@ -33,6 +34,7 @@ export function useMapWidth() {
 
 /** Draggable divider between the board and the map. Double-click resets the default width. */
 export function Splitter({ pct, setPct, save }: Pick<ReturnType<typeof useMapWidth>, "pct" | "setPct" | "save">) {
+  const t = useT();
   const [dragging, setDragging] = useState(false);
 
   const pctAt = (e: PointerEvent<HTMLDivElement>) => {
@@ -71,12 +73,12 @@ export function Splitter({ pct, setPct, save }: Pick<ReturnType<typeof useMapWid
       className={`splitter${dragging ? " dragging" : ""}`}
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize map"
+      aria-label={t("map.resize")}
       aria-valuenow={Math.round(pct)}
       aria-valuemin={MIN_PCT}
       aria-valuemax={MAX_PCT}
       tabIndex={0}
-      title="Drag to resize · double-click to reset"
+      title={t("map.resizeHint")}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

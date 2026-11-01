@@ -1,3 +1,4 @@
+import { translator, type Lang } from "./i18n";
 import { formatDuration } from "./time";
 import type { DayTimeline, Issue } from "./timeline";
 import type { Item, Trip } from "./types";
@@ -26,7 +27,8 @@ function isFlight(item: Item): boolean {
   return item.type === "transport" && item.transport?.kind === "flight";
 }
 
-export function computeDiveWarnings(trip: Trip, timelines: DayTimeline[]): Map<string, Issue[]> {
+export function computeDiveWarnings(trip: Trip, timelines: DayTimeline[], lang: Lang = "en"): Map<string, Issue[]> {
+  const t = translator(lang);
   const out = new Map<string, Issue[]>();
   const add = (id: string, issue: Issue) => {
     const list = out.get(id) ?? [];
@@ -59,11 +61,11 @@ export function computeDiveWarnings(trip: Trip, timelines: DayTimeline[]): Map<s
       if ((item.location?.elevationM ?? 0) >= ALTITUDE_THRESHOLD_M) {
         add(item.id, {
           level: "info",
-          message: `Altitude dive (${Math.round(item.location!.elevationM!)} m): set your computer for altitude.`,
+          message: t("dive.altitude", { m: Math.round(item.location!.elevationM!) }),
         });
       }
       if (streak >= REST_DAY_STREAK && !streakFlagged) {
-        add(item.id, { level: "info", message: `Dive day ${streak} in a row – consider a rest day.` });
+        add(item.id, { level: "info", message: t("dive.restDay", { n: streak }) });
         streakFlagged = true;
       }
     }
@@ -91,19 +93,23 @@ export function computeDiveWarnings(trip: Trip, timelines: DayTimeline[]): Map<s
         const departAbs = flightLeg ? startAbs - (e.legMin ?? 0) : startAbs;
         const w = blockingDive(departAbs);
         if (w) {
-          const gap = formatDuration(departAbs - w.end);
+          const gap = formatDuration(departAbs - w.end, lang);
           add(item.id, {
             level: "warn",
-            message: `Flight only ${gap} after diving – wait at least ${w.noFlyH} h.`,
+            message: t("dive.flightAfter", { gap, h: w.noFlyH }),
           });
-          add(w.itemId, { level: "warn", message: `A flight departs ${gap} after this dive (min ${w.noFlyH} h).` });
+          add(w.itemId, { level: "warn", message: t("dive.flightDeparts", { gap, h: w.noFlyH }) });
         }
       } else if (item.type !== "dive" && (item.location?.elevationM ?? 0) >= ALTITUDE_THRESHOLD_M) {
         const w = blockingDive(startAbs);
         if (w) {
           add(item.id, {
             level: "warn",
-            message: `At ${Math.round(item.location!.elevationM!)} m altitude ${formatDuration(startAbs - w.end)} after diving – treat like flying (≥${w.noFlyH} h).`,
+            message: t("dive.altitudeAfter", {
+              m: Math.round(item.location!.elevationM!),
+              gap: formatDuration(startAbs - w.end, lang),
+              h: w.noFlyH,
+            }),
           });
         }
       }

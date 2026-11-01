@@ -139,13 +139,6 @@ export interface TourDetails {
 
 export const RENTAL_VEHICLES: RentalVehicle[] = ["car", "scooter", "motorbike", "bicycle"];
 
-export const RENTAL_VEHICLE_LABEL: Record<RentalVehicle, string> = {
-  car: "Car",
-  scooter: "Scooter",
-  motorbike: "Motorbike",
-  bicycle: "Bicycle",
-};
-
 export const RENTAL_VEHICLE_ICON: Record<RentalVehicle, string> = {
   car: "🚗",
   scooter: "🛵",

@@ -6,18 +6,9 @@ import type { Night } from "@/lib/stays";
 import { formatDayLabel, formatDuration, formatHm } from "@/lib/time";
 import { freshRoute, getLeg, type DayTimeline, type Issue, type TimelineEntry } from "@/lib/timeline";
 import { vehicleIcon } from "@/lib/transit";
-import {
-  BOOKING_STATUS_ICON,
-  BOOKING_STATUS_LABEL,
-  DIVE_PREP_ICON,
-  DIVE_PREP_LABEL,
-  diveGas,
-  itemIcon,
-  MODE_LABEL,
-  RENTAL_VEHICLE_LABEL,
-  type Item,
-  type Trip,
-} from "@/lib/types";
+import { BOOKING_STATUS_ICON, DIVE_PREP_ICON, diveGas, itemIcon, type Item, type Trip } from "@/lib/types";
+import { useLang, useT } from "@/lib/useLang";
+import type { Lang, T } from "@/lib/i18n";
 
 interface DayProps {
   trip: Trip;
@@ -34,6 +25,8 @@ interface DayProps {
 }
 
 export function DayView({ trip, timeline, warnings, night, rentals, isToday, highlightId, onSelect, spent }: DayProps) {
+  const t = useT();
+  const lang = useLang();
   const { dayIndex, base, entries } = timeline;
   // Rentals picked up today have their own card; the others are reminders.
   const ongoing = rentals.filter((r) => r.phase !== "pickup");
@@ -43,40 +36,43 @@ export function DayView({ trip, timeline, warnings, night, rentals, isToday, hig
     <>
       <div className="day-head">
         <h2>
-          Day {dayIndex + 1} · {formatDayLabel(timeline.date)}
+          {t("common.day", { day: dayIndex + 1 })} · {formatDayLabel(timeline.date, lang)}
         </h2>
-        {isToday && <span className="badge">Today</span>}
+        {isToday && <span className="badge">{t("phoneDay.today")}</span>}
         {timeline.travelMin > 0 && (
-          <span className="muted small">{formatDuration(timeline.travelMin)} on the road</span>
+          <span className="muted small">{t("phoneDay.onTheRoad", { duration: formatDuration(timeline.travelMin, lang) })}</span>
         )}
         {spent && <span className="muted small">💰 {spent}</span>}
       </div>
 
       {base && (
         <div className="strip stay">
-          🏨 {leaving ? "Check out of" : "Waking up at"} <b>{base.title}</b>
-          {leaving && base.stay?.checkOut && <> by {base.stay.checkOut}</>}
+          🏨 {t(leaving ? "phoneDay.checkOut" : "phoneDay.wakingUp")} <b>{base.title}</b>
+          {leaving && base.stay?.checkOut && t("phoneDay.by", { time: base.stay.checkOut })}
         </div>
       )}
       {ongoing.map((r) => (
         <div key={r.rental.id} className="strip rental">
-          {itemIcon(r.rental)} {RENTAL_VEHICLE_LABEL[r.rental.rental?.vehicle ?? "car"]}
+          {itemIcon(r.rental)} {t(`vehicle.${r.rental.rental?.vehicle ?? "car"}`)}
           {r.rental.booking?.provider && <> · {r.rental.booking.provider}</>}
           {r.phase === "return" ? (
             <>
               {" "}
-              · <b>return today{r.rental.rental?.returnTime && ` by ${r.rental.rental.returnTime}`}</b>
-              {(r.rental.rental?.returnPlace || r.rental.location?.address) && (
-                <> at {r.rental.rental?.returnPlace ?? r.rental.location?.address}</>
-              )}
+              ·{" "}
+              <b>
+                {t("phoneDay.returnToday")}
+                {r.rental.rental?.returnTime && t("phoneDay.by", { time: r.rental.rental.returnTime })}
+              </b>
+              {(r.rental.rental?.returnPlace || r.rental.location?.address) &&
+                t("phoneDay.at", { place: r.rental.rental?.returnPlace ?? r.rental.location?.address ?? "" })}
             </>
           ) : (
-            <> · back {r.returnLabel}</>
+            t("phoneDay.back", { date: r.returnLabel })
           )}
         </div>
       ))}
 
-      {entries.length === 0 && <p className="empty muted">Nothing planned for this day.</p>}
+      {entries.length === 0 && <p className="empty muted">{t("phoneDay.nothing")}</p>}
 
       <ol className="timeline">
         {entries.map((entry) => {
@@ -92,6 +88,7 @@ export function DayView({ trip, timeline, warnings, night, rentals, isToday, hig
                 item={item}
                 dayIndex={dayIndex}
                 entry={entry}
+                lang={lang}
                 issues={[...entry.issues, ...(warnings.get(item.id) ?? [])]}
                 highlighted={item.id === highlightId}
                 onSelect={onSelect}
@@ -101,7 +98,7 @@ export function DayView({ trip, timeline, warnings, night, rentals, isToday, hig
         })}
       </ol>
 
-      <div className="strip night">{nightLabel(night)}</div>
+      <div className="strip night">{nightLabel(night, t)}</div>
     </>
   );
 }
@@ -115,11 +112,13 @@ export function IdeasView({
   highlightId?: string;
   onSelect: (itemId: string) => void;
 }) {
+  const t = useT();
+  const lang = useLang();
   return (
     <>
       <div className="day-head">
-        <h2>Ideas</h2>
-        <span className="muted small">Not scheduled yet</span>
+        <h2>{t("common.ideas")}</h2>
+        <span className="muted small">{t("phoneDay.notScheduled")}</span>
       </div>
       <ol className="timeline">
         {trip.ideas.map((id) => {
@@ -130,6 +129,7 @@ export function IdeasView({
                 trip={trip}
                 item={item}
                 dayIndex={-1}
+                lang={lang}
                 issues={[]}
                 highlighted={item.id === highlightId}
                 onSelect={onSelect}
@@ -142,20 +142,22 @@ export function IdeasView({
   );
 }
 
-function nightLabel(night: Night): string {
+function nightLabel(night: Night, t: T): string {
   switch (night.kind) {
     case "stay":
-      return `🌙 ${night.stay.title}${night.nights > 1 ? ` · night ${night.night} of ${night.nights}` : ""}`;
+      return `🌙 ${night.stay.title}${night.nights > 1 ? t("phoneDay.nightOf", { n: night.night, nights: night.nights }) : ""}`;
     case "transport":
-      return `🌙 Overnight: ${night.item.title}`;
+      return t("phoneDay.overnight", { title: night.item.title });
     case "none":
-      return "🌙 No stay booked for tonight";
+      return t("phoneDay.noStay");
     case "end":
-      return "🏁 Last day of the trip";
+      return t("phoneDay.lastDay");
   }
 }
 
 function LegRow({ trip, entry, from }: { trip: Trip; entry: TimelineEntry; from?: string }) {
+  const t = useT();
+  const lang = useLang();
   const mode = getLeg(trip, entry.fromId!, entry.itemId).mode;
   const origin = trip.items[entry.fromId!];
   const target = trip.items[entry.itemId];
@@ -164,9 +166,9 @@ function LegRow({ trip, entry, from }: { trip: Trip; entry: TimelineEntry; from?
   const transit = route?.transit;
   return (
     <div className="leg">
-      {MODE_LABEL[mode]} · {entry.legEstimated ? "~" : ""}
-      {formatDuration(entry.legMin!)}
-      {from && <> from {from}</>}
+      {t(`mode.${mode}`)} · {entry.legEstimated ? "~" : ""}
+      {formatDuration(entry.legMin!, lang)}
+      {from && t("phoneDay.from", { place: from })}
       {transit?.length ? (
         <ol className="transit">
           {transit.map((s, i) => (
@@ -179,10 +181,10 @@ function LegRow({ trip, entry, from }: { trip: Trip; entry: TimelineEntry; from?
               </span>{" "}
               {s.departs && <strong>{s.departs} </strong>}
               {s.from} → {s.to}
-              {s.stops ? ` · ${s.stops} stop${s.stops > 1 ? "s" : ""}` : ""}
+              {s.stops ? ` · ${t("transit.stops", { n: s.stops })}` : ""}
             </li>
           ))}
-          {route?.sampledOn && <li>Times from a typical week – check them closer to the day.</li>}
+          {route?.sampledOn && <li>{t("phoneDay.typicalWeek")}</li>}
         </ol>
       ) : null}
     </div>
@@ -190,39 +192,41 @@ function LegRow({ trip, entry, from }: { trip: Trip; entry: TimelineEntry; from?
 }
 
 /** One line under the title: what kind of card it is, in its own terms. */
-function subtitle(trip: Trip, item: Item, dayIndex: number): string | undefined {
+function subtitle(trip: Trip, item: Item, dayIndex: number, t: T, lang: Lang): string | undefined {
   switch (item.type) {
     case "transport": {
-      const t = item.transport;
-      const route = [t?.from, t?.to].filter(Boolean).join(" → ");
-      return [route, t?.number].filter(Boolean).join(" · ") || undefined;
+      const tr = item.transport;
+      const route = [tr?.from, tr?.to].filter(Boolean).join(" → ");
+      return [route, tr?.number].filter(Boolean).join(" · ") || undefined;
     }
     case "stay": {
       const s = item.stay;
       const nights = Math.max(1, s?.nights ?? 1);
-      return [`${nights} night${nights > 1 ? "s" : ""}`, s?.checkIn && `check-in from ${s.checkIn}`]
+      return [t("board.nights", { n: nights }), s?.checkIn && t("phoneDay.checkIn", { time: s.checkIn })]
         .filter(Boolean)
         .join(" · ");
     }
     case "rental":
-      return rentalSummary(trip, item, dayIndex);
+      return rentalSummary(trip, item, dayIndex, lang);
     case "dive": {
       const d = item.dive;
       if (!d) return undefined;
       return [
-        `${d.dives} dive${d.dives > 1 ? "s" : ""}`,
+        t("board.dives", { n: d.dives }),
         d.site,
-        d.maxDepthM != null && `max ${d.maxDepthM} m`,
+        d.maxDepthM != null && t("phoneDay.maxDepth", { m: d.maxDepthM }),
         diveGas(d) !== "air" && diveGas(d),
         d.center,
-        d.prep && `${DIVE_PREP_ICON[d.prep.status]} ${DIVE_PREP_LABEL[d.prep.status]}`,
+        d.prep && `${DIVE_PREP_ICON[d.prep.status]} ${t(`divePrep.${d.prep.status}`)}`,
       ]
         .filter(Boolean)
         .join(" · ");
     }
     case "activity":
       // An organised tour's location is where it picks you up, not what you see.
-      return item.tour?.stops.length && item.location?.address ? `Pick-up: ${item.location.address}` : item.location?.address;
+      return item.tour?.stops.length && item.location?.address
+        ? t("phoneDay.pickUp", { place: item.location.address })
+        : item.location?.address;
     default:
       return item.location?.address;
   }
@@ -236,18 +240,20 @@ interface CardProps {
   issues: Issue[];
   highlighted: boolean;
   onSelect: (itemId: string) => void;
+  lang: Lang;
 }
 
-function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect }: CardProps) {
+function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect, lang }: CardProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
-  const sub = subtitle(trip, item, dayIndex);
+  const sub = subtitle(trip, item, dayIndex, t, lang);
   // Head for the card the way the plan travels there.
   const mode = entry?.fromId ? getLeg(trip, entry.fromId, entry.itemId).mode : defaultModeTo(trip, item.id);
   const nav = navigationUrl(item, mode);
   const b = item.booking;
   const links = [
-    b?.url && { href: b.url, label: "Booking" },
-    item.place?.websiteUri && { href: item.place.websiteUri, label: "Website" },
+    b?.url && { href: b.url, label: t("phoneDay.booking") },
+    item.place?.websiteUri && { href: item.place.websiteUri, label: t("phoneDay.website") },
     item.place?.googleMapsUri && { href: item.place.googleMapsUri, label: "Google Maps" },
   ].filter(Boolean) as { href: string; label: string }[];
   const details = Boolean(item.notes || item.tips || links.length || item.aiReason);
@@ -276,7 +282,7 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect }
             </div>
             {sub && <div className="muted small">{sub}</div>}
             {item.type === "rental" && item.rental?.returnPlace && (
-              <div className="muted small">Return: {item.rental.returnPlace}</div>
+              <div className="muted small">{t("phoneDay.returnAt", { place: item.rental.returnPlace })}</div>
             )}
             {item.tour?.stops.length ? (
               <div className="small">🗺️ {item.tour.stops.map((s) => s.name).join(" → ")}</div>
@@ -284,10 +290,10 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect }
             {b && (b.provider || b.reference || b.price || b.status) && (
               <div className="booking small">
                 {[
-                  b.status && `${BOOKING_STATUS_ICON[b.status]} ${BOOKING_STATUS_LABEL[b.status]}`,
+                  b.status && `${BOOKING_STATUS_ICON[b.status]} ${t(`bookingStatus.${b.status}`)}`,
                   b.provider,
                   b.reference && `#${b.reference}`,
-                  b.price && (b.paid ? `${b.price} ✓ paid` : b.price),
+                  b.price && (b.paid ? t("phoneDay.paid", { price: b.price }) : b.price),
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -297,7 +303,7 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect }
           {details && <span className="chevron" aria-hidden>{open ? "▴" : "▾"}</span>}
         </button>
         {nav && (
-          <a className="nav-btn" href={nav} target="_blank" rel="noreferrer" aria-label={`Navigate to ${item.title}`}>
+          <a className="nav-btn" href={nav} target="_blank" rel="noreferrer" aria-label={t("phoneDay.navigate", { title: item.title })}>
             🧭
           </a>
         )}
@@ -317,22 +323,22 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect }
             <div className="tips">
               <p>{item.tips.summary}</p>
               <p className="small">
-                <b>Best time:</b> {item.tips.bestTime}
+                <b>{t("phoneDay.bestTime")}</b> {item.tips.bestTime}
               </p>
               {item.tips.tickets && (
                 <p className="small">
-                  <b>Tickets:</b> {item.tips.tickets}
+                  <b>{t("phoneDay.tickets")}</b> {item.tips.tickets}
                 </p>
               )}
               {item.tips.parking && (
                 <p className="small">
-                  <b>Parking:</b> {item.tips.parking}
+                  <b>{t("phoneDay.parking")}</b> {item.tips.parking}
                 </p>
               )}
               {item.tips.tips.length > 0 && (
                 <ul className="small">
-                  {item.tips.tips.map((t) => (
-                    <li key={t}>{t}</li>
+                  {item.tips.tips.map((tip) => (
+                    <li key={tip}>{tip}</li>
                   ))}
                 </ul>
               )}

@@ -1,3 +1,5 @@
+import type { T } from "./i18n";
+
 export type ConfigKey =
   | "googleClientId"
   | "googleClientSecret"
@@ -22,6 +24,11 @@ export const STORAGE_LABEL: Record<StorageKind, string> = {
   google: "Google Drive",
   onedrive: "OneDrive",
 };
+
+/** The storage's name in the app's language: only "This PC" is translated. */
+export function storageLabel(kind: StorageKind, t: T): string {
+  return kind === "local" ? t("common.thisPc") : STORAGE_LABEL[kind];
+}
 
 export interface CloudAccountStatus {
   clientConfigured: boolean;

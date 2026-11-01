@@ -6,12 +6,14 @@ import { VEHICLE_MODE } from "@/lib/rentals";
 import { useStore } from "@/lib/store";
 import { dayDate, daysBetween, isoDate } from "@/lib/time";
 import * as ops from "@/lib/tripOps";
-import { MODE_LABEL, ROUTABLE_MODES, type TravelMode, type Trip } from "@/lib/types";
+import { ROUTABLE_MODES, type TravelMode, type Trip } from "@/lib/types";
+import { useT } from "@/lib/useLang";
 import { Modal } from "./Modal";
 
 const MAX_DAYS = 60;
 
 export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => void }) {
+  const t = useT();
   const updateTrip = useStore((s) => s.updateTrip);
   const deleteTrip = useStore((s) => s.deleteTrip);
   const router = useRouter();
@@ -40,7 +42,7 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
 
   return (
     <Modal
-      title="Trip settings"
+      title={t("tripSettings.title")}
       onClose={onClose}
       footer={
         <>
@@ -48,16 +50,16 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
             className="btn danger"
             style={{ marginRight: "auto" }}
             onClick={() => {
-              if (confirm(`Delete "${trip.name}" permanently?`)) {
+              if (confirm(t("tripSettings.deleteConfirm", { name: trip.name }))) {
                 deleteTrip(trip.id);
                 router.push("/");
               }
             }}
           >
-            Delete trip
+            {t("tripSettings.deleteTrip")}
           </button>
           <button className="btn" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             className="btn primary"
@@ -68,37 +70,37 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
               onClose();
             }}
           >
-            Save
+            {t("common.save")}
           </button>
         </>
       }
     >
       <div className="grid2">
         <label>
-          Trip name
+          {t("home.tripName")}
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </label>
         <label>
-          Destination
+          {t("home.destination")}
           <input value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} />
         </label>
         <label>
-          First day
+          {t("home.firstDay")}
           <input type="date" value={form.startDate} onChange={(e) => changeStart(e.target.value)} />
         </label>
         <label>
-          Last day
+          {t("home.lastDay")}
           <input type="date" min={form.startDate} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </label>
         <label>
-          Default way of getting around
+          {t("tripSettings.defaultMode")}
           <select
             value={form.defaultMode}
             onChange={(e) => setForm({ ...form, defaultMode: e.target.value as TravelMode })}
           >
             {ROUTABLE_MODES.map((m) => (
               <option key={m} value={m}>
-                {MODE_LABEL[m]}
+                {t(`mode.${m}`)}
               </option>
             ))}
           </select>
@@ -106,22 +108,21 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
       </div>
       {Object.values(trip.items).some((i) => i.rental && VEHICLE_MODE[i.rental.vehicle] === form.defaultMode) && (
         <p className="muted" style={{ fontSize: 13 }}>
-          You rent this vehicle on the trip, so it is used only from its pick-up until it goes back; other
-          days default to 🚗 Car (taxi). Any leg can still be changed on the board.
+          {t("tripSettings.rentedMode")}
         </p>
       )}
       <p className="muted" style={{ fontSize: 13 }}>
         {!validRange
-          ? `The last day must be on or after the first day, and a trip can have at most ${maxDays} days.`
-          : `${dayCount} ${dayCount === 1 ? "day" : "days"}` +
-            (dayCount > trip.days.length ? ` · ${dayCount - trip.days.length} empty days added at the end` : "") +
+          ? t("tripSettings.invalidRange", { max: maxDays })
+          : t("tripSettings.days", { n: dayCount }) +
+            (dayCount > trip.days.length ? t("tripSettings.added", { n: dayCount - trip.days.length }) : "") +
             (dayCount < trip.days.length
-              ? ` · the last ${trip.days.length - dayCount} days are removed` +
-                (movedCards ? `; their ${movedCards} ${movedCards === 1 ? "card moves" : "cards move"} to Ideas` : "")
+              ? t("tripSettings.removed", { n: trip.days.length - dayCount }) +
+                (movedCards ? t("tripSettings.cardsMove", { n: movedCards }) : "")
               : "")}
       </p>
       <label>
-        Interests (AI suggestions use these)
+        {t("tripSettings.interests")}
         <input value={form.interests} onChange={(e) => setForm({ ...form, interests: e.target.value })} />
       </label>
     </Modal>

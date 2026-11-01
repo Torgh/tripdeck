@@ -79,7 +79,7 @@ describe("demo trip travel", () => {
 describe("demo trip to-do list", () => {
   it("has the health card to get, a dive day waiting for confirmation and one still to book", () => {
     const trip = demoTrip();
-    expect(tripTodos(trip).map(todoLabel)).toEqual([
+    expect(tripTodos(trip).map((x) => todoLabel(x))).toEqual([
       `Malta: European Health Insurance Card (EKUZ) – by ${isoDate(dayDate(trip.startDate, -3))}`,
       "Cirkewwa – Rozi & P29 wrecks (day 3): waiting for confirmation",
       "Wied iż-Żurrieq shore dives (day 6): to book",

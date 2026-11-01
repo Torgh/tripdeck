@@ -10,13 +10,16 @@ import { useHydrated } from "@/lib/hooks";
 import { nextTripId, sortTrips, tripCountdown } from "@/lib/itinerary";
 import { createTrip, parseTripFile, useStore } from "@/lib/store";
 import { dayDate, daysBetween, formatDayLabel, isoDate } from "@/lib/time";
-import { MODE_LABEL, ROUTABLE_MODES, type TravelMode } from "@/lib/types";
+import { ROUTABLE_MODES, type TravelMode } from "@/lib/types";
+import { useLang, useT } from "@/lib/useLang";
 
 /** The longest trip the New trip form makes. */
 const MAX_DAYS = 60;
 
 export default function Home() {
   const hydrated = useHydrated();
+  const lang = useLang();
+  const t = useT();
   const trips = useStore((s) => s.trips);
   const saveTrip = useStore((s) => s.saveTrip);
   const router = useRouter();
@@ -50,7 +53,7 @@ export default function Home() {
 
   const create = (e: React.FormEvent) => {
     e.preventDefault();
-    const trip = createTrip({ ...form, name: form.name || form.destination || "New trip" });
+    const trip = createTrip({ ...form, name: form.name || form.destination || t("home.newTripName") });
     saveTrip(trip);
     open(trip.id);
   };
@@ -78,17 +81,17 @@ export default function Home() {
         <img src="/icon.svg" alt="" />
         <div className="grow">
           <h1>TripDeck</h1>
-          <div className="muted">Plan trips day by day – routes, dives, bookings and AI suggestions.</div>
+          <div className="muted">{t("home.tagline")}</div>
         </div>
         <SyncBadge />
-        <Link href="/settings" className="btn" title="Storage and sync, maps, Claude">
-          ⚙ Settings
+        <Link href="/settings" className="btn" title={t("home.settingsTitle")}>
+          {t("home.settings")}
         </Link>
       </header>
 
       <section>
         <div className="row">
-          <h2 className="grow">Your trips</h2>
+          <h2 className="grow">{t("home.yourTrips")}</h2>
           <input
             ref={fileRef}
             type="file"
@@ -99,7 +102,7 @@ export default function Home() {
         </div>
         {error && <p className="error">{error}</p>}
         {!hydrated ? (
-          <p className="muted">Loading…</p>
+          <p className="muted">{t("common.loading")}</p>
         ) : list.length === 0 ? (
           // An empty deck: a slot for the first trip, and the demo as a real trip tile.
           <div className="trip-list">
@@ -114,8 +117,8 @@ export default function Home() {
                 +
               </span>
               <span className="trip-text">
-                <strong>Your first trip goes here</strong>
-                <span className="muted small">Start it in New trip below, or import a trip file</span>
+                <strong>{t("home.firstSlot")}</strong>
+                <span className="muted small">{t("home.firstSlotHint")}</span>
               </span>
             </button>
             <div className="trip-deck">
@@ -124,29 +127,30 @@ export default function Home() {
                 <img src="/trip-thumb.svg" alt="" className="trip-thumb" />
                 <span className="trip-text">
                   <strong>{demo.name}</strong>
-                  <span className="muted small">Demo · {demo.days.length} days · dives, ferries, a rental car</span>
+                  <span className="muted small">{t("home.demoMeta", { days: t("home.days", { n: demo.days.length }) })}</span>
                 </span>
-                <span className="try">Try ›</span>
+                <span className="try">{t("home.try")}</span>
               </button>
             </div>
           </div>
         ) : (
           <div className="trip-list">
-            {list.map((t) => {
-              const countdown = tripCountdown(t, now);
-              const tone = countdown.phase === "ended" ? " ended" : t.id === next ? " next" : "";
+            {list.map((trip) => {
+              const countdown = tripCountdown(trip, now, lang);
+              const tone = countdown.phase === "ended" ? " ended" : trip.id === next ? " next" : "";
               return (
-                <div key={t.id} className="trip-deck">
-                  <Link href={`/trip?id=${t.id}`} className="card trip-tile">
+                <div key={trip.id} className="trip-deck">
+                  <Link href={`/trip?id=${trip.id}`} className="card trip-tile">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/trip-thumb.svg" alt="" className="trip-thumb" />
                     <span className="trip-text">
-                      <strong>{t.name}</strong>
+                      <strong>{trip.name}</strong>
                       <span className="muted small">
-                        {t.destination} · {formatDayLabel(dayDate(t.startDate, 0))} – {formatDayLabel(dayDate(t.startDate, t.days.length - 1))}
+                        {trip.destination} · {formatDayLabel(dayDate(trip.startDate, 0), lang)} –{" "}
+                        {formatDayLabel(dayDate(trip.startDate, trip.days.length - 1), lang)}
                       </span>
                       <span className="small">
-                        {t.days.length} days · {Object.keys(t.items).length} places
+                        {t("home.days", { n: trip.days.length })} · {t("home.places", { n: Object.keys(trip.items).length })}
                       </span>
                     </span>
                     <span className={`countdown${tone}`}>
@@ -163,36 +167,36 @@ export default function Home() {
         {hydrated && (
           <div className="home-actions">
             <button className="btn primary big" onClick={() => fileRef.current?.click()}>
-              📥 Import trip file
+              {t("home.importFile")}
             </button>
             {list.length > 0 && (
               <button className="btn big" onClick={loadDemo}>
-                🏝️ Load demo trip
+                {t("home.loadDemo")}
               </button>
             )}
           </div>
         )}
-        {list.length > 0 && <p className="muted small home-note">Importing a newer export of the same trip replaces it.</p>}
+        {list.length > 0 && <p className="muted small home-note">{t("home.importNote")}</p>}
       </section>
 
       <section className="card">
-        <h2 style={{ marginBottom: 12 }}>New trip</h2>
+        <h2 style={{ marginBottom: 12 }}>{t("home.newTrip")}</h2>
         <form className="stack" onSubmit={create}>
           <div className="grid2">
             <label>
-              Destination
+              {t("home.destination")}
               <input
                 ref={destinationRef}
                 required
-                placeholder="e.g. Malta, Red Sea, Lofoten"
+                placeholder={t("home.destinationPlaceholder")}
                 value={form.destination}
                 onChange={(e) => setForm({ ...form, destination: e.target.value })}
               />
             </label>
             <label>
-              Trip name
+              {t("home.tripName")}
               <input
-                placeholder="Optional"
+                placeholder={t("home.optional")}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
@@ -200,7 +204,7 @@ export default function Home() {
           </div>
           <div className="grid3">
             <label>
-              First day
+              {t("home.firstDay")}
               <input
                 type="date"
                 required
@@ -209,7 +213,7 @@ export default function Home() {
               />
             </label>
             <label>
-              Last day
+              {t("home.lastDay")}
               <input
                 type="date"
                 required
@@ -220,7 +224,7 @@ export default function Home() {
               />
             </label>
             <label>
-              Number of days
+              {t("home.numberOfDays")}
               <input
                 type="number"
                 min={1}
@@ -232,40 +236,40 @@ export default function Home() {
           </div>
           <div className="grid2">
             <label>
-              Interests (used by AI suggestions)
+              {t("home.interests")}
               <input
-                placeholder="diving, viewpoints, local food, museums…"
+                placeholder={t("home.interestsPlaceholder")}
                 value={form.interests}
                 onChange={(e) => setForm({ ...form, interests: e.target.value })}
               />
             </label>
             <label>
-              Usual way of getting around
+              {t("home.defaultMode")}
               <select
                 value={form.defaultMode}
                 onChange={(e) => setForm({ ...form, defaultMode: e.target.value as TravelMode })}
               >
                 {ROUTABLE_MODES.map((m) => (
                   <option key={m} value={m}>
-                    {MODE_LABEL[m]}
+                    {t(`mode.${m}`)}
                   </option>
                 ))}
               </select>
             </label>
           </div>
           <div className="row">
-            <span className="muted small grow">Trips sync to this PC, Google Drive or OneDrive (see Settings), so Claude can work on them too.</span>
+            <span className="muted small grow">{t("home.syncNote")}</span>
             <button className="btn primary" type="submit">
-              Create trip
+              {t("home.create")}
             </button>
           </div>
         </form>
       </section>
 
       <footer className="small muted" style={{ marginTop: 24, textAlign: "center" }}>
-        TripDeck is free software (AGPL-3.0) ·{" "}
+        {t("home.footer")}{" "}
         <a href={SOURCE_URL} target="_blank" rel="noreferrer">
-          Source code
+          {t("home.sourceCode")}
         </a>
       </footer>
     </main>

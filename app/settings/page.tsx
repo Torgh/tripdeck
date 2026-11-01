@@ -9,27 +9,44 @@ import { reloadConfig, useConfig } from "@/lib/config";
 import {
   CLOUD_PROVIDERS,
   STORAGE_LABEL,
+  storageLabel,
   type CloudProvider,
   type ConfigKey,
   type ConfigStatus,
   type StorageKind,
 } from "@/lib/configStatus";
+import { LANG_NAME, LANGS } from "@/lib/i18n";
+import { rich } from "@/lib/i18n/rich";
 import { syncNow } from "@/lib/sync";
-import { THEME_CHOICES, THEME_LABEL } from "@/lib/theme";
+import { THEME_CHOICES } from "@/lib/theme";
+import { setLang, useLang, useT } from "@/lib/useLang";
 import { setThemeChoice, useThemeChoice } from "@/lib/useTheme";
 
 /** The page's origin never changes, so there is nothing to subscribe to. */
 const noSubscribe = () => () => undefined;
 
+const b = (s: string) => <strong>{s}</strong>;
+const code = (s: string) => <code>{s}</code>;
+const link = (href: string) =>
+  function ExternalLink(s: string) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer">
+        {s}
+      </a>
+    );
+  };
+
 export default function Page() {
+  const t = useT();
   return (
-    <Suspense fallback={<main className="home muted">Loading…</main>}>
+    <Suspense fallback={<main className="home muted">{t("common.loading")}</main>}>
       <Settings />
     </Suspense>
   );
 }
 
 function Settings() {
+  const t = useT();
   const config = useConfig();
   const params = useSearchParams();
   const origin = useSyncExternalStore(noSubscribe, () => window.location.origin, () => "");
@@ -41,35 +58,38 @@ function Settings() {
     }
   }, [params]);
 
-  if (!config) return <main className="home muted">Loading settings…</main>;
+  if (!config) return <main className="home muted">{t("settings.loading")}</main>;
 
   const failed = params.get("status") === "error" ? params.get("provider") : null;
   const signInError =
     failed && (CLOUD_PROVIDERS as string[]).includes(failed)
-      ? `${STORAGE_LABEL[failed as CloudProvider]} sign-in failed: ${params.get("message")}`
+      ? t("settings.signInFailed", { provider: STORAGE_LABEL[failed as CloudProvider], message: params.get("message") ?? "" })
       : null;
 
   return (
     <main className="home stack" style={{ gap: 20 }}>
       <header>
-        <Link href="/" className="btn ghost" aria-label="Back">
+        <Link href="/" className="btn ghost" aria-label={t("common.back")}>
           ←
         </Link>
-        <h1 className="grow">Settings</h1>
+        <h1 className="grow">{t("common.settings")}</h1>
         <SyncBadge />
       </header>
 
       <section className="card stack">
-        <h2>🎨 Appearance</h2>
+        <h2>{t("settings.appearance")}</h2>
         <ThemePicker />
       </section>
 
       <section className="card stack">
-        <h2>☁ Where your trips are stored</h2>
+        <h2>{t("settings.language")}</h2>
+        <LangPicker />
+      </section>
+
+      <section className="card stack">
+        <h2>{t("settings.storageTitle")}</h2>
         <p className="muted" style={{ margin: 0 }}>
-          Keep trips on this PC, or in a visible <strong>TripDeck</strong> folder in OneDrive or on Google Drive. Claude
-          (via MCP) and this app read and write the same trips. Switching copies your trips to the new place; per trip
-          the newer version wins.
+          {rich(t("settings.storageIntro"), { b })}
         </p>
         {signInError && <div className="error">{signInError}</div>}
         <StoragePicker config={config} />
@@ -78,37 +98,31 @@ function Settings() {
       </section>
 
       <section className="card stack">
-        <h2>🤖 Plan with Claude or ChatGPT – no API key</h2>
+        <h2>{t("settings.mcpTitle")}</h2>
         <p className="muted" style={{ margin: 0 }}>
-          TripDeck includes an MCP server. Connect it once and plan in a chat with your own subscription; changes appear
-          on the board within seconds.
+          {t("settings.mcpIntro")}
         </p>
         <McpSetup config={config} />
       </section>
 
       <section className="card stack">
-        <h2>🗺️ Maps</h2>
+        <h2>{t("settings.mapsTitle")}</h2>
         <p style={{ margin: 0 }}>
-          Using{" "}
-          <strong>
-            {config.mapsProvider === "google" ? "Google Maps Platform" : "OpenStreetMap (free, no key needed)"}
-          </strong>
-          {config.googleMapsBrowserKey ? " with a Google map in the browser" : " with an OpenStreetMap map"}.
+          {rich(t(config.mapsProvider === "google" ? "settings.mapsUsingGoogle" : "settings.mapsUsingOsm"), { b })}
+          {t(config.googleMapsBrowserKey ? "settings.mapsGoogleMap" : "settings.mapsOsmMap")}
         </p>
         <details>
-          <summary className="small">Optional: use Google for richer place data (ratings, opening hours)</summary>
+          <summary className="small">{t("settings.mapsOptional")}</summary>
           <div className="stack" style={{ marginTop: 10 }}>
             <p className="small muted" style={{ margin: 0 }}>
-              Needs a Google Cloud project with billing and these APIs enabled: Places API (New), Routes API, Elevation
-              API (server key) and Maps JavaScript API (browser key, restricted to <code>{origin}</code>). If a Google
-              API fails, TripDeck falls back to OpenStreetMap automatically.
+              {rich(t("settings.mapsHelp", { origin }), { code })}
             </p>
             <KeyForm
               config={config}
               fields={[
-                { key: "googleMapsServerKey", label: "Server key (Places, Routes, Elevation)", secret: true },
-                { key: "googleMapsBrowserKey", label: "Browser key (Maps JavaScript API)", secret: false },
-                { key: "googleMapId", label: "Map ID (optional)", secret: false },
+                { key: "googleMapsServerKey", label: t("settings.serverKey"), secret: true },
+                { key: "googleMapsBrowserKey", label: t("settings.browserKey"), secret: false },
+                { key: "googleMapId", label: t("settings.mapId"), secret: false },
               ]}
             />
           </div>
@@ -116,26 +130,20 @@ function Settings() {
       </section>
 
       <section className="card stack">
-        <h2>✨ In-app AI buttons (optional)</h2>
+        <h2>{t("settings.aiTitle")}</h2>
         <p className="muted" style={{ margin: 0 }}>
-          Without a key, “Optimize” uses the fastest-route algorithm and “Suggest” lists notable nearby places – Claude
-          via MCP does the smart part. Add an Anthropic API key (billed per use) to get AI suggestions, tips and booking
-          import directly in the app.
+          {t("settings.aiIntro")}
         </p>
-        <KeyForm config={config} fields={[{ key: "anthropicApiKey", label: "Anthropic API key", secret: true }]} />
+        <KeyForm config={config} fields={[{ key: "anthropicApiKey", label: t("settings.anthropicKey"), secret: true }]} />
       </section>
 
       <section className="card stack">
-        <h2>ℹ️ About</h2>
+        <h2>{t("settings.aboutTitle")}</h2>
         <p className="small" style={{ margin: 0 }}>
-          TripDeck © 2026 Krzysztof Liszankowski. Free software under the{" "}
-          <a href={LICENSE_URL} target="_blank" rel="noreferrer">
-            GNU Affero General Public License v3
-          </a>{" "}
-          or later – you may use, study, share and modify it under its terms. It comes with ABSOLUTELY NO WARRANTY.
+          {rich(t("settings.license"), { a: link(LICENSE_URL) })}
         </p>
         <p className="small" style={{ margin: 0 }}>
-          Source code:{" "}
+          {t("settings.sourceCode")}{" "}
           <a href={SOURCE_URL} target="_blank" rel="noreferrer">
             {SOURCE_URL.replace("https://", "")}
           </a>
@@ -148,10 +156,11 @@ function Settings() {
 const THEME_ICON = { system: "🖥️", light: "☀️", dark: "🌙" } as const;
 
 function ThemePicker() {
+  const t = useT();
   const choice = useThemeChoice();
   return (
     <div className="stack" style={{ gap: 6 }}>
-      <div className="row" role="radiogroup" aria-label="Theme">
+      <div className="row" role="radiogroup" aria-label={t("settings.themeLabel")}>
         {THEME_CHOICES.map((c) => (
           <button
             key={c}
@@ -160,20 +169,41 @@ function ThemePicker() {
             className={`btn${choice === c ? " primary" : ""}`}
             onClick={() => setThemeChoice(c)}
           >
-            {THEME_ICON[c]} {THEME_LABEL[c]}
+            {THEME_ICON[c]} {t(`theme.${c}`)}
           </button>
         ))}
       </div>
-      <span className="small muted">
-        {choice === "system"
-          ? "Follows your operating system's light or dark setting."
-          : "Saved in this browser. The printable itinerary always stays light."}
-      </span>
+      <span className="small muted">{t(choice === "system" ? "settings.themeSystem" : "settings.themeSaved")}</span>
+    </div>
+  );
+}
+
+function LangPicker() {
+  const t = useT();
+  const lang = useLang();
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <div className="row" role="radiogroup" aria-label={t("settings.language")}>
+        {LANGS.map((l) => (
+          <button
+            key={l}
+            role="radio"
+            lang={l}
+            aria-checked={lang === l}
+            className={`btn${lang === l ? " primary" : ""}`}
+            onClick={() => setLang(l)}
+          >
+            {LANG_NAME[l]}
+          </button>
+        ))}
+      </div>
+      <span className="small muted">{t("settings.languageNote")}</span>
     </div>
   );
 }
 
 function StoragePicker({ config }: { config: ConfigStatus }) {
+  const t = useT();
   const [state, setState] = useState<{ busy?: StorageKind; message?: string; error?: string }>({});
 
   const choose = async (storage: StorageKind) => {
@@ -185,10 +215,10 @@ function StoragePicker({ config }: { config: ConfigStatus }) {
         body: JSON.stringify({ storage }),
       });
       const data = (await res.json()) as { copied?: number; error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Switching failed.");
+      if (!res.ok) throw new Error(data.error ?? t("settings.switchFailed"));
       await reloadConfig();
       await syncNow();
-      setState({ message: data.copied ? `Copied ${data.copied} trip(s) ✓` : "Switched ✓" });
+      setState({ message: data.copied ? t("settings.copiedTrips", { n: data.copied }) : t("settings.switched") });
     } catch (err) {
       setState({ error: (err as Error).message });
     }
@@ -199,20 +229,20 @@ function StoragePicker({ config }: { config: ConfigStatus }) {
     { kind: "local", where: `${config.dataDir}${config.dataDir.includes("\\") ? "\\" : "/"}trips`, available: true },
     {
       kind: "onedrive",
-      where: config.oneDriveFolder ?? "OneDrive not found on this PC – set its folder below",
+      where: config.oneDriveFolder ?? t("settings.oneDriveMissing"),
       available: !!config.oneDriveFolder,
     },
     {
       kind: "google",
       where: !google.connected
-        ? "connect below first"
-        : `${google.needsReconnect ? "hidden app folder – reconnect to make it visible" : "My Drive › TripDeck"}${google.email ? ` · ${google.email}` : ""}`,
+        ? t("settings.connectFirst")
+        : `${t(google.needsReconnect ? "settings.hiddenFolder" : "settings.myDrive")}${google.email ? ` · ${google.email}` : ""}`,
       available: google.connected,
     },
   ];
 
   return (
-    <div className="stack" style={{ gap: 6 }} role="radiogroup" aria-label="Storage">
+    <div className="stack" style={{ gap: 6 }} role="radiogroup" aria-label={t("settings.storageLabel")}>
       {options.map((o) => (
         <label
           key={o.kind}
@@ -229,48 +259,41 @@ function StoragePicker({ config }: { config: ConfigStatus }) {
           />
           <span>
             <strong>
-              {o.kind === "local" ? "💾" : "☁"} {STORAGE_LABEL[o.kind]}
+              {o.kind === "local" ? "💾" : "☁"} {storageLabel(o.kind, t)}
             </strong>{" "}
-            <span className="small muted">{state.busy === o.kind ? "copying trips…" : o.where}</span>
+            <span className="small muted">{state.busy === o.kind ? t("settings.copying") : o.where}</span>
           </span>
         </label>
       ))}
       {state.message && <span className="small">{state.message}</span>}
       {state.error && <span className="small" style={{ color: "var(--danger)" }}>{state.error}</span>}
       {config.storage === "google" && config.cloud.google.needsReconnect && (
-        <div className="error">
-          Your trips are still in Google Drive&apos;s hidden app folder. Click <strong>Reconnect</strong> under Google Drive
-          below to move them to a visible TripDeck folder.
-        </div>
+        <div className="error">{rich(t("settings.stillHidden"), { b })}</div>
       )}
     </div>
   );
 }
 
 function OneDriveFolder({ config }: { config: ConfigStatus }) {
+  const t = useT();
   return (
     <details open={!config.oneDriveFolder}>
       <summary>
         <strong>OneDrive</strong>{" "}
-        <span className="small muted">{config.oneDriveFolder ? "✅ found on this PC" : "not found on this PC"}</span>
+        <span className="small muted">{t(config.oneDriveFolder ? "settings.oneDriveFound" : "settings.oneDriveNotFound")}</span>
       </summary>
       <div className="stack" style={{ marginTop: 10 }}>
         <p className="small muted" style={{ margin: 0 }}>
-          Uses the OneDrive app on this PC – no Microsoft sign-in or app registration needed. TripDeck saves one{" "}
-          <code>Name (id).tripdeck.json</code> file per trip in the <strong>TripDeck</strong> folder inside OneDrive, and
-          OneDrive syncs it to your other devices, including the OneDrive phone app. Keep OneDrive running so changes
-          made on another PC arrive here.
+          {rich(t("settings.oneDriveHelp"), { b, code })}
         </p>
-        <KeyForm
-          config={config}
-          fields={[{ key: "oneDriveFolder", label: "OneDrive folder (only if it isn't found automatically)", secret: false }]}
-        />
+        <KeyForm config={config} fields={[{ key: "oneDriveFolder", label: t("settings.oneDriveFolder"), secret: false }]} />
       </div>
     </details>
   );
 }
 
 function CloudAccount({ provider, config, origin }: { provider: CloudProvider; config: ConfigStatus; origin: string }) {
+  const t = useT();
   const account = config.cloud[provider];
   const label = STORAGE_LABEL[provider];
   const connect = (
@@ -280,7 +303,7 @@ function CloudAccount({ provider, config, origin }: { provider: CloudProvider; c
       aria-disabled={!account.clientConfigured}
       style={account.clientConfigured ? undefined : { opacity: 0.5, pointerEvents: "none" }}
     >
-      {account.connected ? "Reconnect" : `Connect ${label}`}
+      {account.connected ? t("settings.reconnect") : t("settings.connect", { provider: label })}
     </a>
   );
   return (
@@ -288,14 +311,18 @@ function CloudAccount({ provider, config, origin }: { provider: CloudProvider; c
       <summary>
         <strong>{label}</strong>{" "}
         <span className="small muted">
-          {account.connected ? `✅ connected${account.email ? ` as ${account.email}` : ""}` : "not connected"}
+          {account.connected
+            ? account.email
+              ? t("settings.connectedAs", { email: account.email })
+              : t("settings.connected")
+            : t("settings.notConnected")}
         </span>
       </summary>
       <div className="stack" style={{ marginTop: 10 }}>
         {account.connected ? (
           <div className="row">
             <button className="btn" onClick={() => syncNow()}>
-              ⟳ Sync now
+              {t("settings.syncNow")}
             </button>
             {connect}
             <DisconnectButton provider={provider} />
@@ -305,7 +332,7 @@ function CloudAccount({ provider, config, origin }: { provider: CloudProvider; c
             <GoogleClientSetup config={config} origin={origin} />
             <div className="row">
               {connect}
-              {!account.clientConfigured && <span className="small muted">Save the client ID and secret first.</span>}
+              {!account.clientConfigured && <span className="small muted">{t("settings.clientFirst")}</span>}
             </div>
           </>
         )}
@@ -315,40 +342,26 @@ function CloudAccount({ provider, config, origin }: { provider: CloudProvider; c
 }
 
 function GoogleClientSetup({ config, origin }: { config: ConfigStatus; origin: string }) {
+  const t = useT();
   const redirect = `${origin}/api/auth/google/callback`;
+  const em = (s: string) => <em>{s}</em>;
   return (
     <details open={!config.cloud.google.clientConfigured}>
-      <summary className="small">One-time setup: create a Google OAuth client (about 5 minutes)</summary>
+      <summary className="small">{t("settings.googleSetup")}</summary>
       <ol className="small" style={{ paddingLeft: 18, display: "grid", gap: 6 }}>
+        <li>{rich(t("settings.googleStep1"), { a: link("https://console.cloud.google.com/apis/library/drive.googleapis.com"), b })}</li>
+        <li>{rich(t("settings.googleStep2"), { a: link("https://console.cloud.google.com/auth/branding"), b, i: em })}</li>
         <li>
-          Open{" "}
-          <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noreferrer">
-            Google Drive API
-          </a>{" "}
-          in your Google Cloud project and click <strong>Enable</strong>.
-        </li>
-        <li>
-          <a href="https://console.cloud.google.com/auth/branding" target="_blank" rel="noreferrer">
-            Google Auth Platform → Branding
-          </a>
-          : app name “TripDeck”, your e-mail. Under <strong>Audience</strong> choose <em>External</em>, then click{" "}
-          <strong>Publish app</strong> (otherwise Google logs you out every 7 days). TripDeck only asks for files it
-          creates itself (its TripDeck folder), which needs no Google review.
-        </li>
-        <li>
-          <a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noreferrer">
-            Clients → Create client
-          </a>
-          : type <strong>Web application</strong>, authorised redirect URI:
+          {rich(t("settings.googleStep3"), { a: link("https://console.cloud.google.com/auth/clients"), b })}
           <CopyField value={redirect} />
         </li>
-        <li>Paste the client ID and secret below and save.</li>
+        <li>{t("settings.googleStep4")}</li>
       </ol>
       <KeyForm
         config={config}
         fields={[
-          { key: "googleClientId", label: "Client ID", secret: false },
-          { key: "googleClientSecret", label: "Client secret", secret: true },
+          { key: "googleClientId", label: t("settings.clientId"), secret: false },
+          { key: "googleClientSecret", label: t("settings.clientSecret"), secret: true },
         ]}
       />
     </details>
@@ -356,35 +369,35 @@ function GoogleClientSetup({ config, origin }: { config: ConfigStatus; origin: s
 }
 
 function McpSetup({ config }: { config: ConfigStatus }) {
+  const t = useT();
   const quote = (s: string) => (/\s/.test(s) ? `"${s}"` : s);
   const cmd = [config.mcp.command, ...config.mcp.args].map(quote).join(" ");
   return (
     <div className="stack" style={{ gap: 10 }}>
       <div>
-        <strong>Claude Code</strong> (Claude Pro/Max) – run once in a terminal:
+        {rich(t("settings.mcpClaudeCode"), { b })}
         <CopyField value={`claude mcp add --scope user tripdeck -- ${cmd}`} />
       </div>
       <div>
-        <strong>Codex CLI</strong> (ChatGPT Plus/Pro) – run once:
+        {rich(t("settings.mcpCodex"), { b })}
         <CopyField value={`codex mcp add tripdeck -- ${cmd}`} />
       </div>
       <div>
-        <strong>Claude Desktop</strong> – Settings → Developer → Edit config, add to <code>mcpServers</code>:
+        {rich(t("settings.mcpDesktop"), { b, code })}
         <CopyField
           value={JSON.stringify({ tripdeck: { command: config.mcp.command, args: config.mcp.args } }, null, 2)}
           multiline
         />
       </div>
       <p className="small muted" style={{ margin: 0 }}>
-        Then just ask, e.g. “Plan day 3 of my Malta trip around Gozo” or “Find my Booking.com and GetYourGuide
-        confirmations in Gmail and add them to my trip” (with the Gmail connector enabled in Claude). Prompts:{" "}
-        <code>/mcp__tripdeck__plan-day</code>, <code>/mcp__tripdeck__import-bookings</code>.
+        {t("settings.mcpExamples")} <code>/mcp__tripdeck__plan-day</code>, <code>/mcp__tripdeck__import-bookings</code>.
       </p>
     </div>
   );
 }
 
 function CopyField({ value, multiline }: { value: string; multiline?: boolean }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <div className="row" style={{ alignItems: "flex-start", marginTop: 4 }}>
@@ -402,7 +415,7 @@ function CopyField({ value, multiline }: { value: string; multiline?: boolean })
           })
         }
       >
-        {copied ? "Copied ✓" : "Copy"}
+        {copied ? t("common.copied") : t("common.copy")}
       </button>
     </div>
   );
@@ -415,6 +428,7 @@ function KeyForm({
   config: ConfigStatus;
   fields: { key: ConfigKey; label: string; secret: boolean }[];
 }) {
+  const t = useT();
   const [values, setValues] = useState<Partial<Record<ConfigKey, string>>>({});
   const [state, setState] = useState<{ saving: boolean; message?: string; error?: string }>({ saving: false });
 
@@ -427,10 +441,10 @@ function KeyForm({
         body: JSON.stringify(patch),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Saving failed.");
+      if (!res.ok) throw new Error(data.error ?? t("settings.savingFailed"));
       setValues({});
       await reloadConfig();
-      setState({ saving: false, message: "Saved ✓" });
+      setState({ saving: false, message: t("common.saved") });
     } catch (err) {
       setState({ saving: false, error: (err as Error).message });
     }
@@ -444,20 +458,20 @@ function KeyForm({
         return (
           <label key={f.key}>
             <span>
-              {f.label} {fromEnv ? "· set in environment" : isSet ? "· ✅ saved" : ""}
+              {f.label} {fromEnv ? t("settings.fromEnv") : isSet ? t("settings.keySaved") : ""}
             </span>
             <div className="row">
               <input
                 type={f.secret ? "password" : "text"}
                 autoComplete="off"
                 disabled={fromEnv}
-                placeholder={isSet ? (f.secret ? "•••••••• (leave empty to keep)" : "saved – type to replace") : ""}
+                placeholder={isSet ? t(f.secret ? "settings.keepSecret" : "settings.replace") : ""}
                 value={values[f.key] ?? ""}
                 onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
               />
               {isSet && !fromEnv && (
-                <button className="btn small ghost danger" title="Remove" onClick={() => save({ [f.key]: "" })}>
-                  Remove
+                <button className="btn small ghost danger" title={t("common.remove")} onClick={() => save({ [f.key]: "" })}>
+                  {t("common.remove")}
                 </button>
               )}
             </div>
@@ -470,17 +484,18 @@ function KeyForm({
           disabled={state.saving || !Object.values(values).some((v) => v?.trim())}
           onClick={() => save(Object.fromEntries(Object.entries(values).filter(([, v]) => v?.trim())))}
         >
-          Save
+          {t("common.save")}
         </button>
         {state.message && <span className="small">{state.message}</span>}
         {state.error && <span className="small" style={{ color: "var(--danger)" }}>{state.error}</span>}
       </div>
-      <span className="small muted">Stored only on this PC in {config.dataDir}/config.json.</span>
+      <span className="small muted">{t("settings.storedAt", { path: `${config.dataDir}/config.json` })}</span>
     </div>
   );
 }
 
 function DisconnectButton({ provider }: { provider: CloudProvider }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const label = STORAGE_LABEL[provider];
   return (
@@ -488,7 +503,7 @@ function DisconnectButton({ provider }: { provider: CloudProvider }) {
       className="btn danger"
       disabled={busy}
       onClick={async () => {
-        if (!confirm(`Disconnect ${label}? Your trips stay in ${label}; if it holds your trips, they are copied to this PC first.`)) {
+        if (!confirm(t("settings.disconnectConfirm", { provider: label }))) {
           return;
         }
         setBusy(true);
@@ -502,7 +517,7 @@ function DisconnectButton({ provider }: { provider: CloudProvider }) {
         setBusy(false);
       }}
     >
-      Disconnect
+      {t("settings.disconnect")}
     </button>
   );
 }

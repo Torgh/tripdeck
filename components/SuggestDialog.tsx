@@ -8,6 +8,7 @@ import { dayDate, formatDuration, isoDate } from "@/lib/time";
 import { findBase } from "@/lib/timeline";
 import { IDEAS, type ContainerId, type Item, type LatLng, type Trip } from "@/lib/types";
 import type { PlaceResult } from "@/lib/server/google";
+import { useLang, useT } from "@/lib/useLang";
 import { tripCenter } from "./ItemEditor";
 import { Modal, Spinner } from "./Modal";
 import { PlaceSearch } from "./PlaceSearch";
@@ -22,15 +23,7 @@ interface Suggestion {
 
 type Anchor = LatLng & { name: string };
 
-const CATEGORY_LABEL: Record<string, string> = {
-  sights: "Sights",
-  nature: "Nature",
-  beaches: "Beaches",
-  viewpoints: "Viewpoints",
-  museums: "Museums",
-  food: "Food & drink",
-  diving: "Diving",
-};
+const CATEGORIES = ["sights", "nature", "beaches", "viewpoints", "museums", "food", "diving"] as const;
 
 export function SuggestDialog({
   trip,
@@ -46,6 +39,8 @@ export function SuggestDialog({
   ai: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
+  const lang = useLang();
   const addItem = useStore((s) => s.addItem);
   const dayIndex = trip.days.findIndex((d) => d.id === container);
   const day = dayIndex >= 0 ? trip.days[dayIndex] : undefined;
@@ -64,9 +59,9 @@ export function SuggestDialog({
       push(findBase(trip, dayIndex));
     }
     const center = tripCenter(trip);
-    if (center && !anchorItemId) list.push({ name: `${trip.destination} (trip centre)`, ...center });
+    if (center && !anchorItemId) list.push({ name: t("suggest.tripCentre", { destination: trip.destination }), ...center });
     return list;
-  }, [trip, anchorItemId, day, dayIndex]);
+  }, [trip, anchorItemId, day, dayIndex, t]);
 
   const [anchor, setAnchor] = useState<Anchor | undefined>(anchors[0]);
   const [radiusKm, setRadiusKm] = useState(anchorItemId ? 5 : 15);
@@ -100,8 +95,8 @@ export function SuggestDialog({
             bestTime: "",
             category: (p.primaryType ?? "place").replace(/_/g, " "),
           }));
-        setResult({ summary: `${suggestions.length} notable places around ${anchor.name}.`, suggestions });
-        if (!suggestions.length) setError("Nothing found – try a larger radius or other categories.");
+        setResult({ summary: t("suggest.notable", { n: suggestions.length, place: anchor.name }), suggestions });
+        if (!suggestions.length) setError(t("suggest.nothing"));
         return;
       }
       const res = await postJSON<{ summary: string; suggestions: Suggestion[] }>("/api/ai/suggest", {
@@ -116,12 +111,13 @@ export function SuggestDialog({
         radiusKm,
         count,
         note: note || undefined,
+        lang,
         excludePlaceIds: Object.values(trip.items)
           .map((i) => i.location?.placeId)
           .filter(Boolean),
       });
       setResult(res);
-      if (!res.suggestions.length) setError("No suggestions came back – try a larger radius or different wishes.");
+      if (!res.suggestions.length) setError(t("suggest.noSuggestions"));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -137,24 +133,26 @@ export function SuggestDialog({
       ...itemFieldsFromPlace(s.place),
       durationMin: s.suggestedDurationMin,
       aiReason: ai ? s.reason : undefined,
-      notes: s.bestTime ? `Best time: ${s.bestTime}` : s.reason || undefined,
+      notes: s.bestTime ? t("suggest.bestTime", { time: s.bestTime }) : s.reason || undefined,
     };
     addItem(trip.id, item, target);
     setAdded((prev) => new Set(prev).add(s.place.placeId));
   };
 
   const icon = ai ? "✨" : "🔍";
-  const title = anchorItemId
-    ? `${icon} What's near ${trip.items[anchorItemId]?.title}?`
-    : day
-      ? `${icon} ${ai ? "Suggestions" : "Nearby places"} for day ${dayIndex + 1}`
-      : `${icon} ${ai ? "Suggestions" : "Nearby places"}`;
+  const title = `${icon} ${
+    anchorItemId
+      ? t("suggest.nearTitle", { place: trip.items[anchorItemId]?.title ?? "" })
+      : day
+        ? t(ai ? "suggest.suggestionsDay" : "suggest.nearbyDay", { day: dayIndex + 1 })
+        : t(ai ? "suggest.suggestions" : "suggest.nearby")
+  }`;
 
   return (
     <Modal title={title} onClose={onClose} wide>
       <div className="grid2">
         <label>
-          Search around
+          {t("suggest.searchAround")}
           <select
             value={anchor ? anchors.findIndex((a) => a.name === anchor.name) : -1}
             onChange={(e) => setAnchor(anchors[Number(e.target.value)])}
@@ -169,7 +167,7 @@ export function SuggestDialog({
         </label>
         <div className="grid2">
           <label>
-            Radius
+            {t("suggest.radius")}
             <select value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))}>
               {[1, 2, 5, 10, 15, 25, 50].map((r) => (
                 <option key={r} value={r}>
@@ -179,7 +177,7 @@ export function SuggestDialog({
             </select>
           </label>
           <label hidden={!ai}>
-            How many
+            {t("suggest.howMany")}
             <select value={count} onChange={(e) => setCount(Number(e.target.value))}>
               {[3, 5, 8].map((n) => (
                 <option key={n} value={n}>
@@ -192,27 +190,27 @@ export function SuggestDialog({
       </div>
       {anchors.length === 0 && (
         <div className="stack" style={{ gap: 6 }}>
-          <span className="small muted">Pick a starting point:</span>
+          <span className="small muted">{t("suggest.pickStart")}</span>
           <PlaceSearch
             onPick={(p) => setAnchor({ name: p.name, lat: p.lat, lng: p.lng })}
-            onCoordinates={(p) => setAnchor({ name: "Pinned point", ...p })}
+            onCoordinates={(p) => setAnchor({ name: t("suggest.pinned"), ...p })}
           />
           {anchor && <span className="small">📍 {anchor.name}</span>}
         </div>
       )}
       {ai ? (
         <label>
-          Anything specific? (optional)
+          {t("suggest.specific")}
           <input
             value={note}
-            placeholder={`e.g. "rainy day", "with kids", "best snorkeling", "cheap local lunch" – interests: ${trip.interests || "not set"}`}
+            placeholder={t("suggest.specificPlaceholder", { interests: trip.interests || t("suggest.notSet") })}
             onChange={(e) => setNote(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && run()}
           />
         </label>
       ) : (
         <div className="row wrap">
-          {Object.entries(CATEGORY_LABEL).map(([key, label]) => (
+          {CATEGORIES.map((key) => (
             <label key={key} className="row" style={{ display: "flex", gap: 4, color: "var(--text)", fontSize: 13 }}>
               <input
                 type="checkbox"
@@ -222,23 +220,21 @@ export function SuggestDialog({
                   setCategories(e.target.checked ? [...categories, key] : categories.filter((c) => c !== key))
                 }
               />
-              {label}
+              {t(`suggest.category.${key}`)}
             </label>
           ))}
         </div>
       )}
       <div className="row">
         <span className="grow small muted">
-          {ai
-            ? "Claude searches places and picks what fits your trip."
-            : "Most notable places first. For picks tailored to you, ask Claude via MCP (see Settings)."}
+          {t(ai ? "suggest.aiHint" : "suggest.osmHint")}
         </span>
         <button className="btn ai" onClick={run} disabled={loading || !anchor || (!ai && !categories.length)}>
-          {loading ? <Spinner /> : icon} {result ? "Search again" : "Find places"}
+          {loading ? <Spinner /> : icon} {t(result ? "suggest.searchAgain" : "suggest.find")}
         </button>
       </div>
 
-      {loading && ai && <div className="muted small">Searching and comparing places… this can take up to a minute.</div>}
+      {loading && ai && <div className="muted small">{t("suggest.searching")}</div>}
       {error && <div className="error">{error}</div>}
 
       {result && result.suggestions.length > 0 && (
@@ -248,12 +244,12 @@ export function SuggestDialog({
               {result.summary}
             </p>
             <label style={{ width: 150 }}>
-              Add to
+              {t("suggest.addTo")}
               <select value={target} onChange={(e) => setTarget(e.target.value)}>
-                <option value={IDEAS}>💡 Ideas</option>
+                <option value={IDEAS}>{t("editor.ideas")}</option>
                 {trip.days.map((d, i) => (
                   <option key={d.id} value={d.id}>
-                    Day {i + 1}
+                    {t("common.day", { day: i + 1 })}
                   </option>
                 ))}
               </select>
@@ -275,10 +271,10 @@ export function SuggestDialog({
                 {s.reason && <div>{s.reason}</div>}
                 <div className="small muted">
                   {[
-                    ai && `⏱ ${formatDuration(s.suggestedDurationMin)}`,
+                    ai && `⏱ ${formatDuration(s.suggestedDurationMin, lang)}`,
                     s.bestTime && `🕐 ${s.bestTime}`,
                     s.place.address,
-                    s.place.weekdayHours?.length === 1 && `hours: ${s.place.weekdayHours[0]}`,
+                    s.place.weekdayHours?.length === 1 && t("suggest.hours", { hours: s.place.weekdayHours[0] }),
                   ]
                     .filter(Boolean)
                     .join(" · ")}
@@ -291,7 +287,7 @@ export function SuggestDialog({
                   )}
                   <span className="grow" />
                   <button className="btn small primary" disabled={isAdded} onClick={() => add(s)}>
-                    {isAdded ? "Added ✓" : "+ Add"}
+                    {t(isAdded ? "suggest.added" : "suggest.add")}
                   </button>
                 </div>
               </div>

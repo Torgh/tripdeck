@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/lib/useLang";
 
 /** "Export" button with a small menu: JSON backup or printable PDF itinerary. */
 export function ExportMenu({ tripId, onJson }: { tripId: string; onJson: () => void }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -25,7 +27,7 @@ export function ExportMenu({ tripId, onJson }: { tripId: string; onJson: () => v
   return (
     <div className="menu" ref={ref}>
       <button className="btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        ⬇ <span className="label">Export</span> ▾
+        ⬇ <span className="label">{t("exportMenu.export")}</span> ▾
       </button>
       {open && (
         <div className="menu-list" role="menu">
@@ -39,14 +41,14 @@ export function ExportMenu({ tripId, onJson }: { tripId: string; onJson: () => v
             <span>🧾</span>
             <span>
               <strong>JSON</strong>
-              <small>Backup you can import again</small>
+              <small>{t("exportMenu.json")}</small>
             </span>
           </button>
           <Link role="menuitem" href={`/trip/print?id=${encodeURIComponent(tripId)}`} onClick={() => setOpen(false)}>
             <span>📄</span>
             <span>
               <strong>PDF</strong>
-              <small>Printable itinerary</small>
+              <small>{t("exportMenu.pdf")}</small>
             </span>
           </Link>
         </div>

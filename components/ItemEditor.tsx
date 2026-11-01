@@ -14,12 +14,9 @@ import {
   IDEAS,
   ITEM_TYPE_ICON,
   itemIcon,
-  ITEM_TYPE_LABEL,
   BOOKING_STATUS_ICON,
-  BOOKING_STATUS_LABEL,
   BOOKING_STATUSES,
   DIVE_PREP_ICON,
-  DIVE_PREP_LABEL,
   divePrepUrl,
   type AiTips,
   type Booking,
@@ -29,7 +26,6 @@ import {
   type Item,
   type ItemType,
   RENTAL_VEHICLE_ICON,
-  RENTAL_VEHICLE_LABEL,
   RENTAL_VEHICLES,
   type RentalDetails,
   type RentalVehicle,
@@ -37,6 +33,8 @@ import {
   type TransportKind,
   type Trip,
 } from "@/lib/types";
+import { useLang, useT } from "@/lib/useLang";
+import type { Lang } from "@/lib/i18n";
 import type { PlaceResult } from "@/lib/server/google";
 import { Modal, Spinner } from "./Modal";
 import { PlaceSearch } from "./PlaceSearch";
@@ -51,9 +49,10 @@ const NEW_RENTAL: RentalDetails = { vehicle: "car", days: 1 };
 const TRANSPORT_KINDS: TransportKind[] = ["flight", "ferry", "train", "bus", "car_rental", "boat", "other"];
 
 /** "Mon 12 Jan → Thu 15 Jan. " for a stay checked in on day `dayIndex`; empty in Ideas. */
-function stayRange(trip: Trip, dayIndex: number, nights: number) {
+function stayRange(trip: Trip, dayIndex: number, nights: number, lang: Lang) {
   if (dayIndex < 0) return "";
-  return `${formatDayLabel(dayDate(trip.startDate, dayIndex))} → ${formatDayLabel(dayDate(trip.startDate, dayIndex + nights))}. `;
+  const day = (i: number) => formatDayLabel(dayDate(trip.startDate, i), lang);
+  return `${day(dayIndex)} → ${day(dayIndex + nights)}. `;
 }
 
 export function tripCenter(trip: Trip) {
@@ -75,6 +74,8 @@ export function ItemEditor({
   ai: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
+  const lang = useLang();
   const addItem = useStore((s) => s.addItem);
   const updateItem = useStore((s) => s.updateItem);
   const removeItem = useStore((s) => s.removeItem);
@@ -146,6 +147,7 @@ export function ItemEditor({
         location: draft.location && { lat: draft.location.lat, lng: draft.location.lng, address: draft.location.address },
         placeId: draft.location?.placeId,
         notes: draft.notes,
+        lang,
       });
       const patch = { tips, ...(place ? { place: itemFieldsFromPlace(place).place } : {}) };
       setDraft((d) => ({ ...d, ...patch }));
@@ -158,7 +160,8 @@ export function ItemEditor({
   };
 
   const save = () => {
-    const fallback = draft.type === "rental" ? `${RENTAL_VEHICLE_LABEL[draft.rental?.vehicle ?? "car"]} rental` : "Untitled";
+    const fallback =
+      draft.type === "rental" ? t("editor.rentalTitle", { vehicle: t(`vehicle.${draft.rental?.vehicle ?? "car"}`) }) : t("editor.untitled");
     const item: Item = { ...draft, title: draft.title.trim() || fallback };
     if (existing) updateItem(trip.id, item.id, item);
     else addItem(trip.id, item, container);
@@ -167,7 +170,7 @@ export function ItemEditor({
 
   return (
     <Modal
-      title={existing ? `${itemIcon(draft)} ${existing.title}` : "Add to trip"}
+      title={existing ? `${itemIcon(draft)} ${existing.title}` : t("editor.addTitle")}
       onClose={onClose}
       footer={
         <>
@@ -176,20 +179,20 @@ export function ItemEditor({
               className="btn danger"
               style={{ marginRight: "auto" }}
               onClick={() => {
-                if (confirm(`Delete "${existing.title}"?`)) {
+                if (confirm(t("editor.deleteConfirm", { title: existing.title }))) {
                   removeItem(trip.id, existing.id);
                   onClose();
                 }
               }}
             >
-              Delete
+              {t("common.delete")}
             </button>
           )}
           <button className="btn" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button className="btn primary" onClick={save}>
-            Save
+            {t("common.save")}
           </button>
         </>
       }
@@ -197,10 +200,10 @@ export function ItemEditor({
       {existing && ai && (
         <div className="row">
           <button className={`btn small${tab === "details" ? " primary" : ""}`} onClick={() => setTab("details")}>
-            Details
+            {t("editor.details")}
           </button>
           <button className={`btn small${tab === "tips" ? " primary" : ""}`} onClick={() => setTab("tips")}>
-            💡 AI tips
+            {t("editor.aiTips")}
           </button>
         </div>
       )}
@@ -216,23 +219,23 @@ export function ItemEditor({
         <>
           <div className="grid2">
             <label>
-              Type
+              {t("editor.type")}
               <select value={draft.type} onChange={(e) => changeType(e.target.value as ItemType)}>
-                {(Object.keys(ITEM_TYPE_LABEL) as ItemType[]).map((t) => (
-                  <option key={t} value={t}>
-                    {ITEM_TYPE_ICON[t]} {ITEM_TYPE_LABEL[t]}
+                {(Object.keys(ITEM_TYPE_ICON) as ItemType[]).map((type) => (
+                  <option key={type} value={type}>
+                    {ITEM_TYPE_ICON[type]} {t(`itemType.${type}`)}
                   </option>
                 ))}
               </select>
             </label>
             {!existing && (
               <label>
-                Add to
+                {t("editor.addTo")}
                 <select value={container} onChange={(e) => setContainer(e.target.value)}>
-                  <option value={IDEAS}>💡 Ideas</option>
+                  <option value={IDEAS}>{t("editor.ideas")}</option>
                   {trip.days.map((d, i) => (
                     <option key={d.id} value={d.id}>
-                      Day {i + 1}
+                      {t("common.day", { day: i + 1 })}
                     </option>
                   ))}
                 </select>
@@ -242,7 +245,7 @@ export function ItemEditor({
 
           <fieldset>
             <legend>
-              {draft.type === "rental" ? "Pick-up place" : draft.type === "activity" ? "Place or pick-up point" : "Place"}
+              {t(draft.type === "rental" ? "editor.pickUpPlace" : draft.type === "activity" ? "editor.placeOrPickUp" : "editor.place")}
             </legend>
             <PlaceSearch
               bias={draft.location ?? tripCenter(trip)}
@@ -253,7 +256,7 @@ export function ItemEditor({
               <div className="row small">
                 <span className="grow">
                   📍 {draft.location.address ?? `${draft.location.lat.toFixed(5)}, ${draft.location.lng.toFixed(5)}`}
-                  {draft.location.elevationM != null && ` · ${Math.round(draft.location.elevationM)} m a.s.l.`}
+                  {draft.location.elevationM != null && t("editor.asl", { m: Math.round(draft.location.elevationM) })}
                 </span>
                 {draft.place?.googleMapsUri && (
                   <a href={draft.place.googleMapsUri} target="_blank" rel="noreferrer">
@@ -261,25 +264,21 @@ export function ItemEditor({
                   </a>
                 )}
                 <button className="btn small ghost" onClick={() => set({ location: undefined, place: undefined })}>
-                  Clear
+                  {t("editor.clear")}
                 </button>
               </div>
             ) : (
-              <div className="small muted">No location yet – routes and the map need one.</div>
+              <div className="small muted">{t("editor.noLocation")}</div>
             )}
-            {draft.type === "activity" && (
-              <div className="small muted">
-                For an organised tour, use where it picks you up or where you meet the guide – travel times go there.
-              </div>
-            )}
+            {draft.type === "activity" && <div className="small muted">{t("editor.tourHint")}</div>}
           </fieldset>
 
           {draft.type === "activity" && (
             <fieldset>
-              <legend>🗺️ Places visited on the tour</legend>
+              <legend>{t("editor.tourStops")}</legend>
               <PlaceSearch
                 bias={stops.at(-1)?.location ?? draft.location ?? tripCenter(trip)}
-                placeholder="Add a place the tour visits"
+                placeholder={t("editor.addStop")}
                 onPick={(p) =>
                   setStops([...stops, { name: p.name, location: { lat: p.lat, lng: p.lng, address: p.address, placeId: p.placeId } }])
                 }
@@ -295,32 +294,32 @@ export function ItemEditor({
                         {i + 1}. <strong>{s.name}</strong>
                         {s.location?.address && <span className="muted"> · {s.location.address}</span>}
                       </span>
-                      <button className="btn small ghost" title="Move up" disabled={i === 0} onClick={() => moveStop(i, i - 1)}>
+                      <button className="btn small ghost" title={t("editor.moveUp")} disabled={i === 0} onClick={() => moveStop(i, i - 1)}>
                         ↑
                       </button>
                       <button
                         className="btn small ghost"
-                        title="Move down"
+                        title={t("editor.moveDown")}
                         disabled={i === stops.length - 1}
                         onClick={() => moveStop(i, i + 1)}
                       >
                         ↓
                       </button>
                       <button className="btn small ghost" onClick={() => setStops(stops.filter((_, k) => k !== i))}>
-                        Remove
+                        {t("common.remove")}
                       </button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="small muted">Optional. They show on the map, without changing the day&apos;s timing.</div>
+                <div className="small muted">{t("editor.stopsHint")}</div>
               )}
             </fieldset>
           )}
 
           {draft.type === "rental" && (
             <fieldset>
-              <legend>Return place</legend>
+              <legend>{t("editor.returnPlace")}</legend>
               <PlaceSearch
                 bias={draft.rental?.returnLocation ?? draft.location ?? tripCenter(trip)}
                 onPick={(p) =>
@@ -341,27 +340,23 @@ export function ItemEditor({
                     className="btn small ghost"
                     onClick={() => setRental({ returnPlace: undefined, returnLocation: undefined })}
                   >
-                    Clear
+                    {t("editor.clear")}
                   </button>
                 </div>
               ) : (
-                <div className="small muted">Same as the pick-up place.</div>
+                <div className="small muted">{t("editor.samePlace")}</div>
               )}
             </fieldset>
           )}
 
           <label>
-            Title
-            <input value={draft.title} onChange={(e) => set({ title: e.target.value })} placeholder="What is it?" />
+            {t("editor.title")}
+            <input value={draft.title} onChange={(e) => set({ title: e.target.value })} placeholder={t("editor.titlePlaceholder")} />
           </label>
 
           {draft.type !== "stay" && <div className="grid2">
             <label>
-              {draft.type === "rental"
-                ? "Pick-up time"
-                : draft.type === "transport"
-                  ? "Departs (local time)"
-                  : "Fixed start time (optional)"}
+              {t(draft.type === "rental" ? "editor.pickUpTime" : draft.type === "transport" ? "editor.departs" : "editor.fixedStart")}
               <input
                 type="time"
                 value={draft.startTime ?? ""}
@@ -369,7 +364,7 @@ export function ItemEditor({
               />
             </label>
             <label>
-              Duration (min) – default {formatDuration(DEFAULT_DURATION_MIN[draft.type])}
+              {t("editor.duration", { duration: formatDuration(DEFAULT_DURATION_MIN[draft.type], lang) })}
               <input
                 type="number"
                 min={0}
@@ -383,24 +378,24 @@ export function ItemEditor({
 
           {draft.type === "dive" && (
             <fieldset>
-              <legend>🤿 Dive</legend>
+              <legend>{t("editor.dive")}</legend>
               <div className="grid2">
                 <label>
-                  Dive site
+                  {t("editor.diveSite")}
                   <input
                     value={draft.dive?.site ?? ""}
                     onChange={(e) => set({ dive: { ...draft.dive!, site: e.target.value } })}
                   />
                 </label>
                 <label>
-                  Dive centre / operator
+                  {t("editor.diveCentre")}
                   <input
                     value={draft.dive?.center ?? ""}
                     onChange={(e) => set({ dive: { ...draft.dive!, center: e.target.value } })}
                   />
                 </label>
                 <label>
-                  Number of dives
+                  {t("editor.dives")}
                   <input
                     type="number"
                     min={1}
@@ -410,7 +405,7 @@ export function ItemEditor({
                   />
                 </label>
                 <label>
-                  Planned max depth (m)
+                  {t("editor.maxDepth")}
                   <input
                     type="number"
                     min={0}
@@ -422,18 +417,18 @@ export function ItemEditor({
                   />
                 </label>
                 <label>
-                  Gas
+                  {t("editor.gas")}
                   <select
                     value={draft.dive?.gas ?? "air"}
                     onChange={(e) => set({ dive: { ...draft.dive!, gas: e.target.value as Gas } })}
                   >
-                    <option value="air">Air</option>
+                    <option value="air">{t("editor.air")}</option>
                     <option value="nitrox">Nitrox</option>
                     <option value="trimix">Trimix</option>
                   </select>
                 </label>
                 <label>
-                  Mix
+                  {t("editor.mix")}
                   <input
                     value={draft.dive?.mix ?? ""}
                     placeholder={draft.dive?.gas === "trimix" ? "Tx 18/45" : draft.dive?.gas === "nitrox" ? "EAN32" : ""}
@@ -443,57 +438,54 @@ export function ItemEditor({
               </div>
               {draft.dive?.prep && (
                 <div className={`small prep prep-${draft.dive.prep.status}`}>
-                  {DIVE_PREP_ICON[draft.dive.prep.status]} <strong>{DIVE_PREP_LABEL[draft.dive.prep.status]}:</strong> {draft.dive.prep.summary}{" "}
+                  {DIVE_PREP_ICON[draft.dive.prep.status]} <strong>{t(`divePrep.${draft.dive.prep.status}`)}:</strong> {draft.dive.prep.summary}{" "}
                   {divePrepUrl(draft.dive.prep) && (
                     <a href={divePrepUrl(draft.dive.prep)} target="_blank" rel="noopener noreferrer">
-                      Open in DiveDeck
+                      {t("editor.openDiveDeck")}
                     </a>
                   )}{" "}
                   <button type="button" className="linklike" onClick={() => set({ dive: { ...draft.dive!, prep: undefined } })}>
-                    Remove
+                    {t("common.remove")}
                   </button>
                 </div>
               )}
-              <div className="small muted">
-                TripDeck warns about flights and altitude after diving using DAN&apos;s published guidance. Always follow
-                your dive computer and training.
-              </div>
+              <div className="small muted">{t("editor.diveNote")}</div>
             </fieldset>
           )}
 
           {draft.type === "transport" && (
             <fieldset>
-              <legend>✈️ Transport</legend>
+              <legend>{t("editor.transport")}</legend>
               <div className="grid2">
                 <label>
-                  Kind
+                  {t("editor.kind")}
                   <select
                     value={draft.transport?.kind ?? "flight"}
                     onChange={(e) => set({ transport: { ...draft.transport, kind: e.target.value as TransportKind } })}
                   >
                     {TRANSPORT_KINDS.map((k) => (
                       <option key={k} value={k}>
-                        {k.replace("_", " ")}
+                        {t(`transportKind.${k}`)}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  Number (flight, train…)
+                  {t("editor.number")}
                   <input
                     value={draft.transport?.number ?? ""}
                     onChange={(e) => set({ transport: { kind: "other", ...draft.transport, number: e.target.value } })}
                   />
                 </label>
                 <label>
-                  From
+                  {t("editor.from")}
                   <input
                     value={draft.transport?.from ?? ""}
                     onChange={(e) => set({ transport: { kind: "other", ...draft.transport, from: e.target.value } })}
                   />
                 </label>
                 <label>
-                  To
+                  {t("editor.to")}
                   <input
                     value={draft.transport?.to ?? ""}
                     onChange={(e) => set({ transport: { kind: "other", ...draft.transport, to: e.target.value } })}
@@ -501,7 +493,7 @@ export function ItemEditor({
                 </label>
                 <ArrivalField draft={draft} onDuration={(durationMin) => set({ durationMin })} />
               </div>
-              <div className="small">Arrives at (airport, port, station)</div>
+              <div className="small">{t("editor.arrivesAt")}</div>
               <PlaceSearch
                 bias={draft.transport?.toLocation ?? draft.location ?? tripCenter(trip)}
                 onPick={(p) =>
@@ -529,34 +521,31 @@ export function ItemEditor({
                     className="btn small ghost"
                     onClick={() => set({ transport: { kind: "other", ...draft.transport, toLocation: undefined } })}
                   >
-                    Clear
+                    {t("editor.clear")}
                   </button>
                 </div>
               ) : (
-                <div className="small muted">
-                  Optional. With it, the card&apos;s place is the departure, its length is the journey (local clock
-                  times) and the next card&apos;s route starts from the arrival.
-                </div>
+                <div className="small muted">{t("editor.arrivalHint")}</div>
               )}
             </fieldset>
           )}
 
           {draft.type === "rental" && (
             <fieldset>
-              <legend>🔑 Rental</legend>
+              <legend>{t("editor.rental")}</legend>
               <div className="grid2">
                 <label>
-                  Vehicle
+                  {t("editor.vehicle")}
                   <select value={draft.rental?.vehicle ?? "car"} onChange={(e) => setRental({ vehicle: e.target.value as RentalVehicle })}>
                     {RENTAL_VEHICLES.map((v) => (
                       <option key={v} value={v}>
-                        {RENTAL_VEHICLE_ICON[v]} {RENTAL_VEHICLE_LABEL[v]}
+                        {RENTAL_VEHICLE_ICON[v]} {t(`vehicle.${v}`)}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  Days
+                  {t("editor.days")}
                   <input
                     type="number"
                     min={1}
@@ -566,7 +555,7 @@ export function ItemEditor({
                   />
                 </label>
                 <label>
-                  Return by
+                  {t("editor.returnBy")}
                   <input
                     type="time"
                     value={draft.rental?.returnTime ?? ""}
@@ -574,7 +563,7 @@ export function ItemEditor({
                   />
                 </label>
                 <label>
-                  Rental company
+                  {t("editor.company")}
                   <input
                     list="rental-companies"
                     value={draft.booking?.provider ?? ""}
@@ -587,7 +576,7 @@ export function ItemEditor({
                   </datalist>
                 </label>
                 <label>
-                  Order / reference
+                  {t("editor.reference")}
                   <input
                     value={draft.booking?.reference ?? ""}
                     onChange={(e) => set({ booking: { ...draft.booking, reference: e.target.value || undefined } })}
@@ -600,18 +589,19 @@ export function ItemEditor({
                 />
               </div>
               <div className="small muted">
-                {rentalSummary(trip, draft, dayIndex >= 0 ? dayIndex : trip.days.findIndex((d) => d.id === container))}. Put the
-                card on the pick-up day; every day until the return shows it.
+                {t("editor.rentalHint", {
+                  summary: rentalSummary(trip, draft, dayIndex >= 0 ? dayIndex : trip.days.findIndex((d) => d.id === container), lang),
+                })}
               </div>
             </fieldset>
           )}
 
           {draft.type === "stay" && (
             <fieldset>
-              <legend>🏨 Stay</legend>
+              <legend>{t("editor.stay")}</legend>
               <div className="grid3">
                 <label>
-                  Nights
+                  {t("editor.nights")}
                   <input
                     type="number"
                     min={1}
@@ -621,7 +611,7 @@ export function ItemEditor({
                   />
                 </label>
                 <label>
-                  Check-in from
+                  {t("editor.checkIn")}
                   <input
                     type="time"
                     value={draft.stay?.checkIn ?? ""}
@@ -629,7 +619,7 @@ export function ItemEditor({
                   />
                 </label>
                 <label>
-                  Check-out by
+                  {t("editor.checkOut")}
                   <input
                     type="time"
                     value={draft.stay?.checkOut ?? ""}
@@ -638,17 +628,17 @@ export function ItemEditor({
                 </label>
               </div>
               <div className="small muted">
-                {stayRange(trip, dayIndex >= 0 ? dayIndex : trip.days.findIndex((d) => d.id === container), draft.stay?.nights ?? 1)}
-                The following days start from here.
+                {stayRange(trip, dayIndex >= 0 ? dayIndex : trip.days.findIndex((d) => d.id === container), draft.stay?.nights ?? 1, lang)}
+                {t("editor.stayHint")}
               </div>
             </fieldset>
           )}
 
           {draft.type !== "rental" && <fieldset>
-            <legend>Booking</legend>
+            <legend>{t("editor.booking")}</legend>
             <div className="grid2">
               <label>
-                Provider
+                {t("editor.provider")}
                 <input
                   list="providers"
                   value={draft.booking?.provider ?? ""}
@@ -661,14 +651,14 @@ export function ItemEditor({
                 </datalist>
               </label>
               <label>
-                Reference
+                {t("editor.bookingRef")}
                 <input
                   value={draft.booking?.reference ?? ""}
                   onChange={(e) => set({ booking: { ...draft.booking, reference: e.target.value || undefined } })}
                 />
               </label>
               <label>
-                Link
+                {t("editor.link")}
                 <input
                   type="url"
                   value={draft.booking?.url ?? ""}
@@ -684,7 +674,7 @@ export function ItemEditor({
           </fieldset>}
 
           <label>
-            Notes
+            {t("editor.notes")}
             <textarea rows={3} value={draft.notes ?? ""} onChange={(e) => set({ notes: e.target.value || undefined })} />
           </label>
         </>
@@ -698,16 +688,17 @@ export function ItemEditor({
  * arrival); with both time zones known the board works out the clock change and the real journey time.
  */
 function ArrivalField({ draft, onDuration }: { draft: Item; onDuration: (min: number) => void }) {
+  const t = useT();
   const leaves = parseHm(draft.startTime);
   if (leaves === undefined) {
-    return <div className="small muted">Set the departure time to enter the arrival time.</div>;
+    return <div className="small muted">{t("editor.setDeparture")}</div>;
   }
   const arrives = leaves + durationOf(draft);
   const nextDay = arrives >= 1440;
   return (
     <div className="grid2">
       <label>
-        Arrives (local time)
+        {t("editor.arrives")}
         <input
           type="time"
           value={formatHm(arrives % 1440)}
@@ -725,7 +716,7 @@ function ArrivalField({ draft, onDuration }: { draft: Item; onDuration: (min: nu
           checked={nextDay}
           onChange={(e) => onDuration(Math.max(0, arrives % 1440 - leaves + (e.target.checked ? 1440 : 0)))}
         />
-        Next day
+        {t("editor.nextDay")}
       </label>
     </div>
   );
@@ -733,20 +724,21 @@ function ArrivalField({ draft, onDuration }: { draft: Item; onDuration: (min: nu
 
 /** The price as written, how the budget reads it, and whether it is paid. */
 function PriceField({ booking, onChange }: { booking?: Booking; onChange: (booking: Booking) => void }) {
+  const t = useT();
   const price = parsePrice(booking?.price);
   const hint = !booking?.price
-    ? "With its currency, e.g. 1 500 THB"
+    ? t("editor.priceHint")
     : !price
-      ? "No amount – not in the budget"
+      ? t("editor.noAmount")
       : price.currency
-        ? `Budget: ${formatMoney(price.amount, price.currency)}`
+        ? t("editor.budget", { amount: formatMoney(price.amount, price.currency) })
         : price.amount
-          ? "Add the currency, e.g. 1 500 THB"
-          : "Budget: free";
+          ? t("editor.addCurrency")
+          : t("editor.free");
   return (
     <div style={{ display: "grid", gap: 4 }}>
       <label>
-        Price
+        {t("editor.price")}
         <input
           value={booking?.price ?? ""}
           placeholder="€189"
@@ -764,7 +756,7 @@ function PriceField({ booking, onChange }: { booking?: Booking; onChange: (booki
             checked={!!booking?.paid}
             onChange={(e) => onChange({ ...booking, paid: e.target.checked || undefined })}
           />
-          Paid
+          {t("editor.paid")}
         </label>
       </div>
     </div>
@@ -779,14 +771,15 @@ function BookingStatusField({
   value?: BookingStatus;
   onChange: (status: BookingStatus | undefined) => void;
 }) {
+  const t = useT();
   return (
     <label>
-      Status
+      {t("editor.status")}
       <select value={value ?? ""} onChange={(e) => onChange((e.target.value || undefined) as BookingStatus | undefined)}>
-        <option value="">Not set</option>
+        <option value="">{t("editor.notSet")}</option>
         {BOOKING_STATUSES.map((s) => (
           <option key={s} value={s}>
-            {BOOKING_STATUS_ICON[s]} {BOOKING_STATUS_LABEL[s]}
+            {BOOKING_STATUS_ICON[s]} {t(`bookingStatus.${s}`)}
           </option>
         ))}
       </select>
@@ -805,15 +798,15 @@ function TipsPanel({
   onFetch: () => void;
   onUseDuration: (min: number) => void;
 }) {
+  const t = useT();
+  const lang = useLang();
   const tips = item.tips;
   return (
     <div className="stack">
       <div className="row">
-        <span className="grow muted small">
-          Claude writes practical tips using Google&apos;s data for this place. Saved with the card.
-        </span>
+        <span className="grow muted small">{t("editor.tipsIntro")}</span>
         <button className="btn ai" onClick={onFetch} disabled={state.loading || !item.title.trim()}>
-          {state.loading ? <Spinner /> : "✨"} {tips ? "Refresh tips" : "Get tips"}
+          {state.loading ? <Spinner /> : "✨"} {t(tips ? "editor.refreshTips" : "editor.getTips")}
         </button>
       </div>
       {state.error && <div className="error">{state.error}</div>}
@@ -821,34 +814,34 @@ function TipsPanel({
         <div className="tips">
           <p style={{ margin: 0 }}>{tips.summary}</p>
           <div>
-            <strong>Best time:</strong> {tips.bestTime}
+            <strong>{t("editor.bestTime")}</strong> {tips.bestTime}
           </div>
           <div className="row">
             <span>
-              <strong>Plan for:</strong> {formatDuration(tips.suggestedDurationMin)}
+              <strong>{t("editor.planFor")}</strong> {formatDuration(tips.suggestedDurationMin, lang)}
             </span>
             {tips.suggestedDurationMin !== durationOf(item) && (
               <button className="btn small" onClick={() => onUseDuration(tips.suggestedDurationMin)}>
-                Use this duration
+                {t("editor.useDuration")}
               </button>
             )}
           </div>
           {tips.tickets && (
             <div>
-              <strong>Tickets:</strong> {tips.tickets}
+              <strong>{t("editor.tickets")}</strong> {tips.tickets}
             </div>
           )}
           {tips.parking && (
             <div>
-              <strong>Getting there:</strong> {tips.parking}
+              <strong>{t("editor.gettingThere")}</strong> {tips.parking}
             </div>
           )}
           <ul>
-            {tips.tips.map((t, i) => (
-              <li key={i}>{t}</li>
+            {tips.tips.map((tip, i) => (
+              <li key={i}>{tip}</li>
             ))}
           </ul>
-          <div className="small muted">AI-generated – double-check prices and hours before you go.</div>
+          <div className="small muted">{t("editor.aiNote")}</div>
         </div>
       )}
     </div>

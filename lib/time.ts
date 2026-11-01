@@ -1,3 +1,5 @@
+import { LOCALE, translate, type Lang } from "./i18n";
+
 /** "HH:MM" -> minutes after midnight. Returns undefined for malformed input. */
 export function parseHm(hm: string | undefined): number | undefined {
   if (!hm) return undefined;
@@ -19,12 +21,12 @@ export function formatHm(minutes: number): string {
   return `${h}:${m}${dayOffset > 0 ? ` +${dayOffset}` : ""}`;
 }
 
-export function formatDuration(minutes: number): string {
+export function formatDuration(minutes: number, lang: Lang = "en"): string {
   const total = Math.round(minutes);
-  if (total < 60) return `${total} min`;
+  if (total < 60) return translate(lang, "time.min", { n: total });
   const h = Math.floor(total / 60);
   const m = total % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
+  return m ? translate(lang, "time.hm", { h, m }) : translate(lang, "time.h", { h });
 }
 
 export function formatDistance(meters: number): string {
@@ -88,6 +90,6 @@ export function daysBetween(startDate: string, date: string): number {
   return Math.round((dayDate(date, 0).getTime() - dayDate(startDate, 0).getTime()) / 86_400_000);
 }
 
-export function formatDayLabel(date: Date): string {
-  return date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+export function formatDayLabel(date: Date, lang: Lang = "en"): string {
+  return date.toLocaleDateString(LOCALE[lang], { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 }

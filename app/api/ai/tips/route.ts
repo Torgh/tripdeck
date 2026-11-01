@@ -1,11 +1,13 @@
 import { z } from "zod";
 import { structured } from "@/lib/server/claude";
 import { placeDetails, type PlaceResult } from "@/lib/server/maps";
-import { handle, latLngSchema, readBody } from "@/lib/server/http";
+import { writeIn } from "@/lib/i18n";
+import { handle, langSchema, latLngSchema, readBody } from "@/lib/server/http";
 
 export const maxDuration = 60;
 
 const schema = z.object({
+  lang: langSchema,
   title: z.string().min(1).max(200),
   type: z.string(),
   destination: z.string().max(200),
@@ -26,7 +28,7 @@ const outputSchema = z.object({
 
 const SYSTEM = `You are the travel guide inside TripDeck, a trip planner. You write short, practical visiting tips for one place.
 Use the Google Places data provided when present. Do not invent exact prices, phone numbers or opening hours; when unsure, tell the traveller what to check and where.
-For dive sites, cover typical conditions, entry, and what marine life to look for. Write in English.`;
+For dive sites, cover typical conditions, entry, and what marine life to look for.`;
 
 export const POST = handle(async (req) => {
   const input = await readBody(req, schema);
@@ -40,7 +42,7 @@ export const POST = handle(async (req) => {
   }
 
   const tips = await structured({
-    system: SYSTEM,
+    system: `${SYSTEM} ${writeIn(input.lang)}`,
     content: `Write visiting tips for:\n${JSON.stringify(
       {
         place: input.title,

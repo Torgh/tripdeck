@@ -110,7 +110,7 @@ describe("formalities to do", () => {
     trip.items.temple.booking = { status: "todo" };
 
     expect(entryActions(trip).map((a) => a.requirement.title)).toEqual(["e-Visa", "TDAC arrival card", "Insurance"]);
-    expect(tripTodos(trip).map(todoLabel)).toEqual([
+    expect(tripTodos(trip).map((x) => todoLabel(x))).toEqual([
       "Cambodia: e-Visa – by 2026-05-20",
       "Thailand: TDAC arrival card – by 2026-06-02",
       "Cambodia: Insurance",

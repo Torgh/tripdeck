@@ -27,6 +27,7 @@ export default defineConfig({
         "lib/api.ts",
         "lib/config.ts",
         "lib/useTheme.ts",
+        "lib/useLang.ts",
         // Thin wrappers around external APIs (Claude, Google Maps, OSM).
         "lib/server/claude.ts",
         "lib/server/google.ts",

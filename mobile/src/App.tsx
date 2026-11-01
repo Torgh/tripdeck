@@ -3,11 +3,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { demoTrip } from "@/lib/demo";
 import { parseTripFile } from "@/lib/tripOps";
 import type { Trip } from "@/lib/types";
+import { useT } from "@/lib/useLang";
 import { loadTrips, saveTrips } from "./storage";
 import { TripList } from "./TripList";
 import { TripScreen } from "./TripScreen";
 
 export function App() {
+  const t = useT();
   const [trips, setTrips] = useState<Record<string, Trip> | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export function App() {
   const addTrip = (trip: Trip) => {
     const replaced = trips?.[trip.id];
     update({ ...trips, [trip.id]: trip });
-    setNotice(replaced ? `Updated “${trip.name}”` : `Imported “${trip.name}”`);
+    setNotice(t(replaced ? "phone.updated" : "phone.imported", { name: trip.name }));
     setOpenId(trip.id);
   };
 
@@ -60,7 +62,7 @@ export function App() {
     try {
       addTrip(parseTripFile(JSON.parse(await file.text()), { keepId: true }));
     } catch (e) {
-      setNotice(e instanceof SyntaxError ? "This file is not valid JSON." : (e as Error).message);
+      setNotice(e instanceof SyntaxError ? t("phone.notJson") : (e as Error).message);
     }
   };
 

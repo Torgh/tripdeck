@@ -1,47 +1,44 @@
-import { ENTRY_KIND_LABEL, entryActions, entryState, flag, hostOf } from "@/lib/entry";
+import { entryActions, entryState, flag, hostOf } from "@/lib/entry";
 import { dayDate, formatDayLabel } from "@/lib/time";
 import type { EntryCheck, EntryLevel, Trip } from "@/lib/types";
+import { useLang, useT } from "@/lib/useLang";
 
 const LEVEL_ICON: Record<EntryLevel, string> = { ok: "✅", action: "📝", warn: "⚠️", info: "ℹ️" };
 
-const day = (iso: string) => formatDayLabel(dayDate(iso, 0));
-
 /** Visas, passport rules and arrival forms as checked on the desktop (Claude via MCP); read-only here. */
 export function EntryView({ trip, entry }: { trip: Trip; entry?: EntryCheck }) {
+  const t = useT();
+  const lang = useLang();
+  const day = (iso: string) => formatDayLabel(dayDate(iso, 0), lang);
   if (!entry) {
     return (
       <>
         <div className="day-head">
-          <h2>Entry & paperwork</h2>
+          <h2>{t("phone.entry")}</h2>
         </div>
-        <p className="empty muted">
-          Not checked yet. On the desktop, ask Claude (with TripDeck connected): “Check the entry requirements for my trip
-          &ldquo;{trip.name}&rdquo; in TripDeck.” Then export the trip and import it here again.
-        </p>
+        <p className="empty muted">{t("phoneEntry.notChecked", { name: trip.name })}</p>
       </>
     );
   }
-  const state = entryState(trip);
+  const state = entryState(trip, lang);
   const todo = entryActions(trip);
 
   return (
     <>
       <div className="day-head">
-        <h2>Entry & paperwork</h2>
+        <h2>{t("phone.entry")}</h2>
         <span className="muted small">
-          {entry.passports.map(flag).join(" ")} passport · checked {day(entry.checkedAt.slice(0, 10))}
+          {t("phoneEntry.checked", { flags: entry.passports.map(flag).join(" "), date: day(entry.checkedAt.slice(0, 10)) })}
         </span>
       </div>
 
       {state.kind === "stale" && (
-        <div className="issue warn">
-          ⚠️ Checked before {state.reasons.join(" and ")} – ask Claude to check again on the desktop.
-        </div>
+        <div className="issue warn">{t("phoneEntry.stale", { reasons: state.reasons.join(t("entry.and")) })}</div>
       )}
 
       {todo.length > 0 && (
         <>
-          <h3 className="budget-heading">To do</h3>
+          <h3 className="budget-heading">{t("phoneEntry.todo")}</h3>
           <ul className="budget-list">
             {todo.map(({ country, requirement: r }) => (
               <li key={`${country.code}-${r.title}`}>
@@ -49,7 +46,7 @@ export function EntryView({ trip, entry }: { trip: Trip; entry?: EntryCheck }) {
                   <span className="grow">
                     {flag(country.code)} {r.title}
                   </span>
-                  {r.dueBy && <span className="warn-text small entry-due">by {day(r.dueBy)}</span>}
+                  {r.dueBy && <span className="warn-text small entry-due">{t("phoneEntry.by", { date: day(r.dueBy) })}</span>}
                 </div>
               </li>
             ))}
@@ -61,7 +58,7 @@ export function EntryView({ trip, entry }: { trip: Trip; entry?: EntryCheck }) {
         <section key={c.code}>
           <h3 className="budget-heading">
             {flag(c.code)} {c.name}
-            {c.transit ? " · transit" : ""}
+            {c.transit ? t("phoneEntry.transit") : ""}
             {c.from ? ` · ${day(c.from)}${c.to && c.to !== c.from ? ` – ${day(c.to)}` : ""}` : ""}
           </h3>
           <ul className="budget-list entry-list">
@@ -77,8 +74,8 @@ export function EntryView({ trip, entry }: { trip: Trip; entry?: EntryCheck }) {
                   <span className="grow">
                     <span>
                       <strong>{r.title}</strong>
-                      <span className="muted small"> · {ENTRY_KIND_LABEL[r.kind]}</span>
-                      {r.dueBy && !r.done && <span className="warn-text small"> · by {day(r.dueBy)}</span>}
+                      <span className="muted small"> · {t(`entryKind.${r.kind}`)}</span>
+                      {r.dueBy && !r.done && <span className="warn-text small">{t("phoneEntry.byDot", { date: day(r.dueBy) })}</span>}
                     </span>
                     {r.details && <span className="small">{r.details}</span>}
                     {r.url && (
@@ -93,7 +90,7 @@ export function EntryView({ trip, entry }: { trip: Trip; entry?: EntryCheck }) {
           </ul>
           {c.sources.length > 0 && (
             <p className="muted small entry-sources">
-              Sources:{" "}
+              {t("entry.sources")}{" "}
               {c.sources.map((s, i) => (
                 <span key={s.url}>
                   {i > 0 && " · "}
@@ -108,8 +105,7 @@ export function EntryView({ trip, entry }: { trip: Trip; entry?: EntryCheck }) {
       ))}
 
       <p className="muted small budget-note">
-        Entry rules change: confirm on the official sites before you go. Ticked off on the desktop; import the trip again to
-        see the latest.
+        {t("phoneEntry.note")}
       </p>
     </>
   );

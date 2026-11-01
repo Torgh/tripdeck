@@ -1,3 +1,4 @@
+import { translator, type Lang } from "./i18n";
 import { dayDate, formatDuration, formatHm, formatShift, isoDate, utcOffsetMin, zonedTimeToUtc } from "./time";
 import { durationOf, type DayTimeline, type Issue } from "./timeline";
 import type { Item, Trip } from "./types";
@@ -54,7 +55,8 @@ export function homeTimeZone(trip: Trip): string | undefined {
  * Notes for journeys that change the clocks: how much and how long the journey really is, a check
  * that the arrival time adds up, and – when you land far from home – what the first days feel like.
  */
-export function computeClockNotes(trip: Trip, timelines: DayTimeline[]): Map<string, Issue[]> {
+export function computeClockNotes(trip: Trip, timelines: DayTimeline[], lang: Lang = "en"): Map<string, Issue[]> {
+  const t = translator(lang);
   const out = new Map<string, Issue[]>();
   const home = homeTimeZone(trip);
   timelines.forEach((tl, d) => {
@@ -63,16 +65,20 @@ export function computeClockNotes(trip: Trip, timelines: DayTimeline[]): Map<str
       const clock = item && clockOf(trip, item, d, e.start, home);
       if (!clock) continue;
       const issues: Issue[] = [];
-      const kind = item.transport?.kind === "flight" ? "flight" : "journey";
+      const kind = t(item.transport?.kind === "flight" ? "clock.flight" : "clock.journey");
       if (clock.travelMin <= 0) {
         issues.push({
           level: "warn",
-          message: `With the ${formatShift(clock.shiftMin)} time difference this ${kind} would arrive before it leaves – check the local arrival time.`,
+          message: t("clock.beforeLeaves", { shift: formatShift(clock.shiftMin), kind }),
         });
       } else if (clock.shiftMin !== 0) {
         issues.push({
           level: "info",
-          message: `🕐 Clocks ${clock.shiftMin > 0 ? "go forward" : "go back"} ${formatShift(clock.shiftMin).slice(1)} on arrival – the ${kind} itself takes ${formatDuration(clock.travelMin)}.`,
+          message: t(clock.shiftMin > 0 ? "clock.forward" : "clock.back", {
+            shift: formatShift(clock.shiftMin).slice(1),
+            kind,
+            duration: formatDuration(clock.travelMin, lang),
+          }),
         });
       }
       const far = (m?: number) => m !== undefined && Math.abs(m) >= JET_LAG_MIN;
@@ -80,9 +86,7 @@ export function computeClockNotes(trip: Trip, timelines: DayTimeline[]): Map<str
         const ahead = clock.fromHomeMin! > 0;
         issues.push({
           level: "info",
-          message: ahead
-            ? `Local time here is ${formatShift(clock.fromHomeMin!).slice(1)} ahead of home: for a day or two, mornings will feel like the middle of the night.`
-            : `Local time here is ${formatShift(clock.fromHomeMin!).slice(1)} behind home: for a day or two, you'll be tired early in the evening and awake before dawn.`,
+          message: t(ahead ? "clock.ahead" : "clock.behind", { shift: formatShift(clock.fromHomeMin!).slice(1) }),
         });
       }
       if (issues.length) out.set(item.id, issues);

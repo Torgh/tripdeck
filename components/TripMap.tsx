@@ -5,9 +5,17 @@ import { useMemo } from "react";
 import { useConfig } from "@/lib/config";
 import { buildLayers } from "@/lib/mapLayers";
 import type { Trip } from "@/lib/types";
+import { useT } from "@/lib/useLang";
 import { useTheme } from "@/lib/useTheme";
 
-const loading = () => <div className="map-placeholder">Loading map…</div>;
+function loading() {
+  return <MapLoading />;
+}
+
+function MapLoading() {
+  const t = useT();
+  return <div className="map-placeholder">{t("map.loading")}</div>;
+}
 // Each map library is large and only one is ever used, so it is downloaded when the map is shown.
 const GoogleMap = dynamic(() => import("./GoogleMap").then((m) => m.GoogleMap), { ssr: false, loading });
 const OsmMap = dynamic(() => import("./OsmMap").then((m) => m.OsmMap), { ssr: false, loading });

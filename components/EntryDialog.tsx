@@ -4,15 +4,16 @@ import { useEffect, useState } from "react";
 import {
   COUNTRY_CODES,
   countryName,
-  ENTRY_KIND_LABEL,
   entryState,
   flag,
   hostOf,
   setRequirementDone,
 } from "@/lib/entry";
+import { LOCALE } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import { dayDate, formatDayLabel } from "@/lib/time";
 import type { EntryLevel, Trip } from "@/lib/types";
+import { useLang, useT } from "@/lib/useLang";
 import { Modal } from "./Modal";
 
 const LEVEL_ICON: Record<EntryLevel, string> = { ok: "✅", action: "📝", warn: "⚠️", info: "ℹ️" };
@@ -31,21 +32,23 @@ function defaultPassports(): string[] {
   return region && COUNTRY_CODES.includes(region) ? [region] : [];
 }
 
-const byName = [...COUNTRY_CODES].sort((a, b) => countryName(a).localeCompare(countryName(b)));
-
-const day = (iso: string) => formatDayLabel(dayDate(iso, 0));
 
 /**
  * Visas, passports, arrival forms and other formalities for the countries on the route. Claude
  * researches them on the web through MCP (save_entry_check); here they are shown and ticked off.
  */
 export function EntryDialog({ trip, onClose }: { trip: Trip; onClose: () => void }) {
+  const t = useT();
+  const lang = useLang();
   const updateTrip = useStore((s) => s.updateTrip);
   const [copied, setCopied] = useState(false);
   const passports = trip.passports ?? [];
   const check = trip.entry;
-  const status = entryState(trip);
-  const ask = `Check the entry requirements for my trip "${trip.name}" in TripDeck.`;
+  const status = entryState(trip, lang);
+  const ask = t("entry.ask", { name: trip.name });
+  const country = (code: string) => countryName(code, lang);
+  const byName = [...COUNTRY_CODES].sort((a, b) => country(a).localeCompare(country(b), lang));
+  const day = (iso: string) => formatDayLabel(dayDate(iso, 0), lang);
 
   const setPassports = (codes: string[]) => {
     updateTrip(trip.id, { passports: codes });
@@ -74,16 +77,16 @@ export function EntryDialog({ trip, onClose }: { trip: Trip; onClose: () => void
     check && updateTrip(trip.id, { entry: setRequirementDone(check, code, index, done) });
 
   return (
-    <Modal title="🛂 Entry & paperwork" onClose={onClose} wide>
+    <Modal title={t("entry.title")} onClose={onClose} wide>
       <div className="entry">
         <div className="row wrap">
-          <span className="muted small">Passports:</span>
+          <span className="muted small">{t("entry.passports")}</span>
           {passports.map((c) => (
             <span key={c} className="badge">
-              {flag(c)} {countryName(c)}
+              {flag(c)} {country(c)}
               <button
                 className="linklike"
-                aria-label={`Remove ${countryName(c)}`}
+                aria-label={t("entry.removePassport", { country: country(c) })}
                 onClick={() => setPassports(passports.filter((p) => p !== c))}
               >
                 ✕
@@ -93,15 +96,15 @@ export function EntryDialog({ trip, onClose }: { trip: Trip; onClose: () => void
           <select
             className="entry-add"
             value=""
-            aria-label="Add a passport"
+            aria-label={t("entry.addPassport")}
             onChange={(e) => e.target.value && setPassports([...passports, e.target.value])}
           >
-            <option value="">+ Add passport</option>
+            <option value="">{t("entry.addPassportOption")}</option>
             {byName
               .filter((c) => !passports.includes(c))
               .map((c) => (
                 <option key={c} value={c}>
-                  {countryName(c)}
+                  {country(c)}
                 </option>
               ))}
           </select>
@@ -109,25 +112,22 @@ export function EntryDialog({ trip, onClose }: { trip: Trip; onClose: () => void
 
         <div className="entry-ask">
           <span className="grow small">
-            {check ? "To check again, ask" : "Claude researches the current rules on the web for you. Ask"} Claude (with
-            TripDeck connected): <q>{ask}</q>
+            {t(check ? "entry.askAgain" : "entry.askFirst")} <q>{ask}</q>
           </span>
           <button className="btn small" onClick={copy}>
-            {copied ? "Copied" : "Copy"}
+            {t(copied ? "entry.copied" : "common.copy")}
           </button>
         </div>
 
         {status.kind === "stale" && (
-          <p className="issue warn">
-            Checked before {status.reasons.join(" and ")} – check again so it matches the trip.
-          </p>
+          <p className="issue warn">{t("entry.stale", { reasons: status.reasons.join(t("entry.and")) })}</p>
         )}
 
         {check?.countries.map((c) => (
           <section key={c.code} className="entry-country">
             <h3>
               {flag(c.code)} {c.name}
-              {c.transit && <span className="badge">transit</span>}
+              {c.transit && <span className="badge">{t("entry.transit")}</span>}
               {c.from && (
                 <span className="muted small">
                   {" "}
@@ -144,8 +144,8 @@ export function EntryDialog({ trip, onClose }: { trip: Trip; onClose: () => void
                   <span className="grow">
                     <span>
                       <strong>{r.title}</strong>
-                      <span className="muted small"> · {ENTRY_KIND_LABEL[r.kind]} </span>
-                      {r.dueBy && !r.done && <span className="badge status-pending">by {day(r.dueBy)}</span>}
+                      <span className="muted small"> · {t(`entryKind.${r.kind}`)} </span>
+                      {r.dueBy && !r.done && <span className="badge status-pending">{t("entry.by", { date: day(r.dueBy) })}</span>}
                     </span>
                     {r.details && <div className="small">{r.details}</div>}
                     {r.url && (
@@ -157,7 +157,7 @@ export function EntryDialog({ trip, onClose }: { trip: Trip; onClose: () => void
                   {r.level === "action" && (
                     <label className="entry-done">
                       <input type="checkbox" checked={!!r.done} onChange={(e) => tick(c.code, i, e.target.checked)} />
-                      Done
+                      {t("entry.done")}
                     </label>
                   )}
                 </li>
@@ -165,7 +165,7 @@ export function EntryDialog({ trip, onClose }: { trip: Trip; onClose: () => void
             </ul>
             {c.sources.length > 0 && (
               <p className="small muted">
-                Sources:{" "}
+                {t("entry.sources")}{" "}
                 {c.sources.map((s, i) => (
                   <span key={s.url}>
                     {i > 0 && " · "}
@@ -181,9 +181,9 @@ export function EntryDialog({ trip, onClose }: { trip: Trip; onClose: () => void
 
         {check && (
           <p className="small muted">
-            Checked {new Date(check.checkedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.
-            Entry rules change: confirm on the official sites before you book and again before you go. Links lead only to the
-            official sites Claude used as sources; pay visa fees only there.
+            {t("entry.checked", {
+              date: new Date(check.checkedAt).toLocaleDateString(LOCALE[lang], { day: "numeric", month: "short", year: "numeric" }),
+            })}
           </p>
         )}
       </div>

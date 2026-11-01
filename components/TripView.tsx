@@ -14,6 +14,7 @@ import { dayDate, formatDayLabel } from "@/lib/time";
 import { computeTripTimeline } from "@/lib/timeline";
 import { tripTodos } from "@/lib/todo";
 import type { ContainerId, Item } from "@/lib/types";
+import { useLang, useT } from "@/lib/useLang";
 import { Board } from "./Board";
 import { ExportMenu } from "./ExportMenu";
 import type { EditorTarget } from "./ItemEditor";
@@ -77,20 +78,22 @@ export function TripView({ tripId }: { tripId: string | null }) {
   const [tab, setTab] = useState<"board" | "map">("board");
   const mapWidth = useMapWidth();
   const ai = useConfig()?.ai ?? false;
+  const lang = useLang();
+  const t = useT();
 
-  const timelines = useMemo(() => (trip ? computeTripTimeline(trip) : []), [trip]);
+  const timelines = useMemo(() => (trip ? computeTripTimeline(trip, lang) : []), [trip, lang]);
   useRouteLegs(trip, timelines);
   usePrefetchDialogs();
   useElevations(trip);
   useTimeZones(trip);
 
   const warnings = useMemo(
-    () => (trip ? mergeIssues(computeDiveWarnings(trip, timelines), computeClockNotes(trip, timelines)) : new Map()),
-    [trip, timelines],
+    () => (trip ? mergeIssues(computeDiveWarnings(trip, timelines, lang), computeClockNotes(trip, timelines, lang)) : new Map()),
+    [trip, timelines, lang],
   );
   const todos = useMemo(() => (trip ? tripTodos(trip) : []), [trip]);
   const budget = useTripBudget(trip);
-  const entry = useMemo(() => (trip ? entryState(trip) : undefined), [trip]);
+  const entry = useMemo(() => (trip ? entryState(trip, lang) : undefined), [trip, lang]);
 
   // Stable, so the board's cards (memoised) don't re-render because of new handlers.
   const onEdit = useCallback(
@@ -107,12 +110,12 @@ export function TripView({ tripId }: { tripId: string | null }) {
   );
   const onOptimize = useCallback((dayId: string) => setDialog({ kind: "optimize", dayId }), []);
 
-  if (!hydrated) return <main className="home muted">Loading…</main>;
+  if (!hydrated) return <main className="home muted">{t("common.loading")}</main>;
   if (!trip) {
     return (
       <main className="home">
-        <p>Trip not found in this browser.</p>
-        <Link href="/">← All trips</Link>
+        <p>{t("trip.notFound")}</p>
+        <Link href="/">{t("trip.allTrips")}</Link>
       </main>
     );
   }
@@ -132,20 +135,20 @@ export function TripView({ tripId }: { tripId: string | null }) {
   return (
     <div className="trip">
       <header className="topbar">
-        <Link href="/" className="btn ghost" aria-label="All trips">
+        <Link href="/" className="btn ghost" aria-label={t("common.allTrips")}>
           ←
         </Link>
         <div>
           <h1>{trip.name}</h1>
           <div className="small muted">
-            {trip.destination} · {formatDayLabel(dayDate(trip.startDate, 0))} –{" "}
-            {formatDayLabel(dayDate(trip.startDate, trip.days.length - 1))}
-            {warningCount > 0 && <span style={{ color: "var(--warn)" }}> · ⚠️ {warningCount} warning(s)</span>}
+            {trip.destination} · {formatDayLabel(dayDate(trip.startDate, 0), lang)} –{" "}
+            {formatDayLabel(dayDate(trip.startDate, trip.days.length - 1), lang)}
+            {warningCount > 0 && <span style={{ color: "var(--warn)" }}> · {t("trip.warnings", { n: warningCount })}</span>}
             {todos.length > 0 && (
               <>
                 {" · "}
                 <button className="linklike todo-link" onClick={() => setDialog({ kind: "todo" })}>
-                  📝 {todos.length} to sort out
+                  {t("trip.toSortOut", { n: todos.length })}
                 </button>
               </>
             )}
@@ -153,10 +156,10 @@ export function TripView({ tripId }: { tripId: string | null }) {
             <button
               className="linklike"
               style={entry?.kind === "stale" ? { color: "var(--warn)" } : undefined}
-              title={entry?.kind === "stale" ? "The plan changed since the entry rules were checked" : undefined}
+              title={entry?.kind === "stale" ? t("trip.entryStale") : undefined}
               onClick={() => setDialog({ kind: "entry" })}
             >
-              🛂 {entry?.kind === "none" ? "Entry rules" : entry?.kind === "stale" ? "Entry rules ⚠️" : "Entry"}
+              🛂 {t(entry?.kind === "none" ? "trip.entryRules" : entry?.kind === "stale" ? "trip.entryRulesStale" : "trip.entry")}
             </button>
             {budget && (
               <>
@@ -168,9 +171,13 @@ export function TripView({ tripId }: { tripId: string | null }) {
                 >
                   💰{" "}
                   {budget.lines.length || budget.limit
-                    ? formatMoney(budget.total, budget.currency) +
-                      (budget.limit ? ` of ${formatMoney(budget.limit, budget.currency)}` : "")
-                    : "Budget"}
+                    ? budget.limit
+                      ? t("trip.budgetOf", {
+                          total: formatMoney(budget.total, budget.currency),
+                          limit: formatMoney(budget.limit, budget.currency),
+                        })
+                      : formatMoney(budget.total, budget.currency)
+                    : t("trip.budget")}
                 </button>
               </>
             )}
@@ -178,22 +185,22 @@ export function TripView({ tripId }: { tripId: string | null }) {
         </div>
         <div className="mobile-tabs">
           <button className={`btn small${tab === "board" ? " primary" : ""}`} onClick={() => setTab("board")}>
-            Plan
+            {t("trip.plan")}
           </button>
           <button className={`btn small${tab === "map" ? " primary" : ""}`} onClick={() => setTab("map")}>
-            Map
+            {t("trip.map")}
           </button>
         </div>
         <div className="actions">
           <SyncBadge />
           <button className="btn" onClick={() => setDialog({ kind: "import" })}>
-            📥 <span className="label">Import booking</span>
+            📥 <span className="label">{t("trip.importBooking")}</span>
           </button>
           <ExportMenu tripId={trip.id} onJson={exportTrip} />
           <button className="btn" onClick={() => setDialog({ kind: "settings" })}>
-            ✏️ <span className="label">Trip</span>
+            ✏️ <span className="label">{t("trip.tripButton")}</span>
           </button>
-          <Link className="btn" href="/settings" title="App settings: storage, maps, Claude">
+          <Link className="btn" href="/settings" title={t("trip.appSettings")}>
             ⚙
           </Link>
         </div>
@@ -220,12 +227,12 @@ export function TripView({ tripId }: { tripId: string | null }) {
             <select
               value={selectedDayId ?? ""}
               onChange={(e) => setSelectedDayId(e.target.value || null)}
-              aria-label="Days shown on the map"
+              aria-label={t("trip.daysOnMap")}
             >
-              <option value="">All days</option>
+              <option value="">{t("trip.allDays")}</option>
               {trip.days.map((d, i) => (
                 <option key={d.id} value={d.id}>
-                  Day {i + 1}
+                  {t("common.day", { day: i + 1 })}
                 </option>
               ))}
             </select>

@@ -3,7 +3,6 @@ export type ThemeChoice = "system" | "light" | "dark";
 export type Theme = "light" | "dark";
 
 export const THEME_CHOICES: ThemeChoice[] = ["system", "light", "dark"];
-export const THEME_LABEL: Record<ThemeChoice, string> = { system: "System", light: "Light", dark: "Dark" };
 
 /** localStorage key; the choice is per browser, like the trips' local copy. */
 export const THEME_KEY = "tripdeck-theme";

@@ -16,7 +16,7 @@ describe("tripTodos", () => {
     const trip = tripWith([[stay("hotel", 1), card("dives", "pending")], [card("ferry", "todo")], [card("museum", "confirmed")]]);
     trip.items.boat = card("boat", "todo");
     trip.ideas.push("boat");
-    expect(tripTodos(trip).map(todoLabel)).toEqual([
+    expect(tripTodos(trip).map((x) => todoLabel(x))).toEqual([
       "dives (day 1): waiting for confirmation",
       "ferry (day 2): to book",
       "Night after day 2: nowhere to sleep yet",
