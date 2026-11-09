@@ -37,7 +37,7 @@ jobs:
             build-mode: manual
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -50,7 +50,7 @@ jobs:
         with:
           node-version: 24
       - if: matrix.build-mode == 'manual'
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: 21
@@ -65,7 +65,7 @@ jobs:
 
       # Alerts only for our code: the build compiles Capacitor's Java from node_modules, and
       # paths-ignore has no effect on compiled languages, so its results are dropped here.
-      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           category: /language:${{ matrix.language }}
           upload: never
@@ -76,7 +76,7 @@ jobs:
             jq '.runs[].results |= map(select(any(.locations[]?; .physicalLocation.artifactLocation.uri | startswith("node_modules/")) | not))' "$f" > "$f.tmp"
             mv "$f.tmp" "$f"
           done
-      - uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: sarif-results
           category: /language:${{ matrix.language }}
