@@ -61,6 +61,9 @@ describe("convert and formatMoney", () => {
     expect(formatMoney(1234.4, "EUR")).toBe("€1,234");
     expect(formatMoney(12.5, "EUR")).toBe("€12.50");
     expect(formatMoney(1500, "THB")).toBe("฿1,500");
+    // Pesos are not US dollars.
+    expect(formatMoney(600, "MXN")).toBe("MX$600");
+    expect(formatMoney(600, "USD")).toBe("$600");
   });
 });
 

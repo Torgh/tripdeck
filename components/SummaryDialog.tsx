@@ -38,7 +38,7 @@ export function SummaryDialog({
 
   const tiles: [string, string, string?][] = [
     ["📅", t("summary.days", { n: s.days }), s.nights ? t("summary.nights", { n: s.nights, stays: s.stays }) : undefined],
-    ["📍", t("summary.places", { n: s.places })],
+    ...(s.places ? [["📍", t("summary.places", { n: s.places })] as [string, string]] : []),
     ...(s.dives ? [["🤿", t("summary.dives", { n: s.dives }), t("summary.diveDays", { n: s.diveDays })] as [string, string, string]] : []),
     ...(total
       ? [["🧭", km(total), `${ways.map(([icon, n]) => `${icon} ${km(n)}`).join(" · ")}${s.roadEstimated ? ` · ${t("summary.estimated")}` : ""}`] as [
@@ -51,7 +51,8 @@ export function SummaryDialog({
       ? [["🎫", [s.flights && t("summary.flights", { n: s.flights }), s.ferries && t("summary.ferries", { n: s.ferries }), s.trains && t("summary.trains", { n: s.trains })].filter(Boolean).join(" · ")] as [string, string]]
       : []),
     ...(s.countries.length ? [["🌍", s.countries.join(", ")] as [string, string]] : []),
-    ...(s.highest ? [["⛰️", `${s.highest.m.toLocaleString()} m`, s.highest.title] as [string, string, string]] : []),
+    // Only a height worth mentioning: a hill, a pass, a mountain.
+    ...(s.highest && s.highest.m >= 500 ? [["⛰️", `${s.highest.m.toLocaleString()} m`, s.highest.title] as [string, string, string]] : []),
   ];
 
   return (

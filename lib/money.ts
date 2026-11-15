@@ -121,17 +121,23 @@ export function convert(money: Money, base: string, rates?: Rates): number | und
   return rate ? money.amount / rate : undefined;
 }
 
-/** "€1,235" – whole units from 100 up, cents below. */
+/**
+ * "€1,235" – whole units from 100 up, cents below. Pesos and other dollars get their full symbol
+ * ("MX$600", "CA$40"): a bare "$" would read as US dollars next to them.
+ */
 export function formatMoney(amount: number, currency: string): string {
   const digits = Math.abs(amount) >= 100 || Number.isInteger(amount) ? 0 : 2;
-  try {
-    return new Intl.NumberFormat("en", {
+  const format = (currencyDisplay: "narrowSymbol" | "symbol") =>
+    new Intl.NumberFormat("en", {
       style: "currency",
       currency,
-      currencyDisplay: "narrowSymbol",
+      currencyDisplay,
       maximumFractionDigits: digits,
       minimumFractionDigits: digits,
     }).format(amount);
+  try {
+    const narrow = format("narrowSymbol");
+    return currency !== "USD" && narrow.includes("$") ? format("symbol") : narrow;
   } catch {
     return `${amount.toFixed(digits)} ${currency}`;
   }
