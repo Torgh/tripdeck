@@ -31,6 +31,7 @@ import { guessType, itemFieldsFromPlace } from "../lib/places";
 import { defaultModeTo, rentalsOf, VEHICLE_MODE } from "../lib/rentals";
 import { HttpError } from "../lib/server/errors";
 import { exchangeRates } from "../lib/server/rates";
+import { ideasForFreeDays } from "../lib/ideaFit";
 import { budgetCurrency, budgetSummary, foreignCurrencies, formatMoney, RATE_CURRENCIES, tripBudget, type Budget } from "../lib/money";
 import {
   elevation,
@@ -83,6 +84,7 @@ How to work:
 - Start with list_trips / get_trip. Refer to cards by their item_id. Days are numbered from 1; day 0 means Ideas.
 - Early plans: a trip can start with its dates open – no start_date, perhaps no days, only Ideas and a rough timing ("spring 2027, about 10 days"). When the user is only starting to think about a trip, create it that way (create_trip without start_date), collect places as Ideas, and fill in timing, days and finally the dates with update_trip as the plan firms up. Without dates there are no weekdays, so opening days and entry deadlines cannot be checked yet – say so.
 - To find places use search_places (by name) or nearby_places (what is around a card). Prefer adding cards with place_query so they get coordinates and a map pin.
+- Days with time to spare: get_trip lists the ideas near them ("Time to spare – ideas nearby"). Offer them to the user, and move the ones they want with move_item.
 - Before reordering a day, call optimize_day for real travel times, then decide (meals, sunset, heat, opening hours) and apply with reorder_day. Explain your reasoning briefly.
 - Booking confirmations: if you have Gmail (or another mail) tools, search for confirmations (Booking.com, GetYourGuide, Viator, Airbnb, airlines, ferries, car / scooter rentals, dive centres), then add one card per booking on the right day with provider, reference, times and price. Never invent booking numbers.
 - Booking status: booking.status "confirmed", "pending" (paid or requested, not confirmed yet) or "todo" (still to book). get_trip lists the pending and to-book ones, and nights with nowhere to sleep, under "To sort out" – mention them.
@@ -303,6 +305,7 @@ function renderTrip(trip: Trip, budget?: Budget): string {
   if (budget) lines.push(...budgetLines(budget));
   lines.push(...entryLines(trip));
   const nights = nightsOf(trip);
+  const freeDays = new Map(ideasForFreeDays(trip, timelines).map((f) => [f.dayIndex, f]));
 
   timelines.forEach((tl, d) => {
     const day = trip.days[d];
@@ -344,6 +347,12 @@ function renderTrip(trip: Trip, budget?: Budget): string {
     if (night?.kind === "stay") lines.push(`Night: ${night.stay.title} [${night.stay.id}] (night ${night.night} of ${night.nights})`);
     if (night?.kind === "transport") lines.push(`Night: on the way – ${night.item.title} [${night.item.id}]`);
     if (night?.kind === "none") lines.push("Night: ⚠️ nowhere to sleep yet");
+    const free = freeDays.get(d);
+    if (free) {
+      lines.push(
+        `💡 Time to spare – ideas nearby: ${free.ideas.map((n) => `${n.item.title} [${n.item.id}] ${n.km < 1 ? "<1" : Math.round(n.km)} km`).join(", ")}`,
+      );
+    }
     lines.push("");
   });
 

@@ -165,6 +165,9 @@ export const es: Messages = {
     allDays: "Todos los días",
   },
   board: {
+    ideasNearby: plural({ one: "Hay tiempo – {n} idea cerca:", other: "Hay tiempo – {n} ideas cerca:" }),
+    moveHere: "+ Aquí",
+    moveHereTitle: "Pasarla de Ideas a este día",
     onSiteTitle: "A pagar allí",
     onSiteCashTitle: "A pagar allí, solo en efectivo",
     dayItems: plural({ one: "Día {day} · {n} tarjeta", other: "Día {day} · {n} tarjetas" }),

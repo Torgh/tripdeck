@@ -24,6 +24,8 @@ interface State {
   updateItem: (tripId: string, itemId: string, patch: Partial<Item>) => void;
   removeItem: (tripId: string, itemId: string) => void;
   setContainers: (tripId: string, containers: Record<ContainerId, string[]>) => void;
+  /** Moves a card to a day or Ideas, at the end unless `index` is given. */
+  moveItem: (tripId: string, itemId: string, container: ContainerId, index?: number) => void;
   /** Reorders one container (used by "apply optimised order"). */
   setContainerOrder: (tripId: string, container: ContainerId, itemIds: string[]) => void;
   moveDay: (tripId: string, from: number, to: number) => void;
@@ -120,6 +122,7 @@ export const useStore = create<State>()(
         setContainerOrder: (tripId, container, itemIds) =>
           reorder(tripId, (t) => ops.withContainers(t, { [container]: itemIds })),
         moveDay: (tripId, from, to) => reorder(tripId, (t) => ops.moveDay(t, from, to)),
+        moveItem: (tripId, itemId, container, index) => reorder(tripId, (t) => ops.moveItem(t, itemId, container, index)),
         addDay: (tripId) => mutate(tripId, (t) => ({ ...t, days: [...t.days, ops.newDay()] })),
         removeDay: (tripId, dayId) =>
           reorder(tripId, (t) => {

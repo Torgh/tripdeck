@@ -164,6 +164,9 @@ export const en = {
     allDays: "All days",
   },
   board: {
+    ideasNearby: plural({ one: "Time to spare – {n} idea nearby:", other: "Time to spare – {n} ideas nearby:" }),
+    moveHere: "+ Here",
+    moveHereTitle: "Move it from Ideas to this day",
     onSiteTitle: "Still to pay on site",
     onSiteCashTitle: "Still to pay on site, cash only",
     dayItems: plural({ one: "Day {day} · {n} item", other: "Day {day} · {n} items" }),

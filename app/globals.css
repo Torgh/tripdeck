@@ -623,6 +623,20 @@ body:has(.home)::before {
   padding: 2px 4px 0;
 }
 
+/* Ideas near a day with time to spare (lib/ideaFit.ts). */
+.ideas-nearby {
+  display: grid;
+  gap: 4px;
+  margin: 0 8px 8px;
+  padding: 6px 8px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.ideas-nearby .row {
+  gap: 6px;
+}
+
 .item {
   background: var(--surface);
   border: 1px solid var(--border);
