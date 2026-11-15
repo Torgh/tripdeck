@@ -335,6 +335,8 @@ function ItemDetails({ item, show }: { item: Item; show: PrintOptions }) {
         .join(" · "),
     );
     if (d.prep) bits.push(`${DIVE_PREP_ICON[d.prep.status]} ${t(`divePrep.${d.prep.status}`)}: ${d.prep.summary}`);
+    // The whole preparation, so the paper copy has it without DiveDeck.
+    if (d.prep?.details) bits.push(d.prep.details);
   }
   if (item.tour?.stops.length) bits.push(t("print.visits", { stops: item.tour.stops.map((s) => s.name).join(" → ") }));
   const b = item.booking;

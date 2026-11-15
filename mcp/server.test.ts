@@ -172,11 +172,15 @@ describe.skipIf(!bun)("MCP server", () => {
       '"Canyon": check prep.',
     );
     expect(await ok("get_trip", { trip_id: tripId })).toContain(`dive prep: check prep – Deepest so far 24 m: do a 25 m dive first. (${url})`);
+    // The full text is kept for the phone, also when the verdict is saved again without it.
+    await ok("save_dive_prep", { trip_id: tripId, item_id: dive, status: "check", summary: "Deepest so far 24 m.", url, details: "- Max 25 m\n- 50 bar reserve" });
+    await ok("save_dive_prep", { trip_id: tripId, item_id: dive, status: "check", summary: "Deepest so far 24 m: do a 25 m dive first.", url });
+    expect(await ok("get_trip", { trip_id: tripId })).toContain("full text saved");
 
     // Changing the dive keeps the preparation and the mix unless a new mix is given.
     await ok("update_item", { trip_id: tripId, item_id: dive, dive: { dives: 2, max_depth_m: 28 } });
     const saved = JSON.parse(fs.readFileSync(path.join(home, "trips", `${tripId}.json`), "utf8")).items[dive].dive;
-    expect(saved).toMatchObject({ dives: 2, maxDepthM: 28, gas: "nitrox", mix: "EAN32", prep: { status: "check", url } });
+    expect(saved).toMatchObject({ dives: 2, maxDepthM: 28, gas: "nitrox", mix: "EAN32", prep: { status: "check", url, details: "- Max 25 m\n- 50 bar reserve" } });
     await ok("update_item", { trip_id: tripId, item_id: dive, dive: { dives: 2, mix: "" } });
     expect(await ok("get_trip", { trip_id: tripId })).toContain("2 dive(s), nitrox");
 

@@ -454,6 +454,12 @@ export function ItemEditor({
                   <button type="button" className="linklike" onClick={() => set({ dive: { ...draft.dive!, prep: undefined } })}>
                     {t("common.remove")}
                   </button>
+                  {draft.dive.prep.details && (
+                    <details>
+                      <summary>{t("editor.prepDetails")}</summary>
+                      <p style={{ whiteSpace: "pre-line", margin: "4px 0 0" }}>{draft.dive.prep.details}</p>
+                    </details>
+                  )}
                 </div>
               )}
               <div className="small muted">{t("editor.diveNote")}</div>

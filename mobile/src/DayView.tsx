@@ -6,7 +6,7 @@ import type { Night } from "@/lib/stays";
 import { formatDayLabel, formatDuration, formatHm } from "@/lib/time";
 import { freshRoute, getLeg, type DayTimeline, type Issue, type TimelineEntry } from "@/lib/timeline";
 import { vehicleIcon } from "@/lib/transit";
-import { BOOKING_STATUS_ICON, DIVE_PREP_ICON, diveGas, itemIcon, type Item, type Trip } from "@/lib/types";
+import { BOOKING_STATUS_ICON, DIVE_PREP_ICON, diveGas, divePrepUrl, itemIcon, type Item, type Trip } from "@/lib/types";
 import { useLang, useT } from "@/lib/useLang";
 import type { Lang, T } from "@/lib/i18n";
 
@@ -260,7 +260,11 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect, 
     item.place?.websiteUri && { href: item.place.websiteUri, label: t("phoneDay.website") },
     item.place?.googleMapsUri && { href: item.place.googleMapsUri, label: "Google Maps" },
   ].filter(Boolean) as { href: string; label: string }[];
-  const details = Boolean(item.notes || item.tips || links.length || item.aiReason);
+  const prep = item.dive?.prep;
+  // DiveDeck runs on the computer: a link to localhost opens nothing on the phone.
+  const prepUrl = prep && divePrepUrl(prep, { remote: true });
+  if (prepUrl) links.push({ href: prepUrl, label: "DiveDeck" });
+  const details = Boolean(item.notes || item.tips || links.length || item.aiReason || prep);
 
   return (
     <article id={`card-${item.id}`} className={`card type-${item.type}${highlighted ? " highlight" : ""}`}>
@@ -323,6 +327,14 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect, 
       {open && (
         <div className="card-details">
           {item.aiReason && <p className="muted">💡 {item.aiReason}</p>}
+          {prep && (
+            <div className={`prep prep-${prep.status}`}>
+              <p>
+                {DIVE_PREP_ICON[prep.status]} <b>{t(`divePrep.${prep.status}`)}:</b> {prep.summary}
+              </p>
+              {prep.details && <p className="notes small">{prep.details}</p>}
+            </div>
+          )}
           {item.notes && <p className="notes">{item.notes}</p>}
           {item.tips && (
             <div className="tips">

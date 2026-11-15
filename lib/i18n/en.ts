@@ -237,6 +237,7 @@ export const en = {
     other: "other",
   },
   editor: {
+    prepDetails: "The whole preparation",
     onSite: "To pay on site",
     onSitePlaceholder: "600 MXN",
     onSiteHint: "Entrance or park fees, a balance due on arrival – with the currency",

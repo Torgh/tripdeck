@@ -64,6 +64,11 @@ export interface DivePrep {
   summary: string;
   /** The full preparation in DiveDeck. */
   url?: string;
+  /**
+   * The preparation itself as plain text (limits, gas plan, what to ask the dive centre), so it can
+   * be read without DiveDeck – on the phone during the trip, or printed.
+   */
+  details?: string;
   updatedAt: string;
 }
 
@@ -84,9 +89,25 @@ export function diveGas(dive: Pick<DiveDetails, "gas" | "mix">): string {
   return dive.mix?.trim() || dive.gas;
 }
 
-/** The preparation's link, only when it is a web address: it comes from the coach, not from TripDeck. */
-export function divePrepUrl(prep: Pick<DivePrep, "url">): string | undefined {
-  return prep.url && /^https?:\/\//i.test(prep.url) ? prep.url : undefined;
+/**
+ * The preparation's link, only when it is a web address: it comes from the coach, not from TripDeck.
+ * `remote`: for a device other than the computer DiveDeck runs on (the phone), where a link to
+ * localhost would open nothing.
+ */
+export function divePrepUrl(prep: Pick<DivePrep, "url">, { remote = false } = {}): string | undefined {
+  if (!prep.url || !/^https?:\/\//i.test(prep.url)) return undefined;
+  if (remote && isLocalUrl(prep.url)) return undefined;
+  return prep.url;
+}
+
+/** A link to this computer only: localhost, 127.x, [::1]. */
+export function isLocalUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return host === "localhost" || host.endsWith(".localhost") || /^127\./.test(host) || host === "[::1]";
+  } catch {
+    return false;
+  }
 }
 
 export const DIVE_PREP_LABEL: Record<DivePrepStatus, string> = { ready: "Prepared", check: "Check prep" };

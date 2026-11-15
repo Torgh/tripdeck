@@ -238,6 +238,7 @@ export const es: Messages = {
     other: "otro",
   },
   editor: {
+    prepDetails: "La preparación completa",
     onSite: "A pagar allí",
     onSitePlaceholder: "600 MXN",
     onSiteHint: "Entradas, tasas de parque, un saldo a la llegada – con la moneda",

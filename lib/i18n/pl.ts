@@ -253,6 +253,7 @@ export const pl: Messages = {
     other: "inne",
   },
   editor: {
+    prepDetails: "Całe przygotowanie",
     onSite: "Do zapłaty na miejscu",
     onSitePlaceholder: "600 MXN",
     onSiteHint: "Wstęp, opłata za park, dopłata na miejscu – z walutą",

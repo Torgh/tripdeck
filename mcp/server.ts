@@ -93,7 +93,7 @@ How to work:
 - Flights, ferries, trains (type transport): place_query = where it departs, transport.to_place_query = where it arrives, start_time = departure and transport.arrival_time = arrival, both in local time as on the ticket (arrival_next_day when it lands the next day). The route to the next card then starts at the arrival, so no flight leg is needed. get_trip notes when the clocks change and how long the journey really takes.
 - Public transport (leg mode TRANSIT): the board plans it for the time in the plan and get_trip lists the lines under the leg ("via 🚆 ARL: … → 🚇 …"). Suggest it from airports and stations; if it says no public transport at that time (night flights), suggest a car instead.
 - Dives: get_trip reports no-fly and altitude warnings (DAN guidance: ≥12 h after a single no-deco dive, ≥18 h after repetitive or multi-day diving). Point them out, but they are planning hints, not a substitute for the diver's computer or training. dive.gas is the kind (air, nitrox, trimix); save the mix in dive.mix once the user knows it ("EAN32", "Tx 18/45").
-- Dive preparation: when the diver uses DiveDeck (its MCP server), its coach prepares each dive card from the diver's log; save the verdict on the card with save_dive_prep (ready, or check when something is still to sort out) with a one-line summary and the link to the full preparation, so the board shows it.
+- Dive preparation: when the diver uses DiveDeck (its MCP server), its coach prepares each dive card from the diver's log; save the verdict on the card with save_dive_prep (ready, or check when something is still to sort out) with a one-line summary, the link to the full preparation and its text (details), so the board shows it and the phone can show it offline.
 - Answer in the user's language. Keep card titles short; the app UI is in English.`;
 
 const server = new McpServer({ name: "tripdeck", title: "TripDeck", version: "0.2.0" }, { instructions: INSTRUCTIONS });
@@ -185,7 +185,7 @@ function itemLine(item: Item): string {
       `${item.dive.dives} dive(s)${item.dive.maxDepthM ? `, max ${item.dive.maxDepthM} m` : ""}, ${diveGas(item.dive)}${item.dive.site ? `, site ${item.dive.site}` : ""}${item.dive.center ? `, with ${item.dive.center}` : ""}`,
     );
     const prep = item.dive.prep;
-    if (prep) bits.push(`dive prep: ${DIVE_PREP_LABEL[prep.status].toLowerCase()} – ${prep.summary}${prep.url ? ` (${prep.url})` : ""}`);
+    if (prep) bits.push(`dive prep: ${DIVE_PREP_LABEL[prep.status].toLowerCase()} – ${prep.summary}${prep.url ? ` (${prep.url})` : ""}${prep.details ? " · full text saved" : " · no full text (details) yet"}`);
   }
   if (item.transport) {
     const to = item.transport.toLocation;
@@ -1142,6 +1142,13 @@ server.registerTool(
       status: z.enum(["ready", "check", "none"]),
       summary: z.string().max(300).optional().describe("One or two sentences; needed unless status is none."),
       url: z.string().url().max(500).optional().describe("The preparation in DiveDeck, e.g. http://localhost:3001/trips/<trip id>#card-<item id>."),
+      details: z
+        .string()
+        .max(3000)
+        .optional()
+        .describe(
+          "The preparation itself as plain text, a few short lines or '- ' bullets: limits (depth, time, gas reserve), the gas plan, what to ask the dive centre, what to practise. The phone shows it offline during the trip, where a localhost link opens nothing. Leave out to keep the saved text; '' clears it.",
+        ),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -1153,7 +1160,11 @@ server.registerTool(
       const item = requireItem(t, a.item_id);
       if (item.type !== "dive" || !item.dive) throw new HttpError(400, `"${item.title}" is not a dive card.`);
       title = item.title;
-      const prep = a.status === "none" ? undefined : { status: a.status, summary: a.summary!.trim(), url: a.url, updatedAt: new Date().toISOString() };
+      const details = a.details === undefined ? item.dive.prep?.details : a.details.trim() || undefined;
+      const prep =
+        a.status === "none"
+          ? undefined
+          : { status: a.status, summary: a.summary!.trim(), url: a.url, details, updatedAt: new Date().toISOString() };
       return { ...t, items: { ...t.items, [item.id]: { ...item, dive: { ...item.dive, prep } } } };
     });
     return a.status === "none" ? `Removed the preparation from "${title}".` : `"${title}": ${DIVE_PREP_LABEL[a.status].toLowerCase()}.`;
