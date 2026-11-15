@@ -151,6 +151,8 @@ export const pl: Messages = {
     settings: "Ustawienia zapisu i synchronizacji",
   },
   trip: {
+    climate: "Klimat",
+    climateTitle: "Typowa pogoda miesiąc po miesiącu w regionach podróży",
     notFound: "Nie znaleziono tej podróży w przeglądarce.",
     allTrips: "← Wszystkie podróże",
     warnings: plural({
@@ -790,5 +792,14 @@ export const pl: Messages = {
     driving: "Prowadzenie pojazdu",
     customs: "Cło",
     other: "Inne",
+  },
+  climate: {
+    title: "🌤️ Klimat w miesiącach",
+    noPlaces: "Dodaj miejsca do podróży (do dni albo Pomysłów), żeby zobaczyć pogodę tam, dokąd jedziesz.",
+    loading: "Sprawdzam pogodę z dziesięciu lat…",
+    rainDays: plural({ one: "{n} dzień z deszczem", few: "{n} dni z deszczem", many: "{n} dni z deszczem", other: "{n} dnia z deszczem" }),
+    tripMonths: "Miesiące podróży są wyróżnione.",
+    timing: "Mniej więcej: {timing}.",
+    source: "Średnia temperatura w dzień / w nocy i dni z co najmniej 1 mm deszczu, z ostatnich dziesięciu lat pomiarów (Open-Meteo; wysyłane są tylko współrzędne regionów).",
   },
 };

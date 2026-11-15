@@ -1403,3 +1403,38 @@ legend {
 .menu-list small {
   color: var(--muted);
 }
+
+/* Climate by month (ClimateDialog): trip months highlighted, rainy months tinted. */
+.climate {
+  overflow-x: auto;
+}
+.climate table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.climate th,
+.climate td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+.climate thead th {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.climate td.damp {
+  background: var(--info-soft);
+}
+.climate td.wet {
+  background: color-mix(in srgb, var(--info) 30%, var(--info-soft));
+}
+.climate tr.trip-month th {
+  color: var(--sun-text);
+}
+.climate tr.trip-month td,
+.climate tr.trip-month th {
+  box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--sun-soft) 60%, transparent);
+}

@@ -146,6 +146,8 @@ export const es: Messages = {
     settings: "Ajustes de almacenamiento y sincronización",
   },
   trip: {
+    climate: "Clima",
+    climateTitle: "Tiempo típico mes a mes en las regiones del viaje",
     notFound: "No se encontró el viaje en este navegador.",
     allTrips: "← Todos los viajes",
     warnings: plural({ one: "⚠️ {n} aviso", other: "⚠️ {n} avisos" }),
@@ -750,5 +752,14 @@ export const es: Messages = {
     driving: "Conducción",
     customs: "Aduana",
     other: "Otro",
+  },
+  climate: {
+    title: "🌤️ Clima por meses",
+    noPlaces: "Añade lugares al viaje (a los días o a Ideas) para ver el tiempo adonde vas.",
+    loading: "Consultando diez años de tiempo…",
+    rainDays: plural({ one: "{n} día de lluvia", other: "{n} días de lluvia" }),
+    tripMonths: "Los meses del viaje están resaltados.",
+    timing: "Más o menos: {timing}.",
+    source: "Máxima / mínima media diaria y días con al menos 1 mm de lluvia, de los últimos diez años de observaciones (Open-Meteo; solo se envían las coordenadas de las regiones).",
   },
 };

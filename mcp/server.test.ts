@@ -63,6 +63,7 @@ describe.skipIf(!bun)("MCP server", () => {
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
         "add_item",
+        "climate",
         "create_trip",
         "get_trip",
         "list_trips",

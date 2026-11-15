@@ -31,7 +31,9 @@ import { guessType, itemFieldsFromPlace } from "../lib/places";
 import { defaultModeTo, rentalsOf, VEHICLE_MODE } from "../lib/rentals";
 import { HttpError } from "../lib/server/errors";
 import { exchangeRates } from "../lib/server/rates";
+import { climateLine, regionLabel, regionsOf, tripMonths } from "../lib/climate";
 import { ideasForFreeDays } from "../lib/ideaFit";
+import { climateAt } from "../lib/server/climate";
 import { budgetCurrency, budgetSummary, foreignCurrencies, formatMoney, RATE_CURRENCIES, tripBudget, type Budget } from "../lib/money";
 import {
   elevation,
@@ -82,7 +84,7 @@ The user sees every change live on a drag-and-drop board with a map, so make cha
 
 How to work:
 - Start with list_trips / get_trip. Refer to cards by their item_id. Days are numbered from 1; day 0 means Ideas.
-- Early plans: a trip can start with its dates open – no start_date, perhaps no days, only Ideas and a rough timing ("spring 2027, about 10 days"). When the user is only starting to think about a trip, create it that way (create_trip without start_date), collect places as Ideas, and fill in timing, days and finally the dates with update_trip as the plan firms up. Without dates there are no weekdays, so opening days and entry deadlines cannot be checked yet – say so.
+- Early plans: a trip can start with its dates open – no start_date, perhaps no days, only Ideas and a rough timing ("spring 2027, about 10 days"). When the user is only starting to think about a trip, create it that way (create_trip without start_date), collect places as Ideas, and fill in timing, days and finally the dates with update_trip as the plan firms up. Without dates there are no weekdays, so opening days and entry deadlines cannot be checked yet – say so. The climate tool shows the typical weather month by month in each region, to help choose when to go.
 - To find places use search_places (by name) or nearby_places (what is around a card). Prefer adding cards with place_query so they get coordinates and a map pin.
 - Days with time to spare: get_trip lists the ideas near them ("Time to spare – ideas nearby"). Offer them to the user, and move the ones they want with move_item.
 - Before reordering a day, call optimize_day for real travel times, then decide (meals, sunset, heat, opening hours) and apply with reorder_day. Explain your reasoning briefly.
@@ -1136,6 +1138,34 @@ server.registerTool(
       return next;
     });
     return summary;
+  }),
+);
+
+server.registerTool(
+  "climate",
+  {
+    title: "Climate by month",
+    description:
+      "The typical weather month by month in each region of the trip (its places grouped within ~150 km): average daily high / low and rainy days, from the last ten years of observations (Open-Meteo). Use it to suggest when to go for an early plan with open dates, or what to expect on a dated trip (its months are marked).",
+    inputSchema: { trip_id: tripId },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+  },
+  tool(async ({ trip_id }) => {
+    const trip = await loadTrip(trip_id);
+    const regions = regionsOf(trip);
+    if (!regions.length) return "No located places yet – add places (place_query) to see their climate.";
+    const climates = await Promise.all(regions.map((r) => climateAt(r.center)));
+    const months = new Set(tripMonths(trip));
+    const name = (m: number) => new Date(Date.UTC(2001, m - 1, 1)).toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
+    const lines = [
+      trip.startDate ? `Trip months marked with ◀.` : `Dates open${trip.timing ? ` (roughly: ${trip.timing})` : ""}.`,
+      "Average daily high/low °C, days with ≥1 mm rain, rain per month (last 10 years, Open-Meteo).",
+    ];
+    regions.forEach((r, i) => {
+      lines.push("", `## ${regionLabel(r)} (${r.center.lat}, ${r.center.lng})`);
+      for (const c of climates[i]) lines.push(`${name(c.month)}: ${climateLine(c)}${months.has(c.month) ? " ◀" : ""}`);
+    });
+    return lines.join("\n");
   }),
 );
 

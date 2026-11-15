@@ -26,7 +26,8 @@ export function tripTodos(trip: Trip): Todo[] {
   };
   trip.days.forEach((day, i) => {
     day.itemIds.forEach((id) => booking(id, i));
-    if (nights[i]?.kind === "none") out.push({ kind: "night", dayIndex: i });
+    // An early plan's undated days don't need a bed booked yet.
+    if (nights[i]?.kind === "none" && trip.startDate) out.push({ kind: "night", dayIndex: i });
   });
   trip.ideas.forEach((id) => booking(id));
   return out;

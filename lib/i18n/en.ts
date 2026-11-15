@@ -145,6 +145,8 @@ export const en = {
     settings: "Storage & sync settings",
   },
   trip: {
+    climate: "Climate",
+    climateTitle: "Typical weather month by month in the trip's regions",
     notFound: "Trip not found in this browser.",
     allTrips: "← All trips",
     warnings: plural({ one: "⚠️ {n} warning", other: "⚠️ {n} warnings" }),
@@ -740,5 +742,14 @@ export const en = {
     driving: "Driving",
     customs: "Customs",
     other: "Other",
+  },
+  climate: {
+    title: "🌤️ Climate by month",
+    noPlaces: "Add places to the trip (to the days or Ideas) to see the weather where you are going.",
+    loading: "Looking up ten years of weather…",
+    rainDays: plural({ one: "{n} rainy day", other: "{n} rainy days" }),
+    tripMonths: "The trip's months are highlighted.",
+    timing: "Roughly: {timing}.",
+    source: "Average daily high / low and days with at least 1 mm of rain, from the last ten years of observations (Open-Meteo; only the regions' coordinates are sent).",
   },
 };
