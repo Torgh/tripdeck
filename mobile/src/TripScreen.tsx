@@ -2,12 +2,12 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalSt
 import { computeClockNotes, mergeIssues } from "@/lib/clock";
 import { computeDiveWarnings } from "@/lib/diveSafety";
 import { entryActions } from "@/lib/entry";
-import { defaultDayIndex, todayIndex } from "@/lib/itinerary";
+import { defaultDayIndex, todayIndex, tripDayDate } from "@/lib/itinerary";
 import { buildLayers, type Marker } from "@/lib/mapLayers";
 import { formatMoney, ratesUrl, toRates, type Rates } from "@/lib/money";
 import { rentalsOf } from "@/lib/rentals";
 import { nightsOf } from "@/lib/stays";
-import { dayDate, formatHm } from "@/lib/time";
+import { formatHm } from "@/lib/time";
 import { computeTripTimeline } from "@/lib/timeline";
 import { itemIcon, type Trip } from "@/lib/types";
 import { LOCALE, translate } from "@/lib/i18n";
@@ -193,7 +193,7 @@ export function TripScreen({ trip, now, onBack }: Props) {
 
       <div className="day-strip" ref={strip} role="tablist">
         {trip.days.map((day, i) => {
-          const date = dayDate(trip.startDate, i);
+          const date = tripDayDate(trip, i);
           return (
             <button
               key={day.id}
@@ -202,10 +202,15 @@ export function TripScreen({ trip, now, onBack }: Props) {
               className={`day-chip${i === today ? " today" : ""}`}
               onClick={() => select(i)}
             >
+              {/* Without dates: "Day" over the day's number. */}
               <span className="chip-weekday">
-                {i === today ? t("phone.today") : date.toLocaleDateString(LOCALE[lang], { weekday: "short", timeZone: "UTC" })}
+                {i === today
+                  ? t("phone.today")
+                  : date
+                    ? date.toLocaleDateString(LOCALE[lang], { weekday: "short", timeZone: "UTC" })
+                    : t("phone.dayChip")}
               </span>
-              <span className="chip-date">{date.getUTCDate()}</span>
+              <span className="chip-date">{date ? date.getUTCDate() : i + 1}</span>
             </button>
           );
         })}

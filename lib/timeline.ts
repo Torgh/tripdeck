@@ -1,7 +1,8 @@
 import { estimateMinutes, routeKey } from "./geo";
 import { translator, type Lang } from "./i18n";
 import { defaultModeTo } from "./rentals";
-import { dayDate, formatHm, parseHm } from "./time";
+import { tripDayDate } from "./itinerary";
+import { formatHm, parseHm } from "./time";
 import {
   DEFAULT_DURATION_MIN,
   isRoutable,
@@ -41,7 +42,8 @@ export interface TimelineEntry {
 export interface DayTimeline {
   dayId: string;
   dayIndex: number;
-  date: Date;
+  /** Undefined while the trip's dates are open. */
+  date?: Date;
   /** The stay you wake up in on this day, if any. */
   base?: Item;
   entries: TimelineEntry[];
@@ -148,8 +150,9 @@ export function opensOn(periods: OpeningPeriod[] | undefined, weekday: number): 
 export function computeDayTimeline(trip: Trip, dayIndex: number, lang: Lang = "en"): DayTimeline {
   const t = translator(lang);
   const day = trip.days[dayIndex];
-  const date = dayDate(trip.startDate, dayIndex);
-  const weekday = date.getUTCDay();
+  const date = tripDayDate(trip, dayIndex);
+  // Without dates there is no weekday yet, so opening hours are not checked.
+  const weekday = date?.getUTCDay();
   const base = findBase(trip, dayIndex);
   let cursor = parseHm(day.startTime) ?? 9 * 60;
   let travelMin = 0;
@@ -200,7 +203,9 @@ export function computeDayTimeline(trip: Trip, dayIndex: number, lang: Lang = "e
     const end = start + durationOf(item);
 
     const periods = item.place?.openingPeriods;
-    if (opensOn(periods, weekday) === false) {
+    if (weekday === undefined) {
+      // nothing to check against
+    } else if (opensOn(periods, weekday) === false) {
       issues.push({ level: "warn", message: t("issue.closedDay") });
     } else if (fixedStart == null && isOpenDuring(periods, weekday, start, end) === false) {
       issues.push({ level: "warn", message: t("issue.mayBeClosed", { from: formatHm(start), to: formatHm(end) }) });

@@ -10,7 +10,7 @@ import { entryState } from "@/lib/entry";
 import { useElevations, useHydrated, useRouteLegs, useTimeZones, useTripBudget } from "@/lib/hooks";
 import { formatMoney } from "@/lib/money";
 import { useTrip } from "@/lib/store";
-import { dayDate, formatDayLabel } from "@/lib/time";
+import { tripDates } from "@/lib/itinerary";
 import { computeTripTimeline } from "@/lib/timeline";
 import { tripTodos } from "@/lib/todo";
 import type { ContainerId, Item } from "@/lib/types";
@@ -141,8 +141,14 @@ export function TripView({ tripId }: { tripId: string | null }) {
         <div>
           <h1>{trip.name}</h1>
           <div className="small muted">
-            {trip.destination} · {formatDayLabel(dayDate(trip.startDate, 0), lang)} –{" "}
-            {formatDayLabel(dayDate(trip.startDate, trip.days.length - 1), lang)}
+            {trip.destination} ·{" "}
+            {trip.startDate ? (
+              tripDates(trip, lang)
+            ) : (
+              <button className="linklike" title={t("tripSettings.title")} onClick={() => setDialog({ kind: "settings" })}>
+                📅 {tripDates(trip, lang)}
+              </button>
+            )}
             {warningCount > 0 && <span style={{ color: "var(--warn)" }}> · {t("trip.warnings", { n: warningCount })}</span>}
             {todos.length > 0 && (
               <>

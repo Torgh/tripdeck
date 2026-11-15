@@ -123,6 +123,11 @@ export const en = {
     optional: "Optional",
     firstDay: "First day",
     lastDay: "Last day",
+    datesOpen: "Dates not decided yet",
+    datesOpenHint: "An early plan: collect ideas now and add dates and days once you know them – Claude can help fill it in.",
+    timing: "When, roughly",
+    timingPlaceholder: "e.g. spring 2027, about 10 days",
+    daysIfKnown: "Days, if you know",
     numberOfDays: "Number of days",
     interests: "Interests (used by AI suggestions)",
     interestsPlaceholder: "diving, viewpoints, local food, museums…",
@@ -327,6 +332,7 @@ export const en = {
     added: plural({ one: " · {n} empty day added at the end", other: " · {n} empty days added at the end" }),
     removed: plural({ one: " · the last day is removed", other: " · the last {n} days are removed" }),
     cardsMove: plural({ one: "; its {n} card moves to Ideas", other: "; their {n} cards move to Ideas" }),
+    datesOpenHint: "The days stay numbered without dates; add or remove them on the board.",
     interests: "Interests (AI suggestions use these)",
   },
   todoDialog: {
@@ -546,6 +552,7 @@ export const en = {
     resizeHint: "Drag to resize · double-click to reset",
   },
   phone: {
+    dayChip: "Day",
     updated: "Updated “{name}”",
     imported: "Imported “{name}”",
     notJson: "This file is not valid JSON.",
@@ -662,6 +669,8 @@ export const en = {
     ended: "Ended",
     days: plural({ one: "day", other: "days" }),
     today: "today",
+    datesOpen: "Dates open",
+    openShort: "no dates",
     endedShort: "ended",
   },
   rental: {

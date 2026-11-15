@@ -4,7 +4,8 @@ import { useState } from "react";
 import { postJSON } from "@/lib/api";
 import type { OptMetrics } from "@/lib/optimize";
 import { useStore } from "@/lib/store";
-import { dayDate, formatDuration, formatHm, isoDate } from "@/lib/time";
+import { tripDayDate } from "@/lib/itinerary";
+import { formatDuration, formatHm, isoDate } from "@/lib/time";
 import { defaultModeTo } from "@/lib/rentals";
 import { durationOf, findBase, manualLegMinutes } from "@/lib/timeline";
 import { itemIcon, legKey, MANUAL_MODES, ROUTABLE_MODES, type TravelMode, type Trip } from "@/lib/types";
@@ -69,7 +70,7 @@ export function OptimizeDialog({
         await postJSON<OptimizeResult>("/api/ai/optimize", {
           destination: trip.destination,
           interests: trip.interests,
-          date: isoDate(dayDate(trip.startDate, dayIndex)),
+          date: trip.startDate ? isoDate(tripDayDate(trip, dayIndex)!) : undefined,
           dayStartTime: day.startTime,
           mode,
           base: base?.location && { id: base.id, lat: base.location.lat, lng: base.location.lng, title: base.title },

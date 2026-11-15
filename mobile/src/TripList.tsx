@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { demoTrip } from "@/lib/demo";
-import { nextTripId, sortTrips, tripCountdown } from "@/lib/itinerary";
-import { dayDate, formatDayLabel } from "@/lib/time";
+import { nextTripId, sortTrips, tripCountdown, tripDates } from "@/lib/itinerary";
 import { rich } from "@/lib/i18n/rich";
 import type { Trip } from "@/lib/types";
 import { useLang, useT } from "@/lib/useLang";
@@ -75,8 +74,8 @@ export function TripList({ trips, now, onOpen, onImport, onDemo, onDelete }: Pro
                   <span className="trip-text">
                     <span className="trip-name">{trip.name}</span>
                     <span className="muted small">
-                      {trip.destination} · {formatDayLabel(dayDate(trip.startDate, 0), lang)} –{" "}
-                      {formatDayLabel(dayDate(trip.startDate, days - 1), lang)} · {t("home.days", { n: days })}
+                      {trip.destination} · {tripDates(trip, lang)}
+                      {days > 0 && ` · ${t("home.days", { n: days })}`}
                     </span>
                   </span>
                   <span className={`countdown${tone}`}>

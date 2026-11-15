@@ -1,5 +1,5 @@
 import { formatMoney, type Budget, type BudgetLine } from "@/lib/money";
-import { dayDate, formatDayLabel } from "@/lib/time";
+import { tripDayTitle } from "@/lib/itinerary";
 import { ITEM_TYPE_ICON, itemIcon, type ItemType, type Trip } from "@/lib/types";
 import { useLang, useT } from "@/lib/useLang";
 
@@ -71,7 +71,7 @@ export function BudgetView({ trip, budget, onDay }: { trip: Trip; budget: Budget
                 <li key={trip.days[i].id}>
                   <button onClick={() => onDay(i)}>
                     <span className="grow">
-                      {t("common.day", { day: i + 1 })} · {formatDayLabel(dayDate(trip.startDate, i), lang)}
+                      {tripDayTitle(trip, i, lang)}
                     </span>
                     <span>{m(amount)}</span>
                   </button>

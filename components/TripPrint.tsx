@@ -12,7 +12,8 @@ import { nightsOf, type Night } from "@/lib/stays";
 import { dayColor } from "@/lib/mapLayers";
 import { PRINT_PARTS, PRINT_PRESETS, presetOf, type PrintOptions, type PrintPreset } from "@/lib/printOptions";
 import { useTrip } from "@/lib/store";
-import { dayDate, formatDayLabel, formatDuration, formatHm } from "@/lib/time";
+import { tripDates, tripDayLabel, tripDayTitle } from "@/lib/itinerary";
+import { formatDuration, formatHm } from "@/lib/time";
 import { computeTripTimeline, getLeg, type Issue } from "@/lib/timeline";
 import type { T } from "@/lib/i18n";
 import { BOOKING_STATUS_ICON, DIVE_PREP_ICON, diveGas, itemIcon, type Item } from "@/lib/types";
@@ -60,8 +61,7 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
     );
   }
 
-  const last = trip.days.length - 1;
-  const date = (i: number) => formatDayLabel(dayDate(trip.startDate, i), lang);
+  const date = (i: number) => tripDayLabel(trip, i, lang);
   const booked = trip.days.flatMap((d, i) =>
     d.itemIds.map((id) => trip.items[id]).filter((it): it is Item => !!it?.booking).map((item) => ({ item, day: i })),
   );
@@ -84,7 +84,8 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
         <header className="print-head">
           <h1>{trip.name}</h1>
           <p>
-            {trip.destination} · {date(0)} – {date(last)} · {t("home.days", { n: trip.days.length })}
+            {trip.destination} · {tripDates(trip, lang)}
+            {trip.days.length > 0 && ` · ${t("home.days", { n: trip.days.length })}`}
           </p>
         </header>
 
@@ -116,7 +117,7 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
                     <td className="nowrap">
                       <span className="day-dot" style={{ background: dayColor(i) }} /> {i + 1}
                     </td>
-                    <td className="nowrap">{date(i)}</td>
+                    <td className="nowrap">{date(i) ?? "–"}</td>
                     <td>
                       {d.itemIds
                         .map((id) => trip.items[id])
@@ -149,7 +150,8 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
                 {booked.map(({ item, day }) => (
                   <tr key={item.id}>
                     <td className="nowrap">
-                      {day + 1} · {date(day)}
+                      {day + 1}
+                      {date(day) && ` · ${date(day)}`}
                     </td>
                     <td>
                       {itemIcon(item)} {item.title}
@@ -188,9 +190,7 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
           const tl = timelines[i];
           return (
             <section key={d.id} className="print-day">
-              <h3>
-                {t("common.day", { day: i + 1 })} · {date(i)}
-              </h3>
+              <h3>{tripDayTitle(trip, i, lang)}</h3>
               {tl?.base && <p className="muted small">{t("print.wakeUp", { place: tl.base.title })}</p>}
               {rentals[i]
                 ?.filter((r) => r.phase !== "pickup")

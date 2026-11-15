@@ -51,7 +51,7 @@ function toCard(b: ImportedBooking, trip: Trip): { item: Item; container: Contai
       number: b.number ?? undefined,
     };
   }
-  const index = b.date ? daysBetween(trip.startDate, b.date) : -1;
+  const index = b.date && trip.startDate ? daysBetween(trip.startDate, b.date) : -1;
   const container = index >= 0 && index < trip.days.length ? trip.days[index].id : IDEAS;
   return { item, container };
 }

@@ -58,7 +58,7 @@ export function entryRouteKey(trip: Trip): string {
     }
   });
   const countries = [...days].map(([c, [a, b]]) => `${c}:${a}-${b}`).sort();
-  return [trip.startDate, trip.days.length, trip.destination.trim().toLowerCase(), ...countries].join("|");
+  return [trip.startDate ?? "", trip.days.length, trip.destination.trim().toLowerCase(), ...countries].join("|");
 }
 
 export type EntryState = { kind: "none" } | { kind: "fresh" } | { kind: "stale"; reasons: string[] };
@@ -200,7 +200,8 @@ export function entryItinerary(trip: Trip): string {
         if (item.rental) bits.push(`renting a ${item.rental.vehicle} for ${item.rental.days} days`);
         return [`  - ${bits.join(" · ")}`];
       });
-      return [`Day ${d + 1} (${isoDate(dayDate(trip.startDate, d))})`, ...(cards.length ? cards : ["  (nothing planned yet)"])].join("\n");
+      const date = trip.startDate ? ` (${isoDate(dayDate(trip.startDate, d))})` : "";
+      return [`Day ${d + 1}${date}`, ...(cards.length ? cards : ["  (nothing planned yet)"])].join("\n");
     })
     .join("\n");
 }

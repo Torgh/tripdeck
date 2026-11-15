@@ -20,14 +20,17 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
   const [form, setForm] = useState({
     name: trip.name,
     destination: trip.destination,
-    startDate: trip.startDate,
+    // An early plan gets today as a starting point once its dates are set.
+    startDate: trip.startDate ?? isoDate(new Date()),
     interests: trip.interests,
     defaultMode: trip.defaultMode,
   });
-  const [endDate, setEndDate] = useState(isoDate(dayDate(trip.startDate, trip.days.length - 1)));
+  const [datesOpen, setDatesOpen] = useState(!trip.startDate);
+  const [timing, setTiming] = useState(trip.timing ?? "");
+  const [endDate, setEndDate] = useState(isoDate(dayDate(form.startDate, Math.max(1, trip.days.length) - 1)));
   const dayCount = form.startDate && endDate ? daysBetween(form.startDate, endDate) + 1 : NaN;
   const maxDays = Math.max(MAX_DAYS, trip.days.length);
-  const validRange = dayCount >= 1 && dayCount <= maxDays;
+  const validRange = datesOpen || (dayCount >= 1 && dayCount <= maxDays);
   const movedCards = validRange
     ? trip.days.slice(dayCount).reduce((n, d) => n + d.itemIds.length, 0)
     : 0;
@@ -65,8 +68,14 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
             className="btn primary"
             disabled={!validRange}
             onClick={() => {
-              const { days, ideas } = ops.setDayCount(trip, dayCount);
-              updateTrip(trip.id, { ...form, days, ideas });
+              const { startDate, ...details } = form;
+              if (datesOpen) {
+                const { days, ideas } = ops.clearDates(trip, timing);
+                updateTrip(trip.id, { ...details, startDate: undefined, timing: timing.trim() || undefined, days, ideas });
+              } else {
+                const { days, ideas } = ops.setDates(trip, startDate, dayCount);
+                updateTrip(trip.id, { ...details, startDate, timing: undefined, days, ideas });
+              }
               onClose();
             }}
           >
@@ -84,14 +93,37 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
           {t("home.destination")}
           <input value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} />
         </label>
-        <label>
-          {t("home.firstDay")}
-          <input type="date" value={form.startDate} onChange={(e) => changeStart(e.target.value)} />
+        <label className="row small" style={{ gap: 6, gridColumn: "1 / -1" }}>
+          <input
+            type="checkbox"
+            style={{ width: "auto" }}
+            checked={datesOpen}
+            onChange={(e) => setDatesOpen(e.target.checked)}
+          />
+          {t("home.datesOpen")}
         </label>
-        <label>
-          {t("home.lastDay")}
-          <input type="date" min={form.startDate} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-        </label>
+        {datesOpen ? (
+          <label>
+            {t("home.timing")}
+            <input
+              placeholder={t("home.timingPlaceholder")}
+              maxLength={120}
+              value={timing}
+              onChange={(e) => setTiming(e.target.value)}
+            />
+          </label>
+        ) : (
+          <>
+            <label>
+              {t("home.firstDay")}
+              <input type="date" value={form.startDate} onChange={(e) => changeStart(e.target.value)} />
+            </label>
+            <label>
+              {t("home.lastDay")}
+              <input type="date" min={form.startDate} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </label>
+          </>
+        )}
         <label>
           {t("tripSettings.defaultMode")}
           <select
@@ -112,7 +144,9 @@ export function TripSettings({ trip, onClose }: { trip: Trip; onClose: () => voi
         </p>
       )}
       <p className="muted" style={{ fontSize: 13 }}>
-        {!validRange
+        {datesOpen
+          ? (trip.days.length ? `${t("tripSettings.days", { n: trip.days.length })} · ` : "") + t("tripSettings.datesOpenHint")
+          : !validRange
           ? t("tripSettings.invalidRange", { max: maxDays })
           : t("tripSettings.days", { n: dayCount }) +
             (dayCount > trip.days.length ? t("tripSettings.added", { n: dayCount - trip.days.length }) : "") +

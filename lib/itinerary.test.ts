@@ -7,6 +7,9 @@ import {
   sortTrips,
   todayIndex,
   tripCountdown,
+  tripDates,
+  tripDayLabel,
+  tripDayTitle,
   tripStatus,
 } from "./itinerary";
 import { tripWith } from "./testUtils";
@@ -112,5 +115,36 @@ describe("navigationUrl", () => {
   it("needs somewhere to go", () => {
     expect(navigationUrl({})).toBeUndefined();
     expect(navigationUrl({ location: { lat: NaN, lng: NaN } })).toBeUndefined();
+  });
+});
+
+describe("early plans with open dates", () => {
+  const open = { ...tripWith([[], []]), startDate: undefined, timing: "spring 2027" };
+
+  it("has no today, opens on the first day and counts down to nothing", () => {
+    expect(todayIndex(open, june(1))).toBeUndefined();
+    expect(defaultDayIndex(open, june(1))).toBe(0);
+    expect(tripStatus(open, june(1))).toBe("Dates open");
+    expect(tripCountdown(open, june(1))).toEqual({ phase: "open", value: "?", label: "no dates" });
+    expect(tripCountdown(open, june(1), "pl").label).toBe("bez terminu");
+  });
+
+  it("shows the rough timing instead of dates, and day numbers alone", () => {
+    expect(tripDates(open)).toBe("spring 2027");
+    expect(tripDates({ ...open, timing: undefined })).toBe("Dates open");
+    expect(tripDates(trip)).toBe("Mon 1 Jun – Wed 3 Jun");
+    expect(tripDayTitle(open, 1)).toBe("Day 2");
+    expect(tripDayTitle(trip, 1)).toBe("Day 2 · Tue 2 Jun");
+    expect(tripDayLabel(open, 0)).toBeUndefined();
+  });
+
+  it("lists early plans after the coming trips and before the ended ones, never as next", () => {
+    const ended = { ...tripWith([[]]), id: "ended", startDate: "2026-01-01" };
+    const soon = { ...tripWith([[]]), id: "soon", startDate: "2026-07-01" };
+    const idea = { ...open, id: "idea", updatedAt: "2026-05-01T00:00:00Z" };
+    const newer = { ...open, id: "newer", updatedAt: "2026-05-20T00:00:00Z" };
+    expect(sortTrips([ended, idea, soon, newer], june(1)).map((t) => t.id)).toEqual(["soon", "newer", "idea", "ended"]);
+    expect(nextTripId([idea, ended], june(1))).toBeUndefined();
+    expect(nextTripId([idea, soon], june(1))).toBe("soon");
   });
 });

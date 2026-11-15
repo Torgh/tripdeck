@@ -15,7 +15,11 @@ const schema = z.object({
   lang: langSchema,
   destination: z.string().max(200),
   interests: z.string().max(500).default(""),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** Missing while the trip's dates are open. */
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   dayStartTime: z.string().regex(/^\d{1,2}:\d{2}$/),
   mode: z.enum([...ROUTABLE_MODES, ...MANUAL_MODES]),
   base: latLngSchema.extend({ id: z.string().max(50).optional(), title: z.string().max(200) }).optional(),
@@ -56,9 +60,10 @@ You get a travel-time matrix, durations, fixed start times, opening hours, and a
 Start from the baseline and change it only when there is a real benefit the algorithm cannot see: meals at sensible times, viewpoints or beaches at the best time of day, museums before crowds, heat in the middle of the day, avoiding backtracking.
 Never move a stop so it misses a fixed start time or arrives outside its opening hours.`;
 
-function hoursOn(periods: OpeningPeriod[] | undefined, weekday: number): string {
+function hoursOn(periods: OpeningPeriod[] | undefined, weekday: number | undefined): string {
   if (!periods?.length) return "unknown";
   if (periods.some((p) => !p.close)) return "open 24h";
+  if (weekday === undefined) return "depends on the weekday (date not decided yet)";
   const today = periods.filter((p) => p.open.day === weekday);
   if (!today.length) return "closed";
   return today
@@ -72,7 +77,7 @@ export const POST = handle(async (req) => {
   const ids = new Set(input.items.map((i) => i.id));
   if (ids.size !== input.items.length) throw new HttpError(400, "Stop ids must be unique.");
 
-  const weekday = dayDate(input.date, 0).getUTCDay();
+  const weekday = input.date ? dayDate(input.date, 0).getUTCDay() : undefined;
   const nodes = [
     ...(input.base ? [{ id: input.base.id ?? "START", at: input.base }] : []),
     ...input.items.map((it) => ({ id: it.id, at: it, leavesFrom: it.leavesFrom })),
@@ -103,7 +108,9 @@ export const POST = handle(async (req) => {
   const prompt = {
     destination: input.destination,
     traveller_interests: input.interests || "not specified",
-    date: `${input.date} (${dayDate(input.date, 0).toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" })})`,
+    date: input.date
+      ? `${input.date} (${dayDate(input.date, 0).toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" })})`
+      : "not decided yet (ignore weekdays and opening days)",
     day_starts_at: input.dayStartTime,
     travel_mode: input.mode,
     start_point: input.base ? `${input.base.title} (index START)` : "the first stop",
