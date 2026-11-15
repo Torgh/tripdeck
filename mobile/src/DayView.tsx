@@ -6,7 +6,7 @@ import type { Night } from "@/lib/stays";
 import { formatDayLabel, formatDuration, formatHm } from "@/lib/time";
 import { freshRoute, getLeg, type DayTimeline, type Issue, type TimelineEntry } from "@/lib/timeline";
 import { vehicleIcon } from "@/lib/transit";
-import { BOOKING_STATUS_ICON, DIVE_PREP_ICON, diveGas, itemIcon, type Item, type Trip } from "@/lib/types";
+import { BOOKING_STATUS_ICON, DIVE_PREP_ICON, diveGas, divePrepUrl, itemIcon, type Item, type Trip } from "@/lib/types";
 import { useLang, useT } from "@/lib/useLang";
 import type { Lang, T } from "@/lib/i18n";
 
@@ -22,9 +22,11 @@ interface DayProps {
   onSelect: (itemId: string) => void;
   /** What the day's bookings cost, in the trip's budget currency. */
   spent?: string;
+  /** Cash to have on you for the day's cash-only payments on site: "600 MXN". */
+  cash?: string;
 }
 
-export function DayView({ trip, timeline, warnings, night, rentals, isToday, highlightId, onSelect, spent }: DayProps) {
+export function DayView({ trip, timeline, warnings, night, rentals, isToday, highlightId, onSelect, spent, cash }: DayProps) {
   const t = useT();
   const lang = useLang();
   const { dayIndex, base, entries } = timeline;
@@ -44,6 +46,7 @@ export function DayView({ trip, timeline, warnings, night, rentals, isToday, hig
           <span className="muted small">{t("phoneDay.onTheRoad", { duration: formatDuration(timeline.travelMin, lang) })}</span>
         )}
         {spent && <span className="muted small">💰 {spent}</span>}
+        {cash && <span className="small">💵 {t("phoneDay.cash", { amount: cash })}</span>}
       </div>
 
       {base && (
@@ -257,7 +260,11 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect, 
     item.place?.websiteUri && { href: item.place.websiteUri, label: t("phoneDay.website") },
     item.place?.googleMapsUri && { href: item.place.googleMapsUri, label: "Google Maps" },
   ].filter(Boolean) as { href: string; label: string }[];
-  const details = Boolean(item.notes || item.tips || links.length || item.aiReason);
+  const prep = item.dive?.prep;
+  // DiveDeck runs on the computer: a link to localhost opens nothing on the phone.
+  const prepUrl = prep && divePrepUrl(prep, { remote: true });
+  if (prepUrl) links.push({ href: prepUrl, label: "DiveDeck" });
+  const details = Boolean(item.notes || item.tips || links.length || item.aiReason || prep);
 
   return (
     <article id={`card-${item.id}`} className={`card type-${item.type}${highlighted ? " highlight" : ""}`}>
@@ -288,13 +295,14 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect, 
             {item.tour?.stops.length ? (
               <div className="small">🗺️ {item.tour.stops.map((s) => s.name).join(" → ")}</div>
             ) : null}
-            {b && (b.provider || b.reference || b.price || b.status) && (
+            {b && (b.provider || b.reference || b.price || b.status || b.onSite) && (
               <div className="booking small">
                 {[
                   b.status && `${BOOKING_STATUS_ICON[b.status]} ${t(`bookingStatus.${b.status}`)}`,
                   b.provider,
                   b.reference && `#${b.reference}`,
                   b.price && (b.paid ? t("phoneDay.paid", { price: b.price }) : b.price),
+                  b.onSite && t(b.cash ? "phoneDay.onSiteCash" : "phoneDay.onSite", { amount: b.onSite }),
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -319,6 +327,14 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect, 
       {open && (
         <div className="card-details">
           {item.aiReason && <p className="muted">💡 {item.aiReason}</p>}
+          {prep && (
+            <div className={`prep prep-${prep.status}`}>
+              <p>
+                {DIVE_PREP_ICON[prep.status]} <b>{t(`divePrep.${prep.status}`)}:</b> {prep.summary}
+              </p>
+              {prep.details && <p className="notes small">{prep.details}</p>}
+            </div>
+          )}
           {item.notes && <p className="notes">{item.notes}</p>}
           {item.tips && (
             <div className="tips">

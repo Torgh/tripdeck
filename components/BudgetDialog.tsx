@@ -1,10 +1,12 @@
 "use client";
 
 import { useRates } from "@/lib/hooks";
-import { formatMoney, RATE_CURRENCIES, type Budget, type BudgetLine } from "@/lib/money";
+import { useState } from "react";
+import { formatMoney, parsePrice, RATE_CURRENCIES, tripSpending, type Budget, type BudgetLine, type Spending } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import { tripDayTitle } from "@/lib/itinerary";
-import { ITEM_TYPE_ICON, itemIcon, type ItemType, type Trip } from "@/lib/types";
+import { newId } from "@/lib/tripOps";
+import { EXPENSE_ICON, EXPENSE_KINDS, ITEM_TYPE_ICON, itemIcon, type ExpenseKind, type ItemType, type Trip } from "@/lib/types";
 import { useLang, useT } from "@/lib/useLang";
 import { Modal } from "./Modal";
 
@@ -98,11 +100,11 @@ export function BudgetDialog({
         {budget.noCurrency.length > 0 && (
           <p className="issue warn">
             {t("budgetDialog.noCurrency", { n: budget.noCurrency.length })}{" "}
-            {budget.noCurrency.map(({ item }, i) => (
-              <span key={item.id}>
+            {budget.noCurrency.map(({ item, text }, i) => (
+              <span key={`${item.id}-${i}`}>
                 {i > 0 && ", "}
                 <button className="linklike" onClick={() => onEdit(item.id)}>
-                  {item.title} ({item.booking?.price})
+                  {item.title} ({text})
                 </button>
               </span>
             ))}
@@ -143,17 +145,37 @@ export function BudgetDialog({
           </div>
         )}
 
+        {budget.cash.length > 0 && (
+          <section>
+            <h3>{t("budgetDialog.cash")}</h3>
+            <ul className="budget-list">
+              {budget.cash.map((need) => (
+                <li key={need.currency}>
+                  <span className="grow">
+                    💵 <strong>{formatMoney(need.amount, need.currency)}</strong>
+                    <span className="muted small">
+                      {" · "}
+                      {need.byDay.map((d) => `${day(d.dayIndex)}: ${formatMoney(d.amount, need.currency)}`).join(" · ")}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="muted small">{t("budgetDialog.cashHint")}</p>
+          </section>
+        )}
+
         {budget.lines.length > 0 && (
           <section>
             <h3>{t("budgetDialog.prices")}</h3>
             <ul className="todo-list">
               {budget.lines.map((line) => (
                 <PriceRow
-                  key={line.item.id}
+                  key={`${line.item.id}${line.onSite ? "-site" : ""}`}
                   line={line}
                   where={day(line.dayIndex!)}
                   currency={budget.currency}
-                  onPaid={(paid) => setPaid(line, paid)}
+                  onPaid={line.onSite ? undefined : (paid) => setPaid(line, paid)}
                   onEdit={() => onEdit(line.item.id)}
                 />
               ))}
@@ -167,7 +189,7 @@ export function BudgetDialog({
             <ul className="todo-list">
               {budget.ideas.map((line) => (
                 <PriceRow
-                  key={line.item.id}
+                  key={`${line.item.id}${line.onSite ? "-site" : ""}`}
                   line={line}
                   where={t("common.ideas")}
                   currency={budget.currency}
@@ -178,12 +200,124 @@ export function BudgetDialog({
           </section>
         )}
 
+        <ExpensesSection trip={trip} spending={tripSpending(trip, budget, rates)} />
+
         <p className="muted small">
           {t("budgetDialog.startDay")}
           {budget.ratesDate && t("budgetDialog.ecb", { date: budget.ratesDate })}
         </p>
       </div>
     </Modal>
+  );
+}
+
+/** Money spent during the trip beyond the bookings, and how it compares with the plan. */
+function ExpensesSection({ trip, spending }: { trip: Trip; spending: Spending }) {
+  const t = useT();
+  const lang = useLang();
+  const updateTrip = useStore((s) => s.updateTrip);
+  const [draft, setDraft] = useState({ dayId: "", amount: "", kind: "food" as ExpenseKind, note: "" });
+  const m = (n: number) => formatMoney(n, spending.currency);
+  const money = parsePrice(draft.amount);
+  const valid = !!money && (!!money.currency || money.amount === 0);
+  const dayIndex = new Map(trip.days.map((d, i) => [d.id, i]));
+
+  const add = () => {
+    if (!valid) return;
+    const id = newId();
+    const expense = {
+      id,
+      dayId: draft.dayId || undefined,
+      amount: draft.amount.trim(),
+      kind: draft.kind,
+      note: draft.note.trim() || undefined,
+      createdAt: new Date().toISOString(),
+    };
+    updateTrip(trip.id, { expenses: { ...trip.expenses, [id]: expense } });
+    setDraft({ ...draft, amount: "", note: "" });
+  };
+  const remove = (id: string) => {
+    const { [id]: _removed, ...rest } = trip.expenses ?? {};
+    updateTrip(trip.id, { expenses: rest });
+  };
+
+  return (
+    <section>
+      <h3>{t("budgetDialog.expenses")}</h3>
+      <p className="small">
+        {t("budgetDialog.spentOf", { spent: m(spending.spent), planned: m(spending.planned) })}
+        <span className="muted"> · {t("budgetDialog.spentParts", { paid: m(spending.spent - spending.expenses), expenses: m(spending.expenses) })}</span>
+      </p>
+      {spending.unconverted.length > 0 && (
+        <p className="issue warn">{t("budgetDialog.noRate", { currencies: spending.unconverted.join(", ") })}</p>
+      )}
+      {spending.noCurrency.length > 0 && (
+        <p className="issue warn">
+          {t("budgetDialog.expenseNoCurrency", { items: spending.noCurrency.map((e) => e.amount).join(", ") })}
+        </p>
+      )}
+      <div className="expense-form">
+        <select value={draft.dayId} onChange={(e) => setDraft({ ...draft, dayId: e.target.value })} aria-label={t("budgetDialog.expenseDay")}>
+          <option value="">{t("budgetDialog.wholeTrip")}</option>
+          {trip.days.map((d, i) => (
+            <option key={d.id} value={d.id}>
+              {tripDayTitle(trip, i, lang)}
+            </option>
+          ))}
+        </select>
+        <select
+          value={draft.kind}
+          onChange={(e) => setDraft({ ...draft, kind: e.target.value as ExpenseKind })}
+          aria-label={t("budgetDialog.expenseKind")}
+        >
+          {EXPENSE_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {EXPENSE_ICON[k]} {t(`expenseKind.${k}`)}
+            </option>
+          ))}
+        </select>
+        <input
+          value={draft.amount}
+          placeholder="350 THB"
+          aria-label={t("budgetDialog.expenseAmount")}
+          onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+        />
+        <input
+          value={draft.note}
+          placeholder={t("budgetDialog.expenseNote")}
+          aria-label={t("budgetDialog.expenseNote")}
+          onChange={(e) => setDraft({ ...draft, note: e.target.value })}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+        />
+        <button className="btn small primary" disabled={!valid} onClick={add}>
+          {t("budgetDialog.addExpense")}
+        </button>
+      </div>
+      {draft.amount && !valid && <p className="small" style={{ color: "var(--warn)" }}>{t("editor.addCurrency")}</p>}
+      {spending.lines.length > 0 && (
+        <ul className="todo-list">
+          {spending.lines.map(({ expense, money: amount, converted, dayIndex: d }) => (
+            <li key={expense.id}>
+              <span className="grow">
+                {EXPENSE_ICON[expense.kind]} <strong>{amount.currency ? formatMoney(amount.amount, amount.currency) : expense.amount}</strong>
+                {amount.currency && amount.currency !== spending.currency && converted !== undefined && (
+                  <span className="muted"> ≈ {m(converted)}</span>
+                )}
+                {expense.note && <> · {expense.note}</>}
+                <span className="muted">
+                  {" · "}
+                  {d !== undefined ? tripDayTitle(trip, d, lang) : t(expense.dayId && !dayIndex.has(expense.dayId) ? "budgetDialog.removedDay" : "budgetDialog.wholeTrip")}
+                </span>
+              </span>
+              <button className="btn small ghost danger" title={t("common.remove")} onClick={() => remove(expense.id)}>
+                🗑
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -209,6 +343,11 @@ function PriceRow({
         <span className="muted"> · {where}</span>
         <br />
         {price.currency ? formatMoney(price.amount, price.currency) : item.booking?.price}
+        {line.onSite && (
+          <span className="badge" style={{ marginLeft: 6 }}>
+            {line.cash ? `💵 ${t("budgetDialog.onSiteCash")}` : t("budgetDialog.onSite")}
+          </span>
+        )}
         {price.currency && price.currency !== currency && (
           <span className="muted"> · {converted === undefined ? t("budgetDialog.noRateYet") : `≈ ${formatMoney(converted, currency)}`}</span>
         )}

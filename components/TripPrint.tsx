@@ -167,6 +167,11 @@ export function TripPrint({ tripId }: { tripId: string | null }) {
                       <td>
                         {item.booking?.price ?? "–"}
                         {item.booking?.paid && <div className="nowrap muted">{t("print.paid")}</div>}
+                        {item.booking?.onSite && (
+                          <div className="nowrap">
+                            {t(item.booking.cash ? "phoneDay.onSiteCash" : "phoneDay.onSite", { amount: item.booking.onSite })}
+                          </div>
+                        )}
                       </td>
                     )}
                   </tr>
@@ -330,11 +335,15 @@ function ItemDetails({ item, show }: { item: Item; show: PrintOptions }) {
         .join(" · "),
     );
     if (d.prep) bits.push(`${DIVE_PREP_ICON[d.prep.status]} ${t(`divePrep.${d.prep.status}`)}: ${d.prep.summary}`);
+    // The whole preparation, so the paper copy has it without DiveDeck.
+    if (d.prep?.details) bits.push(d.prep.details);
   }
   if (item.tour?.stops.length) bits.push(t("print.visits", { stops: item.tour.stops.map((s) => s.name).join(" → ") }));
   const b = item.booking;
   const reference = show.references && b?.reference;
-  const price = show.prices && b?.price;
+  const price =
+    show.prices &&
+    [b?.price, b?.onSite && t(b.cash ? "phoneDay.onSiteCash" : "phoneDay.onSite", { amount: b.onSite })].filter(Boolean).join(" + ");
   if (b && (b.provider || reference || price)) {
     bits.push([t("print.booked"), b.provider, reference && t("print.ref", { ref: reference }), price].filter(Boolean).join(" · "));
   }

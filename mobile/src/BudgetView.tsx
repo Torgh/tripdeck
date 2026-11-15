@@ -38,13 +38,34 @@ export function BudgetView({ trip, budget, onDay }: { trip: Trip; budget: Budget
         ) : null}
       </section>
 
+      {budget.cash.length > 0 && (
+        <section>
+          <h3 className="budget-heading">{t("budgetDialog.cash")}</h3>
+          <ul className="budget-list">
+            {budget.cash.map((need) => (
+              <li key={need.currency}>
+                <span className="grow">
+                  💵 {formatMoney(need.amount, need.currency)}
+                  <span className="muted small">
+                    {need.byDay
+                      // phoneBudget.day starts with its own " · ".
+                      .map((d) => `${t("phoneBudget.day", { day: d.dayIndex + 1 })}: ${formatMoney(d.amount, need.currency)}`)
+                      .join("")}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {budget.unconverted.length > 0 && (
         <div className="issue warn">{t("phoneBudget.noRate", { currencies: budget.unconverted.join(", ") })}</div>
       )}
       {budget.noCurrency.length > 0 && (
         <div className="issue warn">
           {t("phoneBudget.noCurrency", {
-            items: budget.noCurrency.map(({ item }) => `${item.title} (${item.booking?.price})`).join(", "),
+            items: budget.noCurrency.map(({ item, text }) => `${item.title} (${text})`).join(", "),
           })}
         </div>
       )}
@@ -58,7 +79,7 @@ export function BudgetView({ trip, budget, onDay }: { trip: Trip; budget: Budget
               <h3 className="budget-heading">{t("phoneBudget.toPay")}</h3>
               <ul className="budget-list">
                 {toPay.map((line) => (
-                  <PriceRow key={line.item.id} line={line} currency={budget.currency} onTap={() => onDay(line.dayIndex!)} />
+                  <PriceRow key={`${line.item.id}${line.onSite ? "-site" : ""}`} line={line} currency={budget.currency} onTap={() => onDay(line.dayIndex!)} />
                 ))}
               </ul>
             </>
@@ -101,7 +122,7 @@ export function BudgetView({ trip, budget, onDay }: { trip: Trip; budget: Budget
                 {budget.lines
                   .filter((l) => l.paid)
                   .map((line) => (
-                    <PriceRow key={line.item.id} line={line} currency={budget.currency} onTap={() => onDay(line.dayIndex!)} />
+                    <PriceRow key={`${line.item.id}${line.onSite ? "-site" : ""}`} line={line} currency={budget.currency} onTap={() => onDay(line.dayIndex!)} />
                   ))}
               </ul>
             </>
@@ -126,7 +147,10 @@ function PriceRow({ line, currency, onTap }: { line: BudgetLine; currency: strin
       <button onClick={onTap}>
         <span className="grow">
           {itemIcon(item)} {item.title}
-          <span className="muted small">{t("phoneBudget.day", { day: line.dayIndex! + 1 })}</span>
+          <span className="muted small">
+            {t("phoneBudget.day", { day: line.dayIndex! + 1 })}
+            {line.onSite && ` · ${line.cash ? `💵 ${t("budgetDialog.onSiteCash")}` : t("budgetDialog.onSite")}`}
+          </span>
         </span>
         <span className="budget-price">
           {price.currency ? formatMoney(price.amount, price.currency) : item.booking?.price}

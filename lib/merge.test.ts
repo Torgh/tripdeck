@@ -38,6 +38,22 @@ describe("mergeTrips", () => {
     expect(merged.name).toBe("Mexico 2027");
   });
 
+  it("keeps expenses added here and by Claude at the same time, and the dates opened on one side", () => {
+    const b = base();
+    const exp = (id: string) => ({ id, amount: "€5", kind: "food" as const, createdAt: "2027-02-14T12:00:00Z" });
+    const local = clone(b);
+    local.expenses = { here: exp("here") };
+    const remote = clone(b);
+    remote.expenses = { claude: exp("claude") };
+    delete remote.startDate;
+    remote.timing = "spring";
+    const merged = mergeTrips(b, local, remote);
+    expect(Object.keys(merged.expenses ?? {}).sort()).toEqual(["claude", "here"]);
+    expect(merged.startDate).toBeUndefined();
+    expect(merged.timing).toBe("spring");
+    expect(mergeTrips(b, clone(b), clone(b)).expenses).toBeUndefined();
+  });
+
   it("keeps a card Claude added while the board computed a route (the lost-update bug)", () => {
     const b = base();
     const local = clone(b);

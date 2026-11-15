@@ -454,6 +454,12 @@ export function ItemEditor({
                   <button type="button" className="linklike" onClick={() => set({ dive: { ...draft.dive!, prep: undefined } })}>
                     {t("common.remove")}
                   </button>
+                  {draft.dive.prep.details && (
+                    <details>
+                      <summary>{t("editor.prepDetails")}</summary>
+                      <p style={{ whiteSpace: "pre-line", margin: "4px 0 0" }}>{draft.dive.prep.details}</p>
+                    </details>
+                  )}
                 </div>
               )}
               <div className="small muted">{t("editor.diveNote")}</div>
@@ -733,6 +739,7 @@ function ArrivalField({ draft, onDuration }: { draft: Item; onDuration: (min: nu
 function PriceField({ booking, onChange }: { booking?: Booking; onChange: (booking: Booking) => void }) {
   const t = useT();
   const price = parsePrice(booking?.price);
+  const onSite = parsePrice(booking?.onSite);
   const hint = !booking?.price
     ? t("editor.priceHint")
     : !price
@@ -764,6 +771,37 @@ function PriceField({ booking, onChange }: { booking?: Booking; onChange: (booki
             onChange={(e) => onChange({ ...booking, paid: e.target.checked || undefined })}
           />
           {t("editor.paid")}
+        </label>
+      </div>
+      <label>
+        {t("editor.onSite")}
+        <input
+          value={booking?.onSite ?? ""}
+          placeholder={t("editor.onSitePlaceholder")}
+          onChange={(e) => onChange({ ...booking, onSite: e.target.value || undefined })}
+        />
+      </label>
+      <div className="row small">
+        <span
+          className="grow muted"
+          style={{ color: onSite && !onSite.currency && onSite.amount ? "var(--warn)" : undefined }}
+        >
+          {!booking?.onSite
+            ? t("editor.onSiteHint")
+            : onSite?.currency
+              ? t("editor.budget", { amount: formatMoney(onSite.amount, onSite.currency) })
+              : onSite?.amount
+                ? t("editor.addCurrency")
+                : t("editor.noAmount")}
+        </span>
+        <label className="row" style={{ gap: 4 }}>
+          <input
+            type="checkbox"
+            style={{ width: "auto" }}
+            checked={!!booking?.cash}
+            onChange={(e) => onChange({ ...booking, cash: e.target.checked || undefined })}
+          />
+          {t("editor.cashOnly")}
         </label>
       </div>
     </div>

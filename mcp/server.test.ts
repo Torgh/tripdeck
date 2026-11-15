@@ -62,7 +62,9 @@ describe.skipIf(!bun)("MCP server", () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
+        "add_expense",
         "add_item",
+        "climate",
         "create_trip",
         "get_trip",
         "list_trips",
@@ -70,6 +72,7 @@ describe.skipIf(!bun)("MCP server", () => {
         "move_item",
         "nearby_places",
         "optimize_day",
+        "remove_expense",
         "remove_item",
         "reorder_day",
         "save_dive_prep",
@@ -77,6 +80,7 @@ describe.skipIf(!bun)("MCP server", () => {
         "search_places",
         "set_entry_done",
         "set_leg",
+        "trip_summary",
         "update_item",
         "update_trip",
       ].sort(),
@@ -152,6 +156,16 @@ describe.skipIf(!bun)("MCP server", () => {
     expect(saved.startDate).toBe("2027-04-01");
     expect(saved.timing).toBeUndefined();
 
+    // Expenses: spent against the plan, and the trip in numbers.
+    expect((await call("add_expense", { trip_id: tripId, amount: "350" })).isError).toBe(true);
+    expect(await ok("add_expense", { trip_id: tripId, amount: "€12", kind: "food", day: 1, note: "Ramen" })).toMatch(/Spent so far: €12/);
+    const withExpense = await ok("get_trip", { trip_id: tripId });
+    expect(withExpense).toMatch(/## Spent during the trip/);
+    expect(withExpense).toMatch(/🍽️ €12 Ramen · day 1/);
+    expect(await ok("trip_summary", { trip_id: tripId })).toMatch(/10 days, 0 nights in 0 stays · 0 places/);
+    await ok("remove_expense", { trip_id: tripId, expense_id: idIn(withExpense, /\[expense ([\w-]+)\]/) });
+    expect(await ok("get_trip", { trip_id: tripId })).not.toMatch(/Spent during the trip/);
+
     // And open again.
     expect(await ok("update_trip", { trip_id: tripId, dates_open: true })).toMatch(/dates open .*10 days, undated/);
     expect((await call("create_trip", { name: "x", destination: "x", start_date: "2027-01-01" })).isError).toBe(true);
@@ -172,11 +186,15 @@ describe.skipIf(!bun)("MCP server", () => {
       '"Canyon": check prep.',
     );
     expect(await ok("get_trip", { trip_id: tripId })).toContain(`dive prep: check prep – Deepest so far 24 m: do a 25 m dive first. (${url})`);
+    // The full text is kept for the phone, also when the verdict is saved again without it.
+    await ok("save_dive_prep", { trip_id: tripId, item_id: dive, status: "check", summary: "Deepest so far 24 m.", url, details: "- Max 25 m\n- 50 bar reserve" });
+    await ok("save_dive_prep", { trip_id: tripId, item_id: dive, status: "check", summary: "Deepest so far 24 m: do a 25 m dive first.", url });
+    expect(await ok("get_trip", { trip_id: tripId })).toContain("full text saved");
 
     // Changing the dive keeps the preparation and the mix unless a new mix is given.
     await ok("update_item", { trip_id: tripId, item_id: dive, dive: { dives: 2, max_depth_m: 28 } });
     const saved = JSON.parse(fs.readFileSync(path.join(home, "trips", `${tripId}.json`), "utf8")).items[dive].dive;
-    expect(saved).toMatchObject({ dives: 2, maxDepthM: 28, gas: "nitrox", mix: "EAN32", prep: { status: "check", url } });
+    expect(saved).toMatchObject({ dives: 2, maxDepthM: 28, gas: "nitrox", mix: "EAN32", prep: { status: "check", url, details: "- Max 25 m\n- 50 bar reserve" } });
     await ok("update_item", { trip_id: tripId, item_id: dive, dive: { dives: 2, mix: "" } });
     expect(await ok("get_trip", { trip_id: tripId })).toContain("2 dive(s), nitrox");
 

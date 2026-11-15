@@ -29,6 +29,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { memo, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { DivePrepBadge } from "@/components/DivePrep";
 import { routeKey } from "@/lib/geo";
+import { ideasForFreeDays, type FreeDay } from "@/lib/ideaFit";
 import { todayIndex } from "@/lib/itinerary";
 import { dayColor } from "@/lib/mapLayers";
 import { rentalsOf, type RentalDay } from "@/lib/rentals";
@@ -102,6 +103,10 @@ export function Board(props: BoardProps) {
   const nights = useMemo(() => nightsOf(trip), [trip]);
   const staySlots = useMemo(() => stayColorIndex(nights), [nights]);
   const rentals = useMemo(() => rentalsOf(trip, lang), [trip, lang]);
+  const freeDays = useMemo(
+    () => new Map(ideasForFreeDays(trip, props.timelines).map((f) => [f.dayId, f])),
+    [trip, props.timelines],
+  );
   const today = todayIndex(trip, new Date());
   const rentalColors = useMemo(() => {
     const ids = [...new Set(rentals.flat().map((r) => r.rental.id))];
@@ -215,6 +220,7 @@ export function Board(props: BoardProps) {
               dragging={!!drag}
               night={nights[i]}
               rentals={rentals[i]}
+              freeDay={freeDays.get(day.id)}
               rentalColors={rentalColors}
               nightColor={nights[i]?.kind === "stay" ? STAY_COLORS[staySlots.get(nights[i].colorKey)! % STAY_COLORS.length] : undefined}
             />
@@ -293,6 +299,8 @@ function DayColumn(
     nightColor?: string;
     rentals?: RentalDay[];
     rentalColors: Map<string, string>;
+    /** Ideas near this day, when it has time to spare. */
+    freeDay?: FreeDay;
   },
 ) {
   const { trip, dayIndex, timelines, selectedDayId } = props;
@@ -386,6 +394,7 @@ function DayColumn(
           })}
         </SortableContext>
       </ColumnBody>
+      {props.freeDay && !props.dragging && <IdeasNearby trip={trip} free={props.freeDay} dayId={day.id} />}
       {tl && tl.entries.length > 0 && (
         <div className="column-foot">
           {Math.round(tl.travelMin) > 0 && t("board.travel", { duration: formatDuration(tl.travelMin, lang) })}
@@ -394,6 +403,27 @@ function DayColumn(
       )}
       {props.night && <NightStrip night={props.night} color={props.nightColor} dayId={day.id} {...props} />}
     </section>
+  );
+}
+
+/** Ideas near a day with time to spare, each a click away from the day. */
+function IdeasNearby({ trip, free, dayId }: { trip: Trip; free: FreeDay; dayId: string }) {
+  const t = useT();
+  const moveItem = useStore((s) => s.moveItem);
+  return (
+    <div className="ideas-nearby">
+      <div className="small">💡 {t("board.ideasNearby", { n: free.ideas.length })}</div>
+      {free.ideas.map(({ item, km }) => (
+        <div key={item.id} className="row small">
+          <span className="grow">
+            {itemIcon(item)} {item.title} <span className="muted">· {km < 1 ? "<1" : Math.round(km)} km</span>
+          </span>
+          <button className="btn small" title={t("board.moveHereTitle")} onClick={() => moveItem(trip.id, item.id, dayId)}>
+            {t("board.moveHere")}
+          </button>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -643,6 +673,11 @@ const ItemCard = memo(function ItemCard({
           </span>
         )}
         {item.booking?.provider && <span className="badge">{item.booking.provider}</span>}
+        {item.booking?.onSite && (
+          <span className="badge" title={t(item.booking.cash ? "board.onSiteCashTitle" : "board.onSiteTitle")}>
+            {item.booking.cash ? "💵" : "🏷️"} {item.booking.onSite}
+          </span>
+        )}
         {item.booking?.status && (
           <span className={`badge status-${item.booking.status}`} title={t(`bookingStatus.${item.booking.status}`)}>
             {BOOKING_STATUS_ICON[item.booking.status]}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diveGas, divePrepUrl, itemIcon, legKey } from "./types";
+import { diveGas, divePrepUrl, isLocalUrl, itemIcon, legKey } from "./types";
 
 describe("itemIcon", () => {
   it("shows the vehicle of a rental and the kind of transport", () => {
@@ -33,5 +33,14 @@ describe("dives", () => {
     expect(divePrepUrl({ url: "HTTPS://example.com" })).toBe("HTTPS://example.com");
     expect(divePrepUrl({ url: "javascript:alert(1)" })).toBeUndefined();
     expect(divePrepUrl({})).toBeUndefined();
+  });
+
+  it("drops links to this computer for the phone", () => {
+    for (const url of ["http://localhost:3001/x", "http://127.0.0.1:3001/x", "http://[::1]:3001/x", "http://dive.localhost/x"]) {
+      expect(isLocalUrl(url)).toBe(true);
+      expect(divePrepUrl({ url }, { remote: true })).toBeUndefined();
+    }
+    expect(divePrepUrl({ url: "https://divedeck.example/x" }, { remote: true })).toBe("https://divedeck.example/x");
+    expect(isLocalUrl("not a url")).toBe(false);
   });
 });

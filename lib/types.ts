@@ -64,6 +64,11 @@ export interface DivePrep {
   summary: string;
   /** The full preparation in DiveDeck. */
   url?: string;
+  /**
+   * The preparation itself as plain text (limits, gas plan, what to ask the dive centre), so it can
+   * be read without DiveDeck – on the phone during the trip, or printed.
+   */
+  details?: string;
   updatedAt: string;
 }
 
@@ -84,9 +89,25 @@ export function diveGas(dive: Pick<DiveDetails, "gas" | "mix">): string {
   return dive.mix?.trim() || dive.gas;
 }
 
-/** The preparation's link, only when it is a web address: it comes from the coach, not from TripDeck. */
-export function divePrepUrl(prep: Pick<DivePrep, "url">): string | undefined {
-  return prep.url && /^https?:\/\//i.test(prep.url) ? prep.url : undefined;
+/**
+ * The preparation's link, only when it is a web address: it comes from the coach, not from TripDeck.
+ * `remote`: for a device other than the computer DiveDeck runs on (the phone), where a link to
+ * localhost would open nothing.
+ */
+export function divePrepUrl(prep: Pick<DivePrep, "url">, { remote = false } = {}): string | undefined {
+  if (!prep.url || !/^https?:\/\//i.test(prep.url)) return undefined;
+  if (remote && isLocalUrl(prep.url)) return undefined;
+  return prep.url;
+}
+
+/** A link to this computer only: localhost, 127.x, [::1]. */
+export function isLocalUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return host === "localhost" || host.endsWith(".localhost") || /^127\./.test(host) || host === "[::1]";
+  } catch {
+    return false;
+  }
 }
 
 export const DIVE_PREP_LABEL: Record<DivePrepStatus, string> = { ready: "Prepared", check: "Check prep" };
@@ -172,6 +193,13 @@ export interface Booking {
   status?: BookingStatus;
   /** Already paid – the budget splits paid from still to pay. */
   paid?: boolean;
+  /**
+   * Still to pay at the place itself, as written with its currency: "600 MXN" (a cenote's entrance,
+   * a park fee). Counted in the budget as still to pay, apart from `price`.
+   */
+  onSite?: string;
+  /** The place takes only cash for `onSite`: the budget lists it under cash to bring. */
+  cash?: boolean;
 }
 
 export interface AiTips {
@@ -324,6 +352,31 @@ export interface EntryCheck {
   countries: EntryCountry[];
 }
 
+export type ExpenseKind = "food" | "transport" | "activity" | "stay" | "shopping" | "other";
+
+export const EXPENSE_KINDS: ExpenseKind[] = ["food", "transport", "activity", "stay", "shopping", "other"];
+
+export const EXPENSE_ICON: Record<ExpenseKind, string> = {
+  food: "🍽️",
+  transport: "🚕",
+  activity: "🎟️",
+  stay: "🏨",
+  shopping: "🛍️",
+  other: "🧾",
+};
+
+/** Money spent during the trip that no card holds: meals, taxis, tickets, souvenirs. */
+export interface Expense {
+  id: string;
+  /** The day it was spent on; none for the trip as a whole. */
+  dayId?: string;
+  /** As written, with its currency: "350 THB". */
+  amount: string;
+  kind: ExpenseKind;
+  note?: string;
+  createdAt: string;
+}
+
 export interface Trip {
   id: string;
   name: string;
@@ -343,6 +396,8 @@ export interface Trip {
   /** Passports the travellers hold (ISO 3166-1 alpha-2); entry rules are checked for these. */
   passports?: string[];
   entry?: EntryCheck;
+  /** What was spent during the trip beyond the bookings, keyed by id. */
+  expenses?: Record<string, Expense>;
   days: Day[];
   ideas: string[];
   items: Record<string, Item>;
