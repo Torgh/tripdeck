@@ -31,7 +31,7 @@ export function flag(code: string): string {
 }
 
 /** Where an address is: its last part, which is the country in Google's and OpenStreetMap's addresses. */
-function countryOf(address: string | undefined): string | undefined {
+export function countryOf(address: string | undefined): string | undefined {
   const last = address?.split(",").pop()?.trim();
   return last && !/\d/.test(last) ? last : undefined;
 }

@@ -34,7 +34,19 @@ import { exchangeRates } from "../lib/server/rates";
 import { climateLine, regionLabel, regionsOf, tripMonths } from "../lib/climate";
 import { ideasForFreeDays } from "../lib/ideaFit";
 import { climateAt } from "../lib/server/climate";
-import { budgetCurrency, budgetSummary, foreignCurrencies, formatMoney, RATE_CURRENCIES, tripBudget, type Budget } from "../lib/money";
+import {
+  budgetCurrency,
+  budgetSummary,
+  foreignCurrencies,
+  formatMoney,
+  parsePrice,
+  RATE_CURRENCIES,
+  tripBudget,
+  tripSpending,
+  type Budget,
+  type Spending,
+} from "../lib/money";
+import { tripSummary } from "../lib/summary";
 import {
   elevation,
   mapsProvider,
@@ -60,6 +72,8 @@ import {
   DIVE_PREP_LABEL,
   diveGas,
   divePrepUrl,
+  EXPENSE_ICON,
+  EXPENSE_KINDS,
   IDEAS,
   isRoutable,
   ITEM_TYPE_LABEL,
@@ -71,6 +85,8 @@ import {
   RENTAL_VEHICLES,
   ROUTABLE_MODES,
   type ContainerId,
+  type Expense,
+  type ExpenseKind,
   type Item,
   type LatLng,
   type Location,
@@ -91,6 +107,7 @@ How to work:
 - Booking confirmations: if you have Gmail (or another mail) tools, search for confirmations (Booking.com, GetYourGuide, Viator, Airbnb, airlines, ferries, car / scooter rentals, dive centres), then add one card per booking on the right day with provider, reference, times and price. Never invent booking numbers.
 - Booking status: booking.status "confirmed", "pending" (paid or requested, not confirmed yet) or "todo" (still to book). get_trip lists the pending and to-book ones, and nights with nowhere to sleep, under "To sort out" – mention them.
 - Entry & paperwork (visas, passport rules, arrival forms, driving permits): research them on the web yourself for the trip's passports (update_trip passports – ask which passports when get_trip says they are not set) and save them with save_entry_check, whose description says what to look for. The board shows them under 🛂, the open ones with deadlines under "To sort out". When get_trip says they are missing or out of date, offer to check; mark one done with set_entry_done when the user says it is sorted. Never present entry rules from memory as certain.
+- Expenses during the trip (meals, taxis, tickets bought on the spot): add_expense with the amount and its currency, from receipts, bank notifications or what the user says; get_trip shows what was spent against the plan, and trip_summary recaps the trip.
 - Prices: booking.price as written on the confirmation, always with its currency ("€189", "1 500 THB"); booking.paid when it is already paid. What is still paid at the place (entrance fees, park fees, a balance due on arrival) goes in booking.on_site, with cash: true when only cash is taken – get_trip then lists the cash to bring per day. get_trip adds them up under "Budget" in the trip's currency (update_trip budget_currency / budget_limit) – mention prices without a currency and a budget that is over its limit.
 - Rentals (car, scooter, motorbike, bicycle): one card of type rental on the pick-up day, start_time = pick-up time, rental.days = days until the return. The board then shows it on every day up to the return. Do not use transport car_rental for new rentals.
 - Organised tours (type activity): the card's place is the pick-up / meeting point (travel times go there); list the places the tour visits in tour_stops so they show on the map.
@@ -243,11 +260,34 @@ function budgetLines(b: Budget): string[] {
   return [...lines, ""];
 }
 
-/** Today's rates for the trip's budget when it has prices in other currencies; without them, those aren't converted. */
-async function budgetOf(trip: Trip): Promise<Budget> {
+/**
+ * The budget and what was spent so far, with today's rates when there are prices in other currencies;
+ * without the rates, those aren't converted.
+ */
+async function moneyOf(trip: Trip): Promise<{ budget: Budget; spending: Spending }> {
   const base = budgetCurrency(trip);
   const rates = foreignCurrencies(trip, base).length ? await exchangeRates(base).catch(() => undefined) : undefined;
-  return tripBudget(trip, rates);
+  const budget = tripBudget(trip, rates);
+  return { budget, spending: tripSpending(trip, budget, rates) };
+}
+
+/** Expenses and spent against planned, for get_trip; nothing until an expense is entered. */
+function spendingLines(s: Spending): string[] {
+  if (!s.lines.length && !s.noCurrency.length) return [];
+  const m = (n: number) => formatMoney(n, s.currency);
+  const lines = [
+    "## Spent during the trip",
+    `Spent ${m(s.spent)} of ${m(s.planned)} planned (bookings paid ${m(s.spent - s.expenses)} + expenses ${m(s.expenses)})`,
+  ];
+  for (const l of s.lines) {
+    const amount = l.money.currency ? formatMoney(l.money.amount, l.money.currency) : l.expense.amount;
+    lines.push(
+      `- ${EXPENSE_ICON[l.expense.kind]} ${amount}${l.expense.note ? ` ${l.expense.note}` : ""} · ${l.dayIndex !== undefined ? `day ${l.dayIndex + 1}` : "whole trip"} [expense ${l.expense.id}]`,
+    );
+  }
+  if (s.unconverted.length) lines.push(`⚠️ Not in the total – no exchange rate for ${s.unconverted.join(", ")}`);
+  for (const e of s.noCurrency) lines.push(`⚠️ Expense without a currency, not counted: "${e.amount}" [expense ${e.id}]`);
+  return [...lines, ""];
 }
 
 /** The saved entry check: one line per country, its warnings and what is still to do (also under To sort out). */
@@ -281,7 +321,7 @@ function datesLine(trip: Trip): string {
   return `${trip.startDate} → ${isoDate(dayDate(trip.startDate, trip.days.length - 1))} (${days})`;
 }
 
-function renderTrip(trip: Trip, budget?: Budget): string {
+function renderTrip(trip: Trip, budget?: Budget, spending?: Spending): string {
   const timelines = computeTripTimeline(trip);
   const diveWarnings = mergeIssues(computeDiveWarnings(trip, timelines), computeClockNotes(trip, timelines));
   const rentals = rentalsOf(trip);
@@ -305,6 +345,7 @@ function renderTrip(trip: Trip, budget?: Budget): string {
   const todos = tripTodos(trip);
   if (todos.length) lines.push("## To sort out", ...todos.map((t) => `- ${todoLabel(t)}`), "");
   if (budget) lines.push(...budgetLines(budget));
+  if (spending) lines.push(...spendingLines(spending));
   lines.push(...entryLines(trip));
   const nights = nightsOf(trip);
   const freeDays = new Map(ideasForFreeDays(trip, timelines).map((f) => [f.dayIndex, f]));
@@ -640,7 +681,8 @@ server.registerTool(
   },
   tool(async ({ trip_id }) => {
     const trip = await loadTrip(trip_id);
-    return renderTrip(trip, await budgetOf(trip));
+    const { budget, spending } = await moneyOf(trip);
+    return renderTrip(trip, budget, spending);
   }),
 );
 
@@ -1138,6 +1180,96 @@ server.registerTool(
       return next;
     });
     return summary;
+  }),
+);
+
+server.registerTool(
+  "add_expense",
+  {
+    title: "Add expense",
+    description:
+      "Records money spent during the trip that no card holds (meals, taxis, tickets bought on the spot, souvenirs), e.g. from a receipt, a bank notification or what the user says. get_trip then shows what was spent against the plan. Never invent amounts.",
+    inputSchema: {
+      trip_id: tripId,
+      amount: z.string().min(1).max(40).describe('As written, with its currency: "350 THB", "€12.50"'),
+      kind: z.enum(EXPENSE_KINDS as [ExpenseKind, ...ExpenseKind[]]).default("other"),
+      day: z.number().int().min(0).optional().describe("The day it was spent on (1 = first day); 0 or none = the trip as a whole"),
+      note: z.string().max(120).optional().describe("What it was, e.g. 'Dinner at Louisvanich'"),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  },
+  tool(async (a) => {
+    const money = parsePrice(a.amount);
+    if (!money || (!money.currency && money.amount !== 0)) {
+      throw new HttpError(400, `Write the amount with its currency, e.g. "350 THB" (got "${a.amount}").`);
+    }
+    const id = ops.newId();
+    const trip = await updateTrip(a.trip_id, (t) => {
+      const dayId = a.day ? t.days[a.day - 1]?.id : undefined;
+      if (a.day && !dayId) throw new HttpError(400, `Day ${a.day} does not exist (trip has ${t.days.length} days).`);
+      const expense: Expense = {
+        id,
+        dayId,
+        amount: a.amount.trim(),
+        kind: a.kind,
+        note: a.note?.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      };
+      return { ...t, expenses: { ...t.expenses, [id]: expense } };
+    });
+    const { spending } = await moneyOf(trip);
+    return `Added expense [${id}]. Spent so far: ${formatMoney(spending.spent, spending.currency)} of ${formatMoney(spending.planned, spending.currency)} planned.`;
+  }),
+);
+
+server.registerTool(
+  "remove_expense",
+  {
+    title: "Remove expense",
+    description: "Deletes an expense listed by get_trip ([expense id]).",
+    inputSchema: { trip_id: tripId, expense_id: z.string() },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+  },
+  tool(async (a) => {
+    await updateTrip(a.trip_id, (t) => {
+      if (!t.expenses?.[a.expense_id]) throw new HttpError(404, `No expense ${a.expense_id}.`);
+      const { [a.expense_id]: _removed, ...rest } = t.expenses;
+      return { ...t, expenses: rest };
+    });
+    return `Removed expense ${a.expense_id}.`;
+  }),
+);
+
+server.registerTool(
+  "trip_summary",
+  {
+    title: "Trip summary",
+    description:
+      "The trip in numbers: days and nights, places, dives, flights / ferries / trains, kilometres by way of travel, countries, the highest point, and what it cost against the plan. Good for a recap after the trip.",
+    inputSchema: { trip_id: tripId },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  tool(async ({ trip_id }) => {
+    const trip = await loadTrip(trip_id);
+    const s = tripSummary(trip, computeTripTimeline(trip));
+    const { spending } = await moneyOf(trip);
+    const m = (n: number) => formatMoney(n, spending.currency);
+    const km = Object.entries(s.km)
+      .filter(([, n]) => n > 0)
+      .map(([way, n]) => `${way} ${n} km`)
+      .join(", ");
+    return [
+      `# ${trip.name} in numbers`,
+      `${s.days} days, ${s.nights} nights in ${s.stays} stays · ${s.places} places, meals and activities`,
+      s.dives ? `${s.dives} dives on ${s.diveDays} days` : "",
+      `${s.flights} flights, ${s.ferries} ferries / boats, ${s.trains} trains`,
+      km ? `Distance: ${km}${s.roadEstimated ? " (roads partly estimated)" : ""}` : "",
+      s.countries.length ? `Countries: ${s.countries.join(", ")}` : "",
+      s.highest ? `Highest point: ${s.highest.m} m (${s.highest.title})` : "",
+      spending.planned || spending.spent ? `Money: spent ${m(spending.spent)} of ${m(spending.planned)} planned (expenses ${m(spending.expenses)})` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
   }),
 );
 

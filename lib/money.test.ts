@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { budgetCurrency, budgetSummary, convert, foreignCurrencies, formatMoney, parsePrice, tripBudget, type Rates } from "./money";
+import { budgetCurrency, budgetSummary, convert, foreignCurrencies, formatMoney, parsePrice, tripBudget, tripSpending, type Rates } from "./money";
 import { tripWith } from "./testUtils";
 import type { Item, ItemType } from "./types";
 
@@ -148,5 +148,28 @@ describe("payments on site", () => {
     const b = tripBudget(tripWith([[cenote("x", "600")]]), rates);
     expect(b.noCurrency).toEqual([expect.objectContaining({ text: "600" })]);
     expect(b.cash).toEqual([]);
+  });
+});
+
+describe("tripSpending", () => {
+  it("adds paid bookings and expenses, against the plan, per day and kind", () => {
+    const trip = tripWith([[card("hotel", "€420", { type: "stay", paid: true }), card("tour", "1 900 THB")], []]);
+    const [d1, d2] = trip.days.map((d) => d.id);
+    trip.expenses = {
+      b: { id: "b", dayId: d2, amount: "380 THB", kind: "food", createdAt: "2027-01-02T10:00:00Z" },
+      a: { id: "a", dayId: d1, amount: "€10", kind: "transport", note: "taxi", createdAt: "2027-01-03T10:00:00Z" },
+      c: { id: "c", amount: "€5", kind: "other", createdAt: "2027-01-01T10:00:00Z" },
+      x: { id: "x", amount: "12", kind: "other", createdAt: "2027-01-01T10:00:00Z" },
+    };
+    const budget = tripBudget(trip, rates);
+    const s = tripSpending(trip, budget, rates);
+    expect(s.lines.map((l) => l.expense.id)).toEqual(["a", "b", "c"]);
+    expect(s.expenses).toBe(25);
+    expect(s.spent).toBe(445);
+    expect(s.planned).toBe(470);
+    expect(s.byDay).toEqual([10, 10]);
+    expect(s.byKind).toEqual({ transport: 10, food: 10, other: 5 });
+    expect(s.noCurrency.map((e) => e.id)).toEqual(["x"]);
+    expect(foreignCurrencies({ ...trip, items: {} }, "EUR")).toEqual(["THB"]);
   });
 });

@@ -21,10 +21,17 @@ export function mergeTrips(base: Trip, local: Trip, remote: Trip): Trip {
     entry: pick(base.entry, local.entry, remote.entry),
     items,
     legs: mergeRecords(base.legs, local.legs, remote.legs),
+    expenses: mergeExpenses(base, local, remote),
     days,
     updatedAt: local.updatedAt > remote.updatedAt ? local.updatedAt : remote.updatedAt,
   };
   return placeItems(merged, base, local, remote);
+}
+
+/** Expenses added here and by Claude at the same time are both kept. */
+function mergeExpenses(base: Trip, local: Trip, remote: Trip): Trip["expenses"] {
+  if (!base.expenses && !local.expenses && !remote.expenses) return undefined;
+  return mergeRecords(base.expenses ?? {}, local.expenses ?? {}, remote.expenses ?? {});
 }
 
 /** The side that changed `base` – this browser when both did. */

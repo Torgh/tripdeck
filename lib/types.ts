@@ -352,6 +352,31 @@ export interface EntryCheck {
   countries: EntryCountry[];
 }
 
+export type ExpenseKind = "food" | "transport" | "activity" | "stay" | "shopping" | "other";
+
+export const EXPENSE_KINDS: ExpenseKind[] = ["food", "transport", "activity", "stay", "shopping", "other"];
+
+export const EXPENSE_ICON: Record<ExpenseKind, string> = {
+  food: "🍽️",
+  transport: "🚕",
+  activity: "🎟️",
+  stay: "🏨",
+  shopping: "🛍️",
+  other: "🧾",
+};
+
+/** Money spent during the trip that no card holds: meals, taxis, tickets, souvenirs. */
+export interface Expense {
+  id: string;
+  /** The day it was spent on; none for the trip as a whole. */
+  dayId?: string;
+  /** As written, with its currency: "350 THB". */
+  amount: string;
+  kind: ExpenseKind;
+  note?: string;
+  createdAt: string;
+}
+
 export interface Trip {
   id: string;
   name: string;
@@ -371,6 +396,8 @@ export interface Trip {
   /** Passports the travellers hold (ISO 3166-1 alpha-2); entry rules are checked for these. */
   passports?: string[];
   entry?: EntryCheck;
+  /** What was spent during the trip beyond the bookings, keyed by id. */
+  expenses?: Record<string, Expense>;
   days: Day[];
   ideas: string[];
   items: Record<string, Item>;

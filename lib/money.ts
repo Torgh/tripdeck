@@ -1,5 +1,5 @@
 import { translator, type Lang } from "./i18n";
-import type { Item, ItemType, Trip } from "./types";
+import type { Expense, ExpenseKind, Item, ItemType, Trip } from "./types";
 
 /** Currencies with daily ECB reference rates (frankfurter.dev): the ones a budget can be kept in. */
 export const RATE_CURRENCIES = [
@@ -199,6 +199,10 @@ export function foreignCurrencies(trip: Trip, base: string): string[] {
       if (c && c !== base) out.add(c);
     }
   }
+  for (const expense of Object.values(trip.expenses ?? {})) {
+    const c = parsePrice(expense.amount)?.currency;
+    if (c && c !== base) out.add(c);
+  }
   return [...out];
 }
 
@@ -286,4 +290,74 @@ export function budgetSummary(b: Budget, lang: Lang = "en"): string {
     bits.push(b.total <= b.limit ? t("budget.left", { amount: m(b.limit - b.total), limit }) : t("budget.over", { amount: m(b.total - b.limit), limit }));
   }
   return bits.join(" · ");
+}
+
+export interface ExpenseLine {
+  expense: Expense;
+  /** Undefined for the trip as a whole (or a day that was removed). */
+  dayIndex?: number;
+  money: Money;
+  /** In the budget's currency; undefined without an exchange rate. */
+  converted?: number;
+}
+
+/** What the trip has cost so far, against the plan: paid bookings plus what was spent on the way. */
+export interface Spending {
+  currency: string;
+  /** Expenses in trip order: by day, then as entered; the trip-wide ones last. */
+  lines: ExpenseLine[];
+  /** All expenses, in the budget's currency. */
+  expenses: number;
+  /** Bookings already paid plus the expenses. */
+  spent: number;
+  /** What the cards cost (the budget's total). */
+  planned: number;
+  /** Expenses per day. */
+  byDay: number[];
+  byKind: Partial<Record<ExpenseKind, number>>;
+  /** Currencies of expenses with no exchange rate (yet): not in the totals. */
+  unconverted: string[];
+  /** Expenses whose amount names no currency: not counted. */
+  noCurrency: Expense[];
+}
+
+export function tripSpending(trip: Trip, budget: Budget, rates?: Rates): Spending {
+  const dayOf = new Map(trip.days.map((d, i) => [d.id, i]));
+  const out: Spending = {
+    currency: budget.currency,
+    lines: [],
+    expenses: 0,
+    spent: budget.paid,
+    planned: budget.total,
+    byDay: trip.days.map(() => 0),
+    byKind: {},
+    unconverted: [],
+    noCurrency: [],
+  };
+  const unconverted = new Set<string>();
+  const order = (e: Expense) => dayOf.get(e.dayId ?? "") ?? Infinity;
+  const sorted = Object.values(trip.expenses ?? {}).sort(
+    (a, b) => order(a) - order(b) || a.createdAt.localeCompare(b.createdAt),
+  );
+  for (const expense of sorted) {
+    const money = parsePrice(expense.amount);
+    if (!money) continue;
+    if (!money.currency && money.amount !== 0) {
+      out.noCurrency.push(expense);
+      continue;
+    }
+    const dayIndex = dayOf.get(expense.dayId ?? "");
+    const line: ExpenseLine = { expense, dayIndex, money, converted: convert(money, budget.currency, rates) };
+    out.lines.push(line);
+    if (line.converted === undefined) {
+      unconverted.add(money.currency!);
+      continue;
+    }
+    out.expenses += line.converted;
+    if (dayIndex !== undefined) out.byDay[dayIndex] += line.converted;
+    out.byKind[expense.kind] = (out.byKind[expense.kind] ?? 0) + line.converted;
+  }
+  out.spent += out.expenses;
+  out.unconverted = [...unconverted];
+  return out;
 }

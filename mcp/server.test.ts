@@ -62,6 +62,7 @@ describe.skipIf(!bun)("MCP server", () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
+        "add_expense",
         "add_item",
         "climate",
         "create_trip",
@@ -71,6 +72,7 @@ describe.skipIf(!bun)("MCP server", () => {
         "move_item",
         "nearby_places",
         "optimize_day",
+        "remove_expense",
         "remove_item",
         "reorder_day",
         "save_dive_prep",
@@ -78,6 +80,7 @@ describe.skipIf(!bun)("MCP server", () => {
         "search_places",
         "set_entry_done",
         "set_leg",
+        "trip_summary",
         "update_item",
         "update_trip",
       ].sort(),
@@ -152,6 +155,16 @@ describe.skipIf(!bun)("MCP server", () => {
     const saved = JSON.parse(fs.readFileSync(path.join(home, "trips", `${tripId}.json`), "utf8"));
     expect(saved.startDate).toBe("2027-04-01");
     expect(saved.timing).toBeUndefined();
+
+    // Expenses: spent against the plan, and the trip in numbers.
+    expect((await call("add_expense", { trip_id: tripId, amount: "350" })).isError).toBe(true);
+    expect(await ok("add_expense", { trip_id: tripId, amount: "€12", kind: "food", day: 1, note: "Ramen" })).toMatch(/Spent so far: €12/);
+    const withExpense = await ok("get_trip", { trip_id: tripId });
+    expect(withExpense).toMatch(/## Spent during the trip/);
+    expect(withExpense).toMatch(/🍽️ €12 Ramen · day 1/);
+    expect(await ok("trip_summary", { trip_id: tripId })).toMatch(/10 days, 0 nights in 0 stays · 0 places/);
+    await ok("remove_expense", { trip_id: tripId, expense_id: idIn(withExpense, /\[expense ([\w-]+)\]/) });
+    expect(await ok("get_trip", { trip_id: tripId })).not.toMatch(/Spent during the trip/);
 
     // And open again.
     expect(await ok("update_trip", { trip_id: tripId, dates_open: true })).toMatch(/dates open .*10 days, undated/);
