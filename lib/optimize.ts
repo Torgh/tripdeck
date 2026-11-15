@@ -62,7 +62,8 @@ export interface OptInput {
   matrix: number[][];
   hasStart: boolean;
   dayStartMin: number;
-  weekday: number;
+  /** 0 = Sunday; undefined while the trip's dates are open, so opening hours are not counted. */
+  weekday?: number;
 }
 
 export interface OptMetrics {
@@ -99,7 +100,9 @@ export function evaluate(input: OptInput, order: number[]): OptMetrics {
       lateMin += Math.max(0, cursor - stop.fixedStart);
       cursor = Math.max(cursor, stop.fixedStart);
     }
-    if (isOpenDuring(stop.periods, input.weekday, cursor, cursor + stop.durationMin) === false) closedCount++;
+    if (input.weekday !== undefined && isOpenDuring(stop.periods, input.weekday, cursor, cursor + stop.durationMin) === false) {
+      closedCount++;
+    }
     cursor += stop.durationMin;
     prev = idx;
   });

@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { postJSON } from "@/lib/api";
 import { guessType, itemFieldsFromPlace } from "@/lib/places";
 import { newId, useStore } from "@/lib/store";
-import { dayDate, formatDuration, isoDate } from "@/lib/time";
+import { tripDayDate } from "@/lib/itinerary";
+import { formatDuration, isoDate } from "@/lib/time";
 import { findBase } from "@/lib/timeline";
 import { IDEAS, type ContainerId, type Item, type LatLng, type Trip } from "@/lib/types";
 import type { PlaceResult } from "@/lib/server/google";
@@ -102,7 +103,7 @@ export function SuggestDialog({
       const res = await postJSON<{ summary: string; suggestions: Suggestion[] }>("/api/ai/suggest", {
         destination: trip.destination,
         interests: trip.interests,
-        date: dayIndex >= 0 ? isoDate(dayDate(trip.startDate, dayIndex)) : undefined,
+        date: dayIndex >= 0 && trip.startDate ? isoDate(tripDayDate(trip, dayIndex)!) : undefined,
         dayItems: (day?.itemIds ?? [])
           .map((id) => trip.items[id])
           .filter(Boolean)

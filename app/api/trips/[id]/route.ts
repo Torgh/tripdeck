@@ -21,7 +21,7 @@ const tripSchema = z
   .object({
     id: z.string(),
     name: z.string(),
-    startDate: z.string(),
+    startDate: z.string().optional(),
     updatedAt: z.string(),
     days: z.array(z.looseObject({ id: z.string(), itemIds: z.array(z.string()) })),
     items: z.record(z.string(), z.unknown()),

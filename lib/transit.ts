@@ -12,12 +12,13 @@ const STEP_MIN = 5;
  * today's timetable instead.
  */
 export function legRouteTime(
-  startDate: string,
+  startDate: string | undefined,
   dayIndex: number,
   entry: Pick<TimelineEntry, "legAt">,
   today: string,
 ): RouteTime | undefined {
-  if (!entry.legAt) return undefined;
+  // Without dates: today's timetable, as for a trip in the past.
+  if (!entry.legAt || !startDate) return undefined;
   const min = Math.floor(entry.legAt.min / STEP_MIN) * STEP_MIN;
   const dayOffset = Math.floor(min / 1440);
   const date = isoDate(dayDate(startDate, dayIndex + dayOffset));

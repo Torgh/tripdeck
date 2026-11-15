@@ -129,6 +129,11 @@ export const pl: Messages = {
     optional: "Opcjonalnie",
     firstDay: "Pierwszy dzień",
     lastDay: "Ostatni dzień",
+    datesOpen: "Termin jeszcze nieustalony",
+    datesOpenHint: "Wczesny plan: zbieraj pomysły już teraz, a daty i dni dodasz, gdy będą znane – Claude pomoże go uzupełnić.",
+    timing: "Kiedy, mniej więcej",
+    timingPlaceholder: "np. wiosna 2027, ok. 10 dni",
+    daysIfKnown: "Liczba dni, jeśli wiesz",
     numberOfDays: "Liczba dni",
     interests: "Zainteresowania (dla podpowiedzi AI)",
     interestsPlaceholder: "nurkowanie, punkty widokowe, lokalne jedzenie, muzea…",
@@ -360,6 +365,7 @@ export const pl: Messages = {
       many: "; {n} kart trafi do Pomysłów",
       other: "; {n} karty trafi do Pomysłów",
     }),
+    datesOpenHint: "Dni zostają ponumerowane, bez dat; dodasz je lub usuniesz na tablicy.",
     interests: "Zainteresowania (używane przez podpowiedzi AI)",
   },
   todoDialog: {
@@ -595,6 +601,7 @@ export const pl: Messages = {
     resizeHint: "Przeciągnij, aby zmienić rozmiar · kliknij dwukrotnie, aby przywrócić",
   },
   phone: {
+    dayChip: "Dzień",
     updated: "Zaktualizowano „{name}”",
     imported: "Zaimportowano „{name}”",
     notJson: "Ten plik nie jest poprawnym plikiem JSON.",
@@ -712,6 +719,8 @@ export const pl: Messages = {
     ended: "Zakończona",
     days: plural({ one: "dzień", few: "dni", many: "dni", other: "dnia" }),
     today: "dziś",
+    datesOpen: "Termin otwarty",
+    openShort: "bez terminu",
     endedShort: "koniec",
   },
   rental: {

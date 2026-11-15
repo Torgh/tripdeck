@@ -18,7 +18,7 @@ export interface TripSummary {
   cards?: number;
 }
 
-export function summaryOf(trip: Trip): Required<TripSummary> {
+export function summaryOf(trip: Trip): Required<Omit<TripSummary, "startDate">> & Pick<TripSummary, "startDate"> {
   return {
     id: trip.id,
     name: trip.name,
@@ -357,7 +357,8 @@ export class GoogleDriveStore implements TripStore {
         updatedAt: trip.updatedAt,
         name: trip.name.slice(0, 80),
         destination: (trip.destination ?? "").slice(0, 80),
-        startDate: trip.startDate,
+        // Drive merges appProperties: null removes the date of a trip whose dates were opened again.
+        startDate: trip.startDate ?? null,
         days: String(trip.days.length),
         cards: String(Object.keys(trip.items).length),
       },
@@ -382,7 +383,7 @@ export class GoogleDriveStore implements TripStore {
     });
     // The file was deleted on Drive since it was listed: list again, which creates a new one.
     if (res.status === 404 && !fresh) return this.put(trip, true);
-    if (existing) existing.appProperties = metadata.appProperties;
+    if (existing) existing.appProperties = { ...metadata.appProperties, startDate: trip.startDate };
     // A new file isn't in the listing yet; the next lookup lists again.
     else driveListings.delete(this.listingKey);
   }

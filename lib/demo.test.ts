@@ -17,7 +17,7 @@ describe("demo trip", () => {
   };
 
   it("starts on a Saturday so the cathedral day is a Sunday", () => {
-    expect(timelines[0].date.getUTCDay()).toBe(6);
+    expect(timelines[0].date!.getUTCDay()).toBe(6);
     expect(issuesOf("St John's Co-Cathedral")).toEqual([expect.stringMatching(/Closed on this weekday/)]);
   });
 
@@ -80,7 +80,7 @@ describe("demo trip to-do list", () => {
   it("has the health card to get, a dive day waiting for confirmation and one still to book", () => {
     const trip = demoTrip();
     expect(tripTodos(trip).map((x) => todoLabel(x))).toEqual([
-      `Malta: European Health Insurance Card (EKUZ) – by ${isoDate(dayDate(trip.startDate, -3))}`,
+      `Malta: European Health Insurance Card (EKUZ) – by ${isoDate(dayDate(trip.startDate!, -3))}`,
       "Cirkewwa – Rozi & P29 wrecks (day 3): waiting for confirmation",
       "Wied iż-Żurrieq shore dives (day 6): to book",
     ]);
@@ -114,6 +114,17 @@ describe("demo trip dates", () => {
     vi.setSystemTime(new Date(2026, 10, day, 23, 30));
     const trip = demoTrip();
     expect(todayIndex(trip, new Date())).toBeDefined();
-    expect(dayDate(trip.startDate, 1).getUTCDay()).toBe(0);
+    expect(dayDate(trip.startDate!, 1).getUTCDay()).toBe(0);
+  });
+});
+
+describe("the demo with its dates opened", () => {
+  it("has no weekday, so opening days are not checked", () => {
+    const { startDate: _s, ...trip } = demoTrip();
+    const timelines = computeTripTimeline(trip);
+    expect(timelines[0].date).toBeUndefined();
+    const item = Object.values(trip.items).find((i) => i.title === "St John's Co-Cathedral")!;
+    const issues = timelines.flatMap((d) => d.entries).find((e) => e.itemId === item.id)!.issues;
+    expect(issues.map((i) => i.message)).not.toContainEqual(expect.stringMatching(/Closed on this weekday/));
   });
 });

@@ -81,6 +81,7 @@ The user sees every change live on a drag-and-drop board with a map, so make cha
 
 How to work:
 - Start with list_trips / get_trip. Refer to cards by their item_id. Days are numbered from 1; day 0 means Ideas.
+- Early plans: a trip can start with its dates open – no start_date, perhaps no days, only Ideas and a rough timing ("spring 2027, about 10 days"). When the user is only starting to think about a trip, create it that way (create_trip without start_date), collect places as Ideas, and fill in timing, days and finally the dates with update_trip as the plan firms up. Without dates there are no weekdays, so opening days and entry deadlines cannot be checked yet – say so.
 - To find places use search_places (by name) or nearby_places (what is around a card). Prefer adding cards with place_query so they get coordinates and a map pin.
 - Before reordering a day, call optimize_day for real travel times, then decide (meals, sunset, heat, opening hours) and apply with reorder_day. Explain your reasoning briefly.
 - Booking confirmations: if you have Gmail (or another mail) tools, search for confirmations (Booking.com, GetYourGuide, Viator, Airbnb, airlines, ferries, car / scooter rentals, dive centres), then add one card per booking on the right day with provider, reference, times and price. Never invent booking numbers.
@@ -259,21 +260,37 @@ function entryLines(trip: Trip): string[] {
   return [...lines, ""];
 }
 
+/** "2027-05-01 → 2027-05-10 (10 days)", or for an early plan its open dates and rough timing. */
+function datesLine(trip: Trip): string {
+  const days = `${trip.days.length} ${trip.days.length === 1 ? "day" : "days"}`;
+  if (!trip.startDate) {
+    const when = trip.timing ? `roughly: ${trip.timing}` : "no rough timing yet";
+    return `dates open (${when}; ${trip.days.length ? `${days}, undated` : "no days yet – cards wait in Ideas"})`;
+  }
+  return `${trip.startDate} → ${isoDate(dayDate(trip.startDate, trip.days.length - 1))} (${days})`;
+}
+
 function renderTrip(trip: Trip, budget?: Budget): string {
   const timelines = computeTripTimeline(trip);
   const diveWarnings = mergeIssues(computeDiveWarnings(trip, timelines), computeClockNotes(trip, timelines));
   const rentals = rentalsOf(trip);
   const lines: string[] = [];
-  const last = dayDate(trip.startDate, trip.days.length - 1);
   const rentsDefault = Object.values(trip.items).some(
     (i) => i.type === "rental" && i.rental && VEHICLE_MODE[i.rental.vehicle] === trip.defaultMode,
   );
   lines.push(
     `# ${trip.name} [trip_id ${trip.id}]`,
-    `${trip.destination} · ${trip.startDate} → ${isoDate(last)} (${trip.days.length} days) · default travel: ${MODE_LABEL[trip.defaultMode]}${rentsDefault ? " while rented, 🚗 Car otherwise" : ""}`,
+    `${trip.destination} · ${datesLine(trip)} · default travel: ${MODE_LABEL[trip.defaultMode]}${rentsDefault ? " while rented, 🚗 Car otherwise" : ""}`,
     `Interests: ${trip.interests || "not set"}`,
     "",
   );
+  if (!trip.startDate) {
+    lines.push(
+      "## Early plan – dates open",
+      "Help narrow it down: save the rough timing (update_trip timing) and collect places as Ideas (add_item day 0). Days can be added before there are dates (update_trip add_days); once the dates are known, set start_date and end_date.",
+      "",
+    );
+  }
   const todos = tripTodos(trip);
   if (todos.length) lines.push("## To sort out", ...todos.map((t) => `- ${todoLabel(t)}`), "");
   if (budget) lines.push(...budgetLines(budget));
@@ -282,7 +299,7 @@ function renderTrip(trip: Trip, budget?: Budget): string {
 
   timelines.forEach((tl, d) => {
     const day = trip.days[d];
-    lines.push(`## Day ${d + 1} · ${formatDayLabel(tl.date)} (starts ${day.startTime})`);
+    lines.push(`## Day ${d + 1}${tl.date ? ` · ${formatDayLabel(tl.date)}` : ""} (starts ${day.startTime})`);
     if (tl.base) lines.push(`Wakes up at: ${tl.base.title} [${tl.base.id}]`);
     for (const r of rentals[d]) {
       if (r.phase === "during") lines.push(`Has rental: ${r.rental.title} [${r.rental.id}] until ${r.returnLabel}`);
@@ -561,7 +578,7 @@ server.registerTool(
     const trips = (
       await Promise.all(
         (await store().list()).map(async (s) =>
-          s.startDate !== undefined && s.days !== undefined && s.cards !== undefined
+          s.days !== undefined && s.cards !== undefined
             ? s
             : store()
                 .get(s.id)
@@ -574,10 +591,11 @@ server.registerTool(
     return [
       `Storage: ${where}. Maps data: ${mapsProvider() === "google" ? "Google" : "OpenStreetMap"}.`,
       ...trips
-        .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""))
+        // Dated trips by start; early plans with open dates after them.
+        .sort((a, b) => (a.startDate ?? "~").localeCompare(b.startDate ?? "~"))
         .map(
           (t) =>
-            `- ${t.name} [trip_id ${t.id}] · ${t.destination ?? ""} · ${t.startDate}, ${t.days} days · ${t.cards} cards`,
+            `- ${t.name} [trip_id ${t.id}] · ${t.destination ?? ""} · ${t.startDate ? `${t.startDate}, ${t.days} days` : `dates open${t.days ? `, ${t.days} undated days` : ""}`} · ${t.cards} cards`,
         ),
     ].join("\n");
   }),
@@ -602,31 +620,46 @@ server.registerTool(
   "create_trip",
   {
     title: "Create trip",
-    description: "Creates a new trip with empty days.",
+    description:
+      "Creates a new trip with empty days. Leave out start_date for an early plan whose dates are not decided yet: it gets `days` undated days (none by default, the cards wait in Ideas) and an optional rough timing; set the dates later with update_trip.",
     inputSchema: {
       name: z.string().min(1).max(120),
       destination: z.string().min(1).max(120),
       start_date: z
         .string()
         .regex(/^\d{4}-\d{2}-\d{2}$/)
-        .describe("YYYY-MM-DD of day 1"),
-      days: z.number().int().min(1).max(60),
+        .optional()
+        .describe("YYYY-MM-DD of day 1. Omit while the dates are open"),
+      days: z
+        .number()
+        .int()
+        .min(0)
+        .max(60)
+        .optional()
+        .describe("Number of days; required with start_date (at least 1). Without it: 0 or the days the user expects"),
+      timing: z
+        .string()
+        .max(120)
+        .optional()
+        .describe("Only without start_date: when, roughly, in the user's words, e.g. 'spring 2027, about 10 days'"),
       interests: z.string().max(300).optional().describe("Used for suggestions, e.g. 'diving, viewpoints, local food'"),
       default_mode: z.enum(ROUTABLE_MODES).optional(),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
   },
   tool(async (a) => {
+    if (a.start_date && !a.days) throw new HttpError(400, "days (at least 1) is required with start_date.");
     const trip = ops.createTrip({
       name: a.name,
       destination: a.destination,
       startDate: a.start_date,
       days: a.days,
+      timing: a.start_date ? undefined : a.timing,
       interests: a.interests,
       defaultMode: a.default_mode,
     });
     await exclusive(() => store().put(trip));
-    return `Created "${trip.name}" [trip_id ${trip.id}] with ${trip.days.length} days starting ${trip.startDate}.`;
+    return `Created "${trip.name}" [trip_id ${trip.id}]: ${datesLine(trip)}.`;
   }),
 );
 
@@ -634,7 +667,8 @@ server.registerTool(
   "update_trip",
   {
     title: "Update trip",
-    description: "Changes trip details, changes the date range (end_date adds or removes days at the end; cards from removed days move to Ideas), adds days at the end, sets the start time of a day, sets the budget currency and spending limit, or the travellers' passports.",
+    description:
+      "Changes trip details, changes the date range (end_date adds or removes days at the end; cards from removed days move to Ideas), adds days at the end, sets the start time of a day, sets the budget currency and spending limit, or the travellers' passports. For an early plan with open dates: timing saves when, roughly; start_date with end_date (or with the undated days it has) gives it dates; dates_open: true opens the dates of a dated trip again (its days stay, undated).",
     inputSchema: {
       trip_id: tripId,
       name: z.string().max(120).optional(),
@@ -648,6 +682,15 @@ server.registerTool(
         .regex(/^\d{4}-\d{2}-\d{2}$/)
         .optional()
         .describe("Last day of the trip. Without it, changing start_date keeps the number of days"),
+      timing: z
+        .string()
+        .max(120)
+        .optional()
+        .describe("While the dates are open: when, roughly, e.g. 'May or June 2027, 8–10 days'; empty clears it"),
+      dates_open: z
+        .boolean()
+        .optional()
+        .describe("true: the dates are not decided (any more) – removes start_date, keeps the days undated"),
       interests: z.string().max(300).optional(),
       default_mode: z.enum(ROUTABLE_MODES).optional(),
       add_days: z.number().int().min(1).max(30).optional(),
@@ -667,11 +710,13 @@ server.registerTool(
   },
   tool(async (a) => {
     const trip = await updateTrip(a.trip_id, (t) => {
+      if (a.dates_open && (a.start_date || a.end_date)) {
+        throw new HttpError(400, "dates_open cannot be combined with start_date or end_date.");
+      }
       let next: Trip = {
         ...t,
         name: a.name ?? t.name,
         destination: a.destination ?? t.destination,
-        startDate: a.start_date ?? t.startDate,
         interests: a.interests ?? t.interests,
         defaultMode: a.default_mode ?? t.defaultMode,
         passports: a.passports ?? t.passports,
@@ -683,10 +728,15 @@ server.registerTool(
           ...(a.budget_limit !== undefined && { limit: a.budget_limit > 0 ? a.budget_limit : undefined }),
         };
       }
-      if (a.end_date) {
-        const count = daysBetween(next.startDate, a.end_date) + 1;
+      if (a.dates_open) next = ops.clearDates(next, a.timing ?? next.timing);
+      else if (a.timing !== undefined && !(a.start_date ?? next.startDate)) next = ops.clearDates(next, a.timing);
+      const startDate = a.start_date ?? next.startDate;
+      if (a.end_date && !startDate) throw new HttpError(400, "The dates are open: give start_date together with end_date.");
+      if (startDate && (a.start_date || a.end_date)) {
+        const count = a.end_date ? daysBetween(startDate, a.end_date) + 1 : next.days.length;
+        if (!a.end_date && count < 1) throw new HttpError(400, "This early plan has no days yet: give end_date with start_date.");
         if (count < 1 || count > 60) throw new HttpError(400, "end_date must be on or after the first day, at most 60 days later");
-        next = ops.setDayCount(next, count);
+        next = ops.setDates(next, startDate, count);
       }
       if (a.add_days) next = { ...next, days: [...next.days, ...Array.from({ length: a.add_days }, ops.newDay)] };
       if (a.day_start) {
@@ -695,7 +745,7 @@ server.registerTool(
       }
       return next;
     });
-    return `Updated. "${trip.name}" now has ${trip.days.length} days from ${trip.startDate}.`;
+    return `Updated. "${trip.name}": ${datesLine(trip)}.`;
   }),
 );
 
@@ -951,7 +1001,7 @@ server.registerTool(
       matrix: minutes,
       hasStart: !!base?.location,
       dayStartMin: parseHm(day.startTime) ?? 540,
-      weekday: dayDate(trip.startDate, dayIndex).getUTCDay(),
+      weekday: trip.startDate ? dayDate(trip.startDate, dayIndex).getUTCDay() : undefined,
     };
     const current = located.map((_, i) => i);
     const best = bestOrder(input);

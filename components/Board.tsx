@@ -326,7 +326,8 @@ function DayColumn(
             onClick={() => props.onSelectDay(selectedDayId === day.id ? null : day.id)}
             title={t("board.showDay")}
           >
-            {t("common.day", { day: dayIndex + 1 })} · {tl ? formatDayLabel(tl.date, lang) : ""}
+            {t("common.day", { day: dayIndex + 1 })}
+            {tl?.date && ` · ${formatDayLabel(tl.date, lang)}`}
           </h2>
           <input
             type="time"
@@ -351,7 +352,8 @@ function DayColumn(
           >
             {t("board.optimize")}
           </button>
-          {trip.days.length > 1 && (
+          {/* A dated trip keeps at least one day; an early plan can go back to Ideas only. */}
+          {(trip.days.length > 1 || !trip.startDate) && (
             <button
               className="btn small ghost danger"
               title={t("board.removeDayTitle")}

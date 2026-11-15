@@ -3,7 +3,7 @@
 import { useRates } from "@/lib/hooks";
 import { formatMoney, RATE_CURRENCIES, type Budget, type BudgetLine } from "@/lib/money";
 import { useStore } from "@/lib/store";
-import { dayDate, formatDayLabel } from "@/lib/time";
+import { tripDayTitle } from "@/lib/itinerary";
 import { ITEM_TYPE_ICON, itemIcon, type ItemType, type Trip } from "@/lib/types";
 import { useLang, useT } from "@/lib/useLang";
 import { Modal } from "./Modal";
@@ -27,7 +27,7 @@ export function BudgetDialog({
   // For converting the limit when the currency changes, even on a trip priced in one currency.
   const rates = useRates(budget.currency, true);
   const m = (n: number) => formatMoney(n, budget.currency);
-  const day = (i: number) => `${t("common.day", { day: i + 1 })} · ${formatDayLabel(dayDate(trip.startDate, i), lang)}`;
+  const day = (i: number) => tripDayTitle(trip, i, lang);
   const { limit, total } = budget;
   const byType = (Object.entries(budget.byType) as [ItemType, number][]).sort((a, b) => b[1] - a[1]);
 

@@ -28,7 +28,8 @@ export function clockOf(trip: Trip, item: Item, dayIndex: number, startMin: numb
   const to = item.transport?.toLocation?.timeZone;
   if (item.type !== "transport" || !from || !to) return undefined;
   const dayOffset = Math.floor(startMin / 1440);
-  const date = isoDate(dayDate(trip.startDate, dayIndex + dayOffset));
+  // While the dates are open the clocks are read for the same day from today (summer time may differ).
+  const date = isoDate(dayDate(trip.startDate ?? isoDate(new Date()), dayIndex + dayOffset));
   const leaves = zonedTimeToUtc(date, formatHm(startMin - dayOffset * 1440), from);
   const shiftMin = utcOffsetMin(to, leaves) - utcOffsetMin(from, leaves);
   const homeOffset = home ? utcOffsetMin(home, leaves) : undefined;

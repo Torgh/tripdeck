@@ -13,6 +13,7 @@ export function mergeTrips(base: Trip, local: Trip, remote: Trip): Trip {
     name: pick(base.name, local.name, remote.name),
     destination: pick(base.destination, local.destination, remote.destination),
     startDate: pick(base.startDate, local.startDate, remote.startDate),
+    timing: pick(base.timing, local.timing, remote.timing),
     interests: pick(base.interests, local.interests, remote.interests),
     defaultMode: pick(base.defaultMode, local.defaultMode, remote.defaultMode),
     budget: pick(base.budget, local.budget, remote.budget),

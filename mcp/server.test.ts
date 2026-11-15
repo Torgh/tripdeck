@@ -129,6 +129,35 @@ describe.skipIf(!bun)("MCP server", () => {
     expect(await ok("list_trips")).toMatch(/Malta test.*2 days · 2 cards/);
   });
 
+  it("starts an early plan without dates and fills it in later", async () => {
+    const created = await ok("create_trip", { name: "Japan someday", destination: "Japan", timing: "spring 2027" });
+    expect(created).toMatch(/dates open \(roughly: spring 2027; no days yet/);
+    const tripId = idIn(created, /trip_id ([\w-]+)/);
+    await ok("add_item", { trip_id: tripId, day: 0, type: "place", title: "Fushimi Inari" });
+
+    const plan = await ok("get_trip", { trip_id: tripId });
+    expect(plan).toContain("## Early plan – dates open");
+    expect(plan).toContain("Fushimi Inari");
+    expect(await ok("list_trips")).toMatch(/Japan someday.*dates open · 1 cards/);
+
+    // Days before dates, then the dates themselves.
+    expect(await ok("update_trip", { trip_id: tripId, add_days: 2, timing: "April 2027, about 10 days" })).toMatch(
+      /roughly: April 2027, about 10 days; 2 days, undated/,
+    );
+    expect((await call("update_trip", { trip_id: tripId, end_date: "2027-04-10" })).isError).toBe(true);
+    expect(await ok("update_trip", { trip_id: tripId, start_date: "2027-04-01", end_date: "2027-04-10" })).toMatch(
+      /2027-04-01 → 2027-04-10 \(10 days\)/,
+    );
+    const saved = JSON.parse(fs.readFileSync(path.join(home, "trips", `${tripId}.json`), "utf8"));
+    expect(saved.startDate).toBe("2027-04-01");
+    expect(saved.timing).toBeUndefined();
+
+    // And open again.
+    expect(await ok("update_trip", { trip_id: tripId, dates_open: true })).toMatch(/dates open .*10 days, undated/);
+    expect((await call("create_trip", { name: "x", destination: "x", start_date: "2027-01-01" })).isError).toBe(true);
+    await ok("remove_item", { trip_id: tripId, item_id: idIn(plan, /Fushimi Inari \[([\w-]+)\]/) });
+  });
+
   it("keeps the mix and shows the coach's dive preparation on the card", async () => {
     const tripId = idIn(await ok("create_trip", { name: "Dahab", destination: "Dahab", start_date: "2026-11-14", days: 3 }), /trip_id ([\w-]+)/);
     const dive = idIn(

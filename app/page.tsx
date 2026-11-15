@@ -7,9 +7,9 @@ import { SyncBadge } from "@/components/SyncAgent";
 import { SOURCE_URL } from "@/lib/about";
 import { demoTrip } from "@/lib/demo";
 import { useHydrated } from "@/lib/hooks";
-import { nextTripId, sortTrips, tripCountdown } from "@/lib/itinerary";
+import { nextTripId, sortTrips, tripCountdown, tripDates } from "@/lib/itinerary";
 import { createTrip, parseTripFile, useStore } from "@/lib/store";
-import { dayDate, daysBetween, formatDayLabel, isoDate } from "@/lib/time";
+import { dayDate, daysBetween, isoDate } from "@/lib/time";
 import { ROUTABLE_MODES, type TravelMode } from "@/lib/types";
 import { useLang, useT } from "@/lib/useLang";
 
@@ -32,6 +32,10 @@ export default function Home() {
     destination: "",
     startDate: isoDate(new Date()),
     days: 5,
+    /** An early plan: no dates yet, perhaps not even a number of days. */
+    datesOpen: false,
+    timing: "",
+    openDays: 0,
     interests: "",
     defaultMode: "DRIVE" as TravelMode,
   });
@@ -53,7 +57,12 @@ export default function Home() {
 
   const create = (e: React.FormEvent) => {
     e.preventDefault();
-    const trip = createTrip({ ...form, name: form.name || form.destination || t("home.newTripName") });
+    const { datesOpen, timing, openDays, ...rest } = form;
+    const trip = createTrip({
+      ...rest,
+      name: form.name || form.destination || t("home.newTripName"),
+      ...(datesOpen ? { startDate: undefined, days: openDays, timing } : {}),
+    });
     saveTrip(trip);
     open(trip.id);
   };
@@ -146,11 +155,11 @@ export default function Home() {
                     <span className="trip-text">
                       <strong>{trip.name}</strong>
                       <span className="muted small">
-                        {trip.destination} · {formatDayLabel(dayDate(trip.startDate, 0), lang)} –{" "}
-                        {formatDayLabel(dayDate(trip.startDate, trip.days.length - 1), lang)}
+                        {trip.destination} · {tripDates(trip, lang)}
                       </span>
                       <span className="small">
-                        {t("home.days", { n: trip.days.length })} · {t("home.places", { n: Object.keys(trip.items).length })}
+                        {trip.days.length > 0 && `${t("home.days", { n: trip.days.length })} · `}
+                        {t("home.places", { n: Object.keys(trip.items).length })}
                       </span>
                     </span>
                     <span className={`countdown${tone}`}>
@@ -202,38 +211,75 @@ export default function Home() {
               />
             </label>
           </div>
-          <div className="grid3">
-            <label>
-              {t("home.firstDay")}
-              <input
-                type="date"
-                required
-                value={form.startDate}
-                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-              />
-            </label>
-            <label>
-              {t("home.lastDay")}
-              <input
-                type="date"
-                required
-                min={form.startDate}
-                max={form.startDate ? isoDate(dayDate(form.startDate, MAX_DAYS - 1)) : undefined}
-                value={lastDay}
-                onChange={(e) => setLastDay(e.target.value)}
-              />
-            </label>
-            <label>
-              {t("home.numberOfDays")}
-              <input
-                type="number"
-                min={1}
-                max={MAX_DAYS}
-                value={form.days}
-                onChange={(e) => setForm({ ...form, days: Number(e.target.value) })}
-              />
-            </label>
-          </div>
+          <label className="row small" style={{ gap: 6 }}>
+            <input
+              type="checkbox"
+              style={{ width: "auto" }}
+              checked={form.datesOpen}
+              onChange={(e) => setForm({ ...form, datesOpen: e.target.checked })}
+            />
+            {t("home.datesOpen")}
+          </label>
+          {form.datesOpen ? (
+            <>
+              <div className="grid2">
+                <label>
+                  {t("home.timing")}
+                  <input
+                    placeholder={t("home.timingPlaceholder")}
+                    maxLength={120}
+                    value={form.timing}
+                    onChange={(e) => setForm({ ...form, timing: e.target.value })}
+                  />
+                </label>
+                <label>
+                  {t("home.daysIfKnown")}
+                  <input
+                    type="number"
+                    min={0}
+                    max={MAX_DAYS}
+                    value={form.openDays || ""}
+                    placeholder="?"
+                    onChange={(e) => setForm({ ...form, openDays: Math.min(MAX_DAYS, Math.max(0, Number(e.target.value) || 0)) })}
+                  />
+                </label>
+              </div>
+              <p className="muted small">{t("home.datesOpenHint")}</p>
+            </>
+          ) : (
+            <div className="grid3">
+              <label>
+                {t("home.firstDay")}
+                <input
+                  type="date"
+                  required
+                  value={form.startDate}
+                  onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                />
+              </label>
+              <label>
+                {t("home.lastDay")}
+                <input
+                  type="date"
+                  required
+                  min={form.startDate}
+                  max={form.startDate ? isoDate(dayDate(form.startDate, MAX_DAYS - 1)) : undefined}
+                  value={lastDay}
+                  onChange={(e) => setLastDay(e.target.value)}
+                />
+              </label>
+              <label>
+                {t("home.numberOfDays")}
+                <input
+                  type="number"
+                  min={1}
+                  max={MAX_DAYS}
+                  value={form.days}
+                  onChange={(e) => setForm({ ...form, days: Number(e.target.value) })}
+                />
+              </label>
+            </div>
+          )}
           <div className="grid2">
             <label>
               {t("home.interests")}

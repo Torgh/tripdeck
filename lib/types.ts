@@ -328,8 +328,13 @@ export interface Trip {
   id: string;
   name: string;
   destination: string;
-  /** "YYYY-MM-DD" – date of the first day. */
-  startDate: string;
+  /**
+   * "YYYY-MM-DD" – date of the first day. Missing while the dates are still open: an early plan whose
+   * days (if any) are numbered but not dated, see `timing` and `hasDates`.
+   */
+  startDate?: string;
+  /** While the dates are open: when, roughly, e.g. "spring 2027, about 10 days". */
+  timing?: string;
   /** Free text the AI uses to tailor suggestions, e.g. "snorkeling, viewpoints, local food". */
   interests: string;
   defaultMode: TravelMode;
@@ -344,6 +349,11 @@ export interface Trip {
   /** Keyed by `legKey(fromId, toId)`. */
   legs: Record<string, Leg>;
   updatedAt: string;
+}
+
+/** Whether the trip has dates yet – an early plan has neither dates nor, perhaps, any days. */
+export function hasDates(trip: Pick<Trip, "startDate">): trip is { startDate: string } {
+  return !!trip.startDate;
 }
 
 export const IDEAS = "ideas";

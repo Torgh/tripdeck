@@ -124,6 +124,11 @@ export const es: Messages = {
     optional: "Opcional",
     firstDay: "Primer día",
     lastDay: "Último día",
+    datesOpen: "Fechas aún sin decidir",
+    datesOpenHint: "Un plan temprano: reúne ideas ya y añade las fechas y los días cuando los sepas; Claude te ayuda a completarlo.",
+    timing: "Cuándo, más o menos",
+    timingPlaceholder: "p. ej. primavera de 2027, unos 10 días",
+    daysIfKnown: "Días, si los sabes",
     numberOfDays: "Número de días",
     interests: "Intereses (para las sugerencias de IA)",
     interestsPlaceholder: "buceo, miradores, comida local, museos…",
@@ -330,6 +335,7 @@ export const es: Messages = {
     added: plural({ one: " · se añade {n} día vacío al final", other: " · se añaden {n} días vacíos al final" }),
     removed: plural({ one: " · se elimina el último día", other: " · se eliminan los últimos {n} días" }),
     cardsMove: plural({ one: "; su {n} tarjeta pasa a Ideas", other: "; sus {n} tarjetas pasan a Ideas" }),
+    datesOpenHint: "Los días siguen numerados, sin fechas; añádelos o quítalos en el tablero.",
     interests: "Intereses (los usan las sugerencias de IA)",
   },
   todoDialog: {
@@ -555,6 +561,7 @@ export const es: Messages = {
     resizeHint: "Arrastra para cambiar el tamaño · doble clic para restablecer",
   },
   phone: {
+    dayChip: "Día",
     updated: "«{name}» actualizado",
     imported: "«{name}» importado",
     notJson: "Este archivo no es un JSON válido.",
@@ -672,6 +679,8 @@ export const es: Messages = {
     ended: "Terminado",
     days: plural({ one: "día", other: "días" }),
     today: "hoy",
+    datesOpen: "Fechas abiertas",
+    openShort: "sin fechas",
     endedShort: "terminado",
   },
   rental: {

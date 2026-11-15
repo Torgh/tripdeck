@@ -1,6 +1,7 @@
 "use client";
 
 import { flag } from "@/lib/entry";
+import { tripDayTitle } from "@/lib/itinerary";
 import { dayDate, formatDayLabel } from "@/lib/time";
 import type { Todo } from "@/lib/todo";
 import { BOOKING_STATUS_ICON, itemIcon, type Trip } from "@/lib/types";
@@ -25,7 +26,7 @@ export function TodoDialog({
 }) {
   const t = useT();
   const lang = useLang();
-  const day = (i: number) => `${t("common.day", { day: i + 1 })} · ${formatDayLabel(dayDate(trip.startDate, i), lang)}`;
+  const day = (i: number) => tripDayTitle(trip, i, lang);
   return (
     <Modal title={t("todoDialog.title")} onClose={onClose}>
       {todos.length === 0 ? (

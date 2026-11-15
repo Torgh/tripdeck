@@ -10,27 +10,40 @@ export function newDay(): Day {
   return { id: newId(), itemIds: [], startTime: "09:00" };
 }
 
+/**
+ * A new trip. Without `startDate` it is an early plan with open dates: `days` undated days (none by
+ * default – the cards wait in Ideas) and an optional rough `timing`.
+ */
 export function createTrip(init: {
   name: string;
   destination: string;
-  startDate: string;
-  days: number;
+  startDate?: string;
+  days?: number;
+  timing?: string;
   interests?: string;
   defaultMode?: TravelMode;
 }): Trip {
+  const dated = !!init.startDate;
+  const days = Math.max(dated ? 1 : 0, Math.floor(init.days ?? (dated ? 1 : 0)));
+  const timing = init.timing?.trim();
   return {
     id: newId(),
     name: init.name,
     destination: init.destination,
-    startDate: init.startDate,
+    ...(dated ? { startDate: init.startDate } : timing ? { timing } : {}),
     interests: init.interests ?? "",
     defaultMode: init.defaultMode ?? "DRIVE",
-    days: Array.from({ length: Math.max(1, init.days) }, newDay),
+    days: Array.from({ length: days }, newDay),
     ideas: [],
     items: {},
     legs: {},
     updatedAt: new Date().toISOString(),
   };
+}
+
+/** A trip file has its start date – or, for an early plan with open dates, at least its name. */
+function isNamedOrDated(t: Partial<Trip>): boolean {
+  return typeof t.startDate === "string" ? t.startDate !== "" : typeof t.name === "string";
 }
 
 /**
@@ -39,7 +52,7 @@ export function createTrip(init: {
  */
 export function parseTripFile(json: unknown, { keepId = false } = {}): Trip {
   const t = json as Partial<Trip>;
-  if (!t || typeof t !== "object" || !Array.isArray(t.days) || typeof t.items !== "object" || !t.startDate) {
+  if (!t || typeof t !== "object" || !Array.isArray(t.days) || typeof t.items !== "object" || !isNamedOrDated(t)) {
     throw new Error("This file is not a TripDeck trip export.");
   }
   const kept = keepId && typeof t.id === "string" && t.id !== "";
@@ -52,6 +65,22 @@ export function parseTripFile(json: unknown, { keepId = false } = {}): Trip {
     defaultMode: t.defaultMode ?? "DRIVE",
     updatedAt: kept && t.updatedAt ? t.updatedAt : new Date().toISOString(),
   };
+}
+
+/**
+ * Gives the trip dates: day 1 is `startDate` and the trip runs `count` days, grown or shrunk at the
+ * end (cards from removed days move to Ideas). The rough timing of an early plan is no longer needed.
+ */
+export function setDates(trip: Trip, startDate: string, count: number): Trip {
+  const { timing: _timing, ...rest } = trip;
+  return setDayCount({ ...rest, startDate }, count);
+}
+
+/** Opens the dates again: the days stay, numbered but undated, and `timing` says when, roughly. */
+export function clearDates(trip: Trip, timing?: string): Trip {
+  const { startDate: _startDate, timing: _timing, ...rest } = trip;
+  const rough = timing?.trim();
+  return rough ? { ...rest, timing: rough } : rest;
 }
 
 /** Grow or shrink the trip to `count` days; cards from removed days move to Ideas. */

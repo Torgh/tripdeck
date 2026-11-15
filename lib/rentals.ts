@@ -1,5 +1,5 @@
 import { translator, type Lang } from "./i18n";
-import { dayDate, formatDayLabel } from "./time";
+import { tripDayLabel } from "./itinerary";
 import type { Item, RentalVehicle, TravelMode, Trip } from "./types";
 
 /** A rental on one day of the trip: picked up, in use, or going back. */
@@ -12,6 +12,11 @@ export interface RentalDay {
   returnLabel: string;
 }
 
+/** "Sat 23 Jan", or "Day 5" while the trip's dates are open. */
+function dayName(trip: Trip, index: number, lang: Lang): string {
+  return tripDayLabel(trip, index, lang) ?? translator(lang)("common.day", { day: index + 1 });
+}
+
 /** For each day, the rentals you have on it, in pick-up order. A rental from Ideas has no dates. */
 export function rentalsOf(trip: Trip, lang: Lang = "en"): RentalDay[][] {
   const out: RentalDay[][] = trip.days.map(() => []);
@@ -20,7 +25,7 @@ export function rentalsOf(trip: Trip, lang: Lang = "en"): RentalDay[][] {
       const rental = trip.items[id];
       if (rental?.type !== "rental") continue;
       const days = Math.max(1, rental.rental?.days ?? 1);
-      const returnLabel = formatDayLabel(dayDate(trip.startDate, start + days), lang);
+      const returnLabel = dayName(trip, start + days, lang);
       for (let i = start; i <= start + days && i < trip.days.length; i++) {
         out[i].push({ rental, days, returnLabel, phase: i === start ? "pickup" : i === start + days ? "return" : "during" });
       }
@@ -67,6 +72,6 @@ export function rentalSummary(trip: Trip, rental: Item, dayIndex: number, lang: 
   const days = Math.max(1, rental.rental?.days ?? 1);
   const length = t("rental.days", { n: days });
   if (dayIndex < 0) return length;
-  const back = formatDayLabel(dayDate(trip.startDate, dayIndex + days), lang);
+  const back = dayName(trip, dayIndex + days, lang);
   return t("rental.back", { length, date: `${back}${rental.rental?.returnTime ? ` ${rental.rental.returnTime}` : ""}` });
 }

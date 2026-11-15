@@ -124,7 +124,7 @@ export const useStore = create<State>()(
         removeDay: (tripId, dayId) =>
           reorder(tripId, (t) => {
             const day = t.days.find((d) => d.id === dayId);
-            if (!day || t.days.length <= 1) return t;
+            if (!day || t.days.length <= (t.startDate ? 1 : 0)) return t;
             return { ...t, days: t.days.filter((d) => d.id !== dayId), ideas: [...t.ideas, ...day.itemIds] };
           }),
         updateDay: (tripId, dayId, patch) =>

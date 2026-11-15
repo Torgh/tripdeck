@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { tripWith } from "./testUtils";
 import {
   addItem,
+  clearDates,
   containerOfItem,
   createTrip,
   moveDay,
@@ -9,6 +10,7 @@ import {
   pruneLegs,
   removeItem,
   reorderDay,
+  setDates,
   setDayCount,
   touch,
 } from "./tripOps";
@@ -189,5 +191,38 @@ describe("pruneLegs", () => {
       [legKey("c", "a")]: { mode: "TRANSIT", result: route },
     };
     expect(pruneLegs(trip).legs).toEqual({ [legKey("c", "a")]: { mode: "TRANSIT" } });
+  });
+});
+
+describe("early plans with open dates", () => {
+  it("creates a trip without dates: no days unless asked, and a rough timing", () => {
+    const open = createTrip({ name: "Japan", destination: "Japan", timing: "  spring 2027 " });
+    expect(open.startDate).toBeUndefined();
+    expect(open.days).toEqual([]);
+    expect(open.timing).toBe("spring 2027");
+    expect(createTrip({ name: "J", destination: "J", days: 3 }).days).toHaveLength(3);
+    // A dated trip has at least one day and no rough timing.
+    const dated = createTrip({ name: "J", destination: "J", startDate: "2027-04-01", days: 0, timing: "spring" });
+    expect(dated.days).toHaveLength(1);
+    expect(dated.timing).toBeUndefined();
+  });
+
+  it("sets the dates, keeping the cards and dropping the rough timing", () => {
+    const open = { ...tripWith([[card("a")]]), startDate: undefined, timing: "May" };
+    const dated = setDates(open, "2027-05-03", 3);
+    expect(dated.startDate).toBe("2027-05-03");
+    expect(dated.timing).toBeUndefined();
+    expect(dated.days).toHaveLength(3);
+    expect(dated.days[0].itemIds).toEqual(["a"]);
+  });
+
+  it("opens the dates again: the days stay, undated", () => {
+    const trip = tripWith([[card("a")], []]);
+    const open = clearDates(trip, " autumn ");
+    expect(open.startDate).toBeUndefined();
+    expect("startDate" in open).toBe(false);
+    expect(open.timing).toBe("autumn");
+    expect(open.days).toEqual(trip.days);
+    expect("timing" in clearDates(trip, " ")).toBe(false);
   });
 });

@@ -7,7 +7,8 @@ import { formatMoney, parsePrice } from "@/lib/money";
 import { rentalSummary } from "@/lib/rentals";
 import { guessType, itemFieldsFromPlace } from "@/lib/places";
 import { newId, useStore } from "@/lib/store";
-import { dayDate, formatDayLabel, formatDuration, formatHm, isoDate, parseHm } from "@/lib/time";
+import { tripDayDate, tripDayLabel } from "@/lib/itinerary";
+import { formatDuration, formatHm, isoDate, parseHm } from "@/lib/time";
 import { durationOf } from "@/lib/timeline";
 import {
   DEFAULT_DURATION_MIN,
@@ -50,9 +51,15 @@ const TRANSPORT_KINDS: TransportKind[] = ["flight", "ferry", "train", "bus", "ca
 
 /** "Mon 12 Jan → Thu 15 Jan. " for a stay checked in on day `dayIndex`; empty in Ideas. */
 function stayRange(trip: Trip, dayIndex: number, nights: number, lang: Lang) {
-  if (dayIndex < 0) return "";
-  const day = (i: number) => formatDayLabel(dayDate(trip.startDate, i), lang);
+  if (dayIndex < 0 || !trip.startDate) return "";
+  const day = (i: number) => tripDayLabel(trip, i, lang);
   return `${day(dayIndex)} → ${day(dayIndex + nights)}. `;
+}
+
+/** "YYYY-MM-DD" of the card's day, for the AI; undefined in Ideas and while the dates are open. */
+function dayDateIso(trip: Trip, dayIndex: number): string | undefined {
+  const date = dayIndex >= 0 ? tripDayDate(trip, dayIndex) : undefined;
+  return date && isoDate(date);
 }
 
 export function tripCenter(trip: Trip) {
@@ -143,7 +150,7 @@ export function ItemEditor({
         title: draft.title,
         type: draft.type,
         destination: trip.destination,
-        date: dayIndex >= 0 ? isoDate(dayDate(trip.startDate, dayIndex)) : undefined,
+        date: dayDateIso(trip, dayIndex),
         location: draft.location && { lat: draft.location.lat, lng: draft.location.lng, address: draft.location.address },
         placeId: draft.location?.placeId,
         notes: draft.notes,

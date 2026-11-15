@@ -418,7 +418,7 @@ export function demoTrip(): Trip {
  * official EU and Polish pages on 23 Oct 2026. Malta is in the EU, so it is mostly "nothing to do".
  */
 function demoEntryCheck(trip: Trip): EntryCheck {
-  const day = (i: number) => isoDate(dayDate(trip.startDate, i));
+  const day = (i: number) => isoDate(dayDate(trip.startDate!, i));
   const travel = "https://europa.eu/youreurope/citizens/travel/entry-exit/eu-citizen/index_en.htm";
   const licence = "https://europa.eu/youreurope/citizens/vehicles/driving-licence/driving-licence-recognition-validity/index_en.htm";
   const health = "https://europa.eu/youreurope/citizens/health/unplanned-healthcare/temporary-stays/index_en.htm";
