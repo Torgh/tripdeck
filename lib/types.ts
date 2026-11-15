@@ -172,6 +172,13 @@ export interface Booking {
   status?: BookingStatus;
   /** Already paid – the budget splits paid from still to pay. */
   paid?: boolean;
+  /**
+   * Still to pay at the place itself, as written with its currency: "600 MXN" (a cenote's entrance,
+   * a park fee). Counted in the budget as still to pay, apart from `price`.
+   */
+  onSite?: string;
+  /** The place takes only cash for `onSite`: the budget lists it under cash to bring. */
+  cash?: boolean;
 }
 
 export interface AiTips {

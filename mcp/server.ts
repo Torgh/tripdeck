@@ -87,7 +87,7 @@ How to work:
 - Booking confirmations: if you have Gmail (or another mail) tools, search for confirmations (Booking.com, GetYourGuide, Viator, Airbnb, airlines, ferries, car / scooter rentals, dive centres), then add one card per booking on the right day with provider, reference, times and price. Never invent booking numbers.
 - Booking status: booking.status "confirmed", "pending" (paid or requested, not confirmed yet) or "todo" (still to book). get_trip lists the pending and to-book ones, and nights with nowhere to sleep, under "To sort out" – mention them.
 - Entry & paperwork (visas, passport rules, arrival forms, driving permits): research them on the web yourself for the trip's passports (update_trip passports – ask which passports when get_trip says they are not set) and save them with save_entry_check, whose description says what to look for. The board shows them under 🛂, the open ones with deadlines under "To sort out". When get_trip says they are missing or out of date, offer to check; mark one done with set_entry_done when the user says it is sorted. Never present entry rules from memory as certain.
-- Prices: booking.price as written on the confirmation, always with its currency ("€189", "1 500 THB"); booking.paid when it is already paid. get_trip adds them up under "Budget" in the trip's currency (update_trip budget_currency / budget_limit) – mention prices without a currency and a budget that is over its limit.
+- Prices: booking.price as written on the confirmation, always with its currency ("€189", "1 500 THB"); booking.paid when it is already paid. What is still paid at the place (entrance fees, park fees, a balance due on arrival) goes in booking.on_site, with cash: true when only cash is taken – get_trip then lists the cash to bring per day. get_trip adds them up under "Budget" in the trip's currency (update_trip budget_currency / budget_limit) – mention prices without a currency and a budget that is over its limit.
 - Rentals (car, scooter, motorbike, bicycle): one card of type rental on the pick-up day, start_time = pick-up time, rental.days = days until the return. The board then shows it on every day up to the return. Do not use transport car_rental for new rentals.
 - Organised tours (type activity): the card's place is the pick-up / meeting point (travel times go there); list the places the tour visits in tour_stops so they show on the map.
 - Flights, ferries, trains (type transport): place_query = where it departs, transport.to_place_query = where it arrives, start_time = departure and transport.arrival_time = arrival, both in local time as on the ticket (arrival_next_day when it lands the next day). The route to the next card then starts at the arrival, so no flight leg is needed. get_trip notes when the clocks change and how long the journey really takes.
@@ -210,6 +210,7 @@ function itemLine(item: Item): string {
       `booked: ${[item.booking.provider, item.booking.reference, item.booking.price].filter(Boolean).join(" ")}${item.booking.paid ? " (paid)" : ""}`,
     );
   }
+  if (item.booking?.onSite) bits.push(`to pay on site: ${item.booking.onSite}${item.booking.cash ? " (cash only)" : ""}`);
   if (item.booking?.status) bits.push(`status: ${BOOKING_STATUS_ICON[item.booking.status]} ${BOOKING_STATUS_LABEL[item.booking.status]}`);
   if (item.location) {
     bits.push(
@@ -227,8 +228,14 @@ function budgetLines(b: Budget): string[] {
   const days = b.byDay.map((n, i) => (n > 0 ? `day ${i + 1} ${m(n)}` : "")).filter(Boolean);
   if (days.length) lines.push(`Per day: ${days.join(", ")}`);
   if (b.unconverted.length) lines.push(`⚠️ Not in the total – no exchange rate for ${b.unconverted.join(", ")}`);
-  for (const { item } of b.noCurrency) lines.push(`⚠️ Price without a currency, not counted: ${item.title} [${item.id}] "${item.booking?.price}"`);
-  if (b.ideas.length) lines.push(`Ideas with a price (not counted): ${b.ideas.map((l) => `${l.item.title} ${l.item.booking?.price}`).join(", ")}`);
+  for (const { item, text } of b.noCurrency) lines.push(`⚠️ Price without a currency, not counted: ${item.title} [${item.id}] "${text}"`);
+  for (const need of b.cash) {
+    const days = need.byDay.map((d) => `day ${d.dayIndex + 1} ${formatMoney(d.amount, need.currency)}`).join(", ");
+    lines.push(`💵 Cash to bring: ${formatMoney(need.amount, need.currency)} (${days})`);
+  }
+  if (b.ideas.length) {
+    lines.push(`Ideas with a price (not counted): ${b.ideas.map((l) => `${l.item.title} ${formatMoney(l.price.amount, l.price.currency ?? b.currency)}`).join(", ")}`);
+  }
   return [...lines, ""];
 }
 
@@ -448,6 +455,12 @@ const cardFields = {
       url: z.string().max(500).optional(),
       price: z.string().max(60).optional().describe('As written, with the currency: "€189", "1 500 THB"'),
       paid: z.boolean().optional().describe("Already paid"),
+      on_site: z
+        .string()
+        .max(60)
+        .optional()
+        .describe('Still to pay at the place itself, with the currency: "600 MXN" (a cenote entrance, a park fee); "" clears it'),
+      cash: z.boolean().optional().describe("The place takes only cash for on_site"),
       status: z
         .enum(["confirmed", "pending", "todo"])
         .optional()
@@ -536,7 +549,11 @@ async function applyCard(trip: Trip, base: Item, a: CardArgs): Promise<{ item: I
     }
     item.tour = stops.length ? { stops } : undefined;
   }
-  if (a.booking) item.booking = { ...item.booking, ...a.booking };
+  if (a.booking) {
+    const { on_site, ...rest } = a.booking;
+    item.booking = { ...item.booking, ...rest };
+    if (on_site !== undefined) item.booking.onSite = on_site || undefined;
+  }
   if (!item.title) item.title = "Untitled";
 
   // Elevation feeds the dive altitude checks, so only look it up on trips with dives (best-effort).

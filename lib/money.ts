@@ -145,17 +145,30 @@ export interface BudgetLine {
   /** In the budget's currency; undefined without an exchange rate. */
   converted?: number;
   paid: boolean;
+  /** The part paid at the place itself (`booking.onSite`), never paid in advance. */
+  onSite?: boolean;
+  /** Only cash is taken there. */
+  cash?: boolean;
+}
+
+/** Cash to bring in one currency: the on-site payments that take only cash, per day. */
+export interface CashNeed {
+  currency: string;
+  amount: number;
+  byDay: { dayIndex: number; amount: number }[];
 }
 
 export interface Budget {
   currency: string;
   limit?: number;
-  /** Priced cards on the days, in trip order. */
+  /** Priced cards on the days, in trip order; a card paid partly on site has a second, `onSite` line. */
   lines: BudgetLine[];
   /** Priced cards in Ideas: not counted. */
   ideas: BudgetLine[];
-  /** Cards whose price names no currency: not counted. */
-  noCurrency: { item: Item; dayIndex?: number }[];
+  /** Prices that name no currency: not counted. `text` is the price as written. */
+  noCurrency: { item: Item; dayIndex?: number; text: string }[];
+  /** Cash-only payments on site, by currency (most first). */
+  cash: CashNeed[];
   /** Currencies on the days with no exchange rate (yet): those prices aren't in the totals. */
   unconverted: string[];
   /** The day of the exchange rates used, when any price was converted. */
@@ -181,15 +194,18 @@ export function budgetCurrency(trip: Trip): string {
 export function foreignCurrencies(trip: Trip, base: string): string[] {
   const out = new Set<string>();
   for (const item of Object.values(trip.items)) {
-    const c = parsePrice(item.booking?.price)?.currency;
-    if (c && c !== base) out.add(c);
+    for (const text of [item.booking?.price, item.booking?.onSite]) {
+      const c = parsePrice(text)?.currency;
+      if (c && c !== base) out.add(c);
+    }
   }
   return [...out];
 }
 
 /**
  * What the trip costs, from the prices on its cards, in the budget's currency. A stay or rental is
- * counted once, on the day it starts. Cards in Ideas are listed but not counted.
+ * counted once, on the day it starts. What is still paid on site (`booking.onSite`, e.g. a cenote's
+ * entrance) counts too, as still to pay. Cards in Ideas are listed but not counted.
  */
 export function tripBudget(trip: Trip, rates?: Rates): Budget {
   const currency = budgetCurrency(trip);
@@ -199,6 +215,7 @@ export function tripBudget(trip: Trip, rates?: Rates): Budget {
     lines: [],
     ideas: [],
     noCurrency: [],
+    cash: [],
     unconverted: [],
     total: 0,
     paid: 0,
@@ -206,20 +223,35 @@ export function tripBudget(trip: Trip, rates?: Rates): Budget {
     byType: {},
   };
   const unconverted = new Set<string>();
-  const add = (id: string, dayIndex?: number) => {
-    const item = trip.items[id];
-    const price = parsePrice(item?.booking?.price);
-    if (!item || !price) return;
+  const cash = new Map<string, CashNeed>();
+  const addLine = (item: Item, text: string | undefined, dayIndex: number | undefined, onSite: boolean) => {
+    const price = parsePrice(text);
+    if (!price) return;
     if (!price.currency && price.amount !== 0) {
-      budget.noCurrency.push({ item, dayIndex });
+      budget.noCurrency.push({ item, dayIndex, text: text! });
       return;
     }
-    const line: BudgetLine = { item, dayIndex, price, converted: convert(price, currency, rates), paid: !!item.booking?.paid };
+    const line: BudgetLine = {
+      item,
+      dayIndex,
+      price,
+      converted: convert(price, currency, rates),
+      paid: !onSite && !!item.booking?.paid,
+      ...(onSite && { onSite: true, cash: !!item.booking?.cash }),
+    };
     if (dayIndex === undefined) {
       budget.ideas.push(line);
       return;
     }
     budget.lines.push(line);
+    if (line.cash && price.currency && price.amount > 0) {
+      const need = cash.get(price.currency) ?? { currency: price.currency, amount: 0, byDay: [] };
+      need.amount += price.amount;
+      const day = need.byDay.find((d) => d.dayIndex === dayIndex);
+      if (day) day.amount += price.amount;
+      else need.byDay.push({ dayIndex, amount: price.amount });
+      cash.set(price.currency, need);
+    }
     if (line.converted === undefined) {
       unconverted.add(price.currency!);
       return;
@@ -230,9 +262,16 @@ export function tripBudget(trip: Trip, rates?: Rates): Budget {
     budget.byDay[dayIndex] += line.converted;
     budget.byType[item.type] = (budget.byType[item.type] ?? 0) + line.converted;
   };
+  const add = (id: string, dayIndex?: number) => {
+    const item = trip.items[id];
+    if (!item?.booking) return;
+    addLine(item, item.booking.price, dayIndex, false);
+    addLine(item, item.booking.onSite, dayIndex, true);
+  };
   trip.days.forEach((day, i) => day.itemIds.forEach((id) => add(id, i)));
   trip.ideas.forEach((id) => add(id));
   budget.unconverted = [...unconverted];
+  budget.cash = [...cash.values()].sort((a, b) => b.amount - a.amount);
   return budget;
 }
 

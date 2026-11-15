@@ -164,6 +164,8 @@ export const en = {
     allDays: "All days",
   },
   board: {
+    onSiteTitle: "Still to pay on site",
+    onSiteCashTitle: "Still to pay on site, cash only",
     dayItems: plural({ one: "Day {day} · {n} item", other: "Day {day} · {n} items" }),
     addDay: "+ Day",
     ideasTitle: "💡 Ideas & unscheduled",
@@ -235,6 +237,10 @@ export const en = {
     other: "other",
   },
   editor: {
+    onSite: "To pay on site",
+    onSitePlaceholder: "600 MXN",
+    onSiteHint: "Entrance or park fees, a balance due on arrival – with the currency",
+    cashOnly: "Cash only",
     rentalTitle: "{vehicle} rental",
     untitled: "Untitled",
     addTitle: "Add to trip",
@@ -442,6 +448,10 @@ export const en = {
       "Or paste a confirmation into the chat. Each booking lands on the right day within a few seconds. Set up the TripDeck MCP server in <a>Settings</a>; for in-app import add an Anthropic API key there.",
   },
   budgetDialog: {
+    cash: "💵 Cash to bring",
+    cashHint: "Payments on site that take only cash – have them in the local currency.",
+    onSite: "on site",
+    onSiteCash: "cash on site",
     title: "💰 Budget",
     currency: "Currency",
     limit: "Spending limit (optional)",
@@ -577,6 +587,9 @@ export const en = {
     fullScreen: "⛶ Full screen",
   },
   phoneDay: {
+    onSite: "{amount} on site",
+    onSiteCash: "💵 {amount} cash on site",
+    cash: "{amount} in cash",
     today: "Today",
     onTheRoad: "{duration} on the road",
     checkOut: "Check out of",

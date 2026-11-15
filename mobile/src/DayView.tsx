@@ -22,9 +22,11 @@ interface DayProps {
   onSelect: (itemId: string) => void;
   /** What the day's bookings cost, in the trip's budget currency. */
   spent?: string;
+  /** Cash to have on you for the day's cash-only payments on site: "600 MXN". */
+  cash?: string;
 }
 
-export function DayView({ trip, timeline, warnings, night, rentals, isToday, highlightId, onSelect, spent }: DayProps) {
+export function DayView({ trip, timeline, warnings, night, rentals, isToday, highlightId, onSelect, spent, cash }: DayProps) {
   const t = useT();
   const lang = useLang();
   const { dayIndex, base, entries } = timeline;
@@ -44,6 +46,7 @@ export function DayView({ trip, timeline, warnings, night, rentals, isToday, hig
           <span className="muted small">{t("phoneDay.onTheRoad", { duration: formatDuration(timeline.travelMin, lang) })}</span>
         )}
         {spent && <span className="muted small">💰 {spent}</span>}
+        {cash && <span className="small">💵 {t("phoneDay.cash", { amount: cash })}</span>}
       </div>
 
       {base && (
@@ -288,13 +291,14 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect, 
             {item.tour?.stops.length ? (
               <div className="small">🗺️ {item.tour.stops.map((s) => s.name).join(" → ")}</div>
             ) : null}
-            {b && (b.provider || b.reference || b.price || b.status) && (
+            {b && (b.provider || b.reference || b.price || b.status || b.onSite) && (
               <div className="booking small">
                 {[
                   b.status && `${BOOKING_STATUS_ICON[b.status]} ${t(`bookingStatus.${b.status}`)}`,
                   b.provider,
                   b.reference && `#${b.reference}`,
                   b.price && (b.paid ? t("phoneDay.paid", { price: b.price }) : b.price),
+                  b.onSite && t(b.cash ? "phoneDay.onSiteCash" : "phoneDay.onSite", { amount: b.onSite }),
                 ]
                   .filter(Boolean)
                   .join(" · ")}

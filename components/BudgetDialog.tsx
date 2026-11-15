@@ -98,11 +98,11 @@ export function BudgetDialog({
         {budget.noCurrency.length > 0 && (
           <p className="issue warn">
             {t("budgetDialog.noCurrency", { n: budget.noCurrency.length })}{" "}
-            {budget.noCurrency.map(({ item }, i) => (
-              <span key={item.id}>
+            {budget.noCurrency.map(({ item, text }, i) => (
+              <span key={`${item.id}-${i}`}>
                 {i > 0 && ", "}
                 <button className="linklike" onClick={() => onEdit(item.id)}>
-                  {item.title} ({item.booking?.price})
+                  {item.title} ({text})
                 </button>
               </span>
             ))}
@@ -143,17 +143,37 @@ export function BudgetDialog({
           </div>
         )}
 
+        {budget.cash.length > 0 && (
+          <section>
+            <h3>{t("budgetDialog.cash")}</h3>
+            <ul className="budget-list">
+              {budget.cash.map((need) => (
+                <li key={need.currency}>
+                  <span className="grow">
+                    💵 <strong>{formatMoney(need.amount, need.currency)}</strong>
+                    <span className="muted small">
+                      {" · "}
+                      {need.byDay.map((d) => `${day(d.dayIndex)}: ${formatMoney(d.amount, need.currency)}`).join(" · ")}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="muted small">{t("budgetDialog.cashHint")}</p>
+          </section>
+        )}
+
         {budget.lines.length > 0 && (
           <section>
             <h3>{t("budgetDialog.prices")}</h3>
             <ul className="todo-list">
               {budget.lines.map((line) => (
                 <PriceRow
-                  key={line.item.id}
+                  key={`${line.item.id}${line.onSite ? "-site" : ""}`}
                   line={line}
                   where={day(line.dayIndex!)}
                   currency={budget.currency}
-                  onPaid={(paid) => setPaid(line, paid)}
+                  onPaid={line.onSite ? undefined : (paid) => setPaid(line, paid)}
                   onEdit={() => onEdit(line.item.id)}
                 />
               ))}
@@ -167,7 +187,7 @@ export function BudgetDialog({
             <ul className="todo-list">
               {budget.ideas.map((line) => (
                 <PriceRow
-                  key={line.item.id}
+                  key={`${line.item.id}${line.onSite ? "-site" : ""}`}
                   line={line}
                   where={t("common.ideas")}
                   currency={budget.currency}
@@ -209,6 +229,11 @@ function PriceRow({
         <span className="muted"> · {where}</span>
         <br />
         {price.currency ? formatMoney(price.amount, price.currency) : item.booking?.price}
+        {line.onSite && (
+          <span className="badge" style={{ marginLeft: 6 }}>
+            {line.cash ? `💵 ${t("budgetDialog.onSiteCash")}` : t("budgetDialog.onSite")}
+          </span>
+        )}
         {price.currency && price.currency !== currency && (
           <span className="muted"> · {converted === undefined ? t("budgetDialog.noRateYet") : `≈ ${formatMoney(converted, currency)}`}</span>
         )}

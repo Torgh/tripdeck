@@ -165,6 +165,8 @@ export const es: Messages = {
     allDays: "Todos los días",
   },
   board: {
+    onSiteTitle: "A pagar allí",
+    onSiteCashTitle: "A pagar allí, solo en efectivo",
     dayItems: plural({ one: "Día {day} · {n} tarjeta", other: "Día {day} · {n} tarjetas" }),
     addDay: "+ Día",
     ideasTitle: "💡 Ideas y sin programar",
@@ -236,6 +238,10 @@ export const es: Messages = {
     other: "otro",
   },
   editor: {
+    onSite: "A pagar allí",
+    onSitePlaceholder: "600 MXN",
+    onSiteHint: "Entradas, tasas de parque, un saldo a la llegada – con la moneda",
+    cashOnly: "Solo efectivo",
     rentalTitle: "Alquiler: {vehicle}",
     untitled: "Sin título",
     addTitle: "Añadir al viaje",
@@ -448,6 +454,10 @@ export const es: Messages = {
       "O pega una confirmación en el chat. Cada reserva cae en el día correcto en unos segundos. Configura el servidor MCP de TripDeck en <a>Ajustes</a>; para importar en la app, añade allí una clave de API de Anthropic.",
   },
   budgetDialog: {
+    cash: "💵 Efectivo que llevar",
+    cashHint: "Pagos allí que solo aceptan efectivo: tenlos en la moneda local.",
+    onSite: "allí",
+    onSiteCash: "en efectivo allí",
     title: "💰 Presupuesto",
     currency: "Moneda",
     limit: "Límite de gasto (opcional)",
@@ -586,6 +596,9 @@ export const es: Messages = {
     fullScreen: "⛶ Pantalla completa",
   },
   phoneDay: {
+    onSite: "{amount} allí",
+    onSiteCash: "💵 {amount} en efectivo allí",
+    cash: "{amount} en efectivo",
     today: "Hoy",
     onTheRoad: "{duration} de trayecto",
     checkOut: "Check-out de",

@@ -4,7 +4,7 @@ import { computeDiveWarnings } from "@/lib/diveSafety";
 import { entryActions } from "@/lib/entry";
 import { defaultDayIndex, todayIndex, tripDayDate } from "@/lib/itinerary";
 import { buildLayers, type Marker } from "@/lib/mapLayers";
-import { formatMoney, ratesUrl, toRates, type Rates } from "@/lib/money";
+import { formatMoney, ratesUrl, toRates, type Budget, type Rates } from "@/lib/money";
 import { rentalsOf } from "@/lib/rentals";
 import { nightsOf } from "@/lib/stays";
 import { formatHm } from "@/lib/time";
@@ -289,9 +289,18 @@ export function TripScreen({ trip, now, onBack }: Props) {
             highlightId={highlightId}
             onSelect={setHighlightId}
             spent={budget?.byDay[selected] ? formatMoney(budget.byDay[selected], budget.currency) : undefined}
+            cash={cashOn(budget, selected)}
           />
         )}
       </main>
     </div>
   );
+}
+
+/** The cash-only payments on site on day `dayIndex`, one amount per currency: "MXN 600 · THB 300". */
+function cashOn(budget: Budget | undefined, dayIndex: number): string | undefined {
+  const amounts = (budget?.cash ?? []).flatMap((need) =>
+    need.byDay.filter((d) => d.dayIndex === dayIndex).map((d) => formatMoney(d.amount, need.currency)),
+  );
+  return amounts.length ? amounts.join(" · ") : undefined;
 }

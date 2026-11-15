@@ -643,6 +643,11 @@ const ItemCard = memo(function ItemCard({
           </span>
         )}
         {item.booking?.provider && <span className="badge">{item.booking.provider}</span>}
+        {item.booking?.onSite && (
+          <span className="badge" title={t(item.booking.cash ? "board.onSiteCashTitle" : "board.onSiteTitle")}>
+            {item.booking.cash ? "💵" : "🏷️"} {item.booking.onSite}
+          </span>
+        )}
         {item.booking?.status && (
           <span className={`badge status-${item.booking.status}`} title={t(`bookingStatus.${item.booking.status}`)}>
             {BOOKING_STATUS_ICON[item.booking.status]}

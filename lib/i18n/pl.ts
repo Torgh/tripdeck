@@ -175,6 +175,8 @@ export const pl: Messages = {
     allDays: "Wszystkie dni",
   },
   board: {
+    onSiteTitle: "Do zapłaty na miejscu",
+    onSiteCashTitle: "Do zapłaty na miejscu, tylko gotówką",
     dayItems: plural({
       one: "Dzień {day} · {n} karta",
       few: "Dzień {day} · {n} karty",
@@ -251,6 +253,10 @@ export const pl: Messages = {
     other: "inne",
   },
   editor: {
+    onSite: "Do zapłaty na miejscu",
+    onSitePlaceholder: "600 MXN",
+    onSiteHint: "Wstęp, opłata za park, dopłata na miejscu – z walutą",
+    cashOnly: "Tylko gotówka",
     rentalTitle: "Wynajem: {vehicle}",
     untitled: "Bez nazwy",
     addTitle: "Dodaj do podróży",
@@ -485,6 +491,10 @@ export const pl: Messages = {
       "Albo wklej potwierdzenie do czatu. Każda rezerwacja w kilka sekund trafi na właściwy dzień. Serwer MCP TripDeck skonfigurujesz w <a>Ustawieniach</a>; aby importować w aplikacji, dodaj tam klucz API Anthropic.",
   },
   budgetDialog: {
+    cash: "💵 Gotówka do zabrania",
+    cashHint: "Płatności na miejscu, gdzie biorą tylko gotówkę – miej je w lokalnej walucie.",
+    onSite: "na miejscu",
+    onSiteCash: "gotówką na miejscu",
     title: "💰 Budżet",
     currency: "Waluta",
     limit: "Limit wydatków (opcjonalnie)",
@@ -626,6 +636,9 @@ export const pl: Messages = {
     fullScreen: "⛶ Pełny ekran",
   },
   phoneDay: {
+    onSite: "{amount} na miejscu",
+    onSiteCash: "💵 {amount} gotówką na miejscu",
+    cash: "{amount} gotówki",
     today: "Dziś",
     onTheRoad: "{duration} w drodze",
     checkOut: "Wymeldowanie z:",

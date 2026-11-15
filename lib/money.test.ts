@@ -108,3 +108,45 @@ describe("tripBudget", () => {
     expect(budgetCurrency(tripWith([[card("x")]]))).toBe("EUR");
   });
 });
+
+describe("payments on site", () => {
+  const cenote = (id: string, onSite: string, cash = true): Item => ({
+    id,
+    type: "dive",
+    title: id,
+    booking: { price: "€150", paid: true, onSite, cash },
+  });
+
+  it("counts them as still to pay and lists the cash to bring per currency and day", () => {
+    const trip = tripWith([[cenote("pit", "600 THB")], [cenote("angelita", "760 THB"), cenote("park", "€5", false)]]);
+    const b = tripBudget(trip, rates);
+    expect(b.lines.map((l) => [l.item.id, l.onSite ?? false, l.converted])).toEqual([
+      ["pit", false, 150],
+      ["pit", true, 600 / 38],
+      ["angelita", false, 150],
+      ["angelita", true, 20],
+      ["park", false, 150],
+      ["park", true, 5],
+    ]);
+    expect(b.paid).toBe(450);
+    expect(b.total).toBeCloseTo(450 + 600 / 38 + 20 + 5);
+    // Only the cash-only ones, in their own currency.
+    expect(b.cash).toEqual([
+      {
+        currency: "THB",
+        amount: 1360,
+        byDay: [
+          { dayIndex: 0, amount: 600 },
+          { dayIndex: 1, amount: 760 },
+        ],
+      },
+    ]);
+    expect(foreignCurrencies({ ...trip, budget: { currency: "EUR" } }, "EUR")).toEqual(["THB"]);
+  });
+
+  it("says when an on-site amount has no currency", () => {
+    const b = tripBudget(tripWith([[cenote("x", "600")]]), rates);
+    expect(b.noCurrency).toEqual([expect.objectContaining({ text: "600" })]);
+    expect(b.cash).toEqual([]);
+  });
+});
