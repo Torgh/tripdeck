@@ -76,7 +76,9 @@ async function pdfPages(file: Blob): Promise<Blob[]> {
     import("pdfjs-dist/build/pdf.worker.min.mjs?worker"),
   ]);
   pdfjs.GlobalWorkerOptions.workerPort ??= new PdfWorker();
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  // pdf.js 6.2.108+ only: older versions could run code from a crafted PDF (CVE-2026-16633).
+  const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+  const doc = await task.promise;
   try {
     const pages: Blob[] = [];
     for (let n = 1; n <= Math.min(doc.numPages, MAX_PDF_PAGES); n++) {
@@ -94,7 +96,7 @@ async function pdfPages(file: Blob): Promise<Blob[]> {
     }
     return pages;
   } finally {
-    void doc.destroy();
+    void task.destroy();
   }
 }
 

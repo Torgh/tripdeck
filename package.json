@@ -38,7 +38,7 @@
     "maplibre-gl": "^6.18.0",
     "nanoid": "^6.0.2",
     "next": "^16.4.6",
-    "pdfjs-dist": "^5.7.284",
+    "pdfjs-dist": "^6.5.438",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "server-only": "^0.0.1",
