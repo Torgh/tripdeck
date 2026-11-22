@@ -12,6 +12,8 @@ import { formatMoney } from "@/lib/money";
 import { useTrip } from "@/lib/store";
 import { tripDates } from "@/lib/itinerary";
 import { computeTripTimeline } from "@/lib/timeline";
+import { download, fileBase } from "@/lib/download";
+import { tripCalendar } from "@/lib/ics";
 import { outlineLine } from "@/lib/outline";
 import { tripTodos } from "@/lib/todo";
 import type { ContainerId, Item } from "@/lib/types";
@@ -36,6 +38,7 @@ const dialogs = {
   climate: () => import("./ClimateDialog").then((m) => m.ClimateDialog),
   summary: () => import("./SummaryDialog").then((m) => m.SummaryDialog),
   outline: () => import("./OutlineDialog").then((m) => m.OutlineDialog),
+  share: () => import("./ShareDialog").then((m) => m.ShareDialog),
 };
 const ItemEditor = dynamic(dialogs.editor, { ssr: false });
 const SuggestDialog = dynamic(dialogs.suggest, { ssr: false });
@@ -48,6 +51,7 @@ const EntryDialog = dynamic(dialogs.entry, { ssr: false });
 const ClimateDialog = dynamic(dialogs.climate, { ssr: false });
 const SummaryDialog = dynamic(dialogs.summary, { ssr: false });
 const OutlineDialog = dynamic(dialogs.outline, { ssr: false });
+const ShareDialog = dynamic(dialogs.share, { ssr: false });
 
 /**
  * With the offline service worker running, fetch the dialogs once the board is idle: it keeps what
@@ -77,7 +81,8 @@ type Dialog =
   | { kind: "entry" }
   | { kind: "climate" }
   | { kind: "summary" }
-  | { kind: "outline" };
+  | { kind: "outline" }
+  | { kind: "share" };
 
 export function TripView({ tripId }: { tripId: string | null }) {
   const hydrated = useHydrated();
@@ -130,13 +135,14 @@ export function TripView({ tripId }: { tripId: string | null }) {
     );
   }
 
-  const exportTrip = () => {
-    const blob = new Blob([JSON.stringify(trip, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${trip.name.replace(/[^\w-]+/g, "-").toLowerCase() || "trip"}.tripdeck.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+  const exportTrip = () =>
+    download(
+      new Blob([JSON.stringify(trip, null, 2)], { type: "application/json" }),
+      `${trip.name.replace(/[^\w-]+/g, "-").toLowerCase() || "trip"}.tripdeck.json`,
+    );
+  const exportCalendar = () => {
+    const ics = tripCalendar(trip, timelines, { lang });
+    if (ics) download(new Blob([ics], { type: "text/calendar;charset=utf-8" }), `${fileBase(trip.name)}.ics`);
   };
 
   const hasPlaces =
@@ -238,7 +244,13 @@ export function TripView({ tripId }: { tripId: string | null }) {
           <button className="btn" onClick={() => setDialog({ kind: "import" })}>
             📥 <span className="label">{t("trip.importBooking")}</span>
           </button>
-          <ExportMenu tripId={trip.id} onJson={exportTrip} />
+          <ExportMenu
+            tripId={trip.id}
+            dated={!!trip.startDate}
+            onJson={exportTrip}
+            onCalendar={exportCalendar}
+            onShare={() => setDialog({ kind: "share" })}
+          />
           <button className="btn" onClick={() => setDialog({ kind: "settings" })}>
             ✏️ <span className="label">{t("trip.tripButton")}</span>
           </button>
@@ -309,6 +321,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
       )}
       {dialog?.kind === "entry" && <EntryDialog trip={trip} onClose={close} />}
       {dialog?.kind === "outline" && <OutlineDialog trip={trip} onClose={close} />}
+      {dialog?.kind === "share" && <ShareDialog trip={trip} timelines={timelines} onClose={close} />}
       {dialog?.kind === "climate" && <ClimateDialog trip={trip} onClose={close} />}
       {dialog?.kind === "summary" && <SummaryDialog trip={trip} timelines={timelines} budget={budget} onClose={close} />}
       {dialog?.kind === "todo" && (

@@ -1410,6 +1410,11 @@ legend {
   background: var(--surface-2);
   outline: none;
 }
+.menu-list > button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: none;
+}
 .menu-list strong,
 .menu-list small {
   display: block;
