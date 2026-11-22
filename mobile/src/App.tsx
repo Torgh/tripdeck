@@ -4,6 +4,7 @@ import { demoTrip } from "@/lib/demo";
 import { parseTripFile } from "@/lib/tripOps";
 import type { Trip } from "@/lib/types";
 import { useLang, useT } from "@/lib/useLang";
+import { removeTripAttachments } from "./attachments";
 import { onReminderTap, syncReminders, useRemindersEnabled } from "./notify";
 import { loadTrips, saveTrips } from "./storage";
 import { TripList } from "./TripList";
@@ -88,6 +89,7 @@ export function App() {
     if (!trips) return;
     const { [id]: _removed, ...rest } = trips;
     update(rest);
+    void removeTripAttachments(id).catch(() => undefined);
   };
 
   if (!trips) return <div className="splash" />;
