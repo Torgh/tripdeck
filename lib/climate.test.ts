@@ -21,6 +21,16 @@ describe("regionsOf", () => {
     // Rounded to a quarter of a degree, so nearby trips share the cached answer.
     expect(regions[1].center).toEqual({ lat: 35.75, lng: 139.75 });
   });
+
+  it("starts from the outline's stops, for an early plan with no cards yet", () => {
+    const trip = tripWith([]);
+    trip.outline = [
+      { id: "s1", name: "Hanoi", days: 3, location: { lat: 21.03, lng: 105.85 } },
+      { id: "s2", name: "Somewhere", days: 1 },
+      { id: "s3", name: "Hoi An", days: 4, location: { lat: 15.88, lng: 108.33 } },
+    ];
+    expect(regionsOf(trip).map(regionLabel)).toEqual(["Hanoi", "Hoi An"]);
+  });
 });
 
 describe("monthlyClimate", () => {

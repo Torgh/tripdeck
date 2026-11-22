@@ -40,6 +40,7 @@ export function DayView({ trip, timeline, warnings, night, rentals, isToday, hig
         <h2>
           {t("common.day", { day: dayIndex + 1 })}
           {timeline.date && ` · ${formatDayLabel(timeline.date, lang)}`}
+          {trip.days[dayIndex]?.label && ` · ${trip.days[dayIndex].label}`}
         </h2>
         {isToday && <span className="badge">{t("phoneDay.today")}</span>}
         {timeline.travelMin > 0 && (

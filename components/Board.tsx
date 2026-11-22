@@ -336,6 +336,7 @@ function DayColumn(
           >
             {t("common.day", { day: dayIndex + 1 })}
             {tl?.date && ` · ${formatDayLabel(tl.date, lang)}`}
+            {day.label && <span className="day-label"> · {day.label}</span>}
           </h2>
           <input
             type="time"
@@ -401,7 +402,7 @@ function DayColumn(
           {t("board.ends", { time: formatHm(tl.endMin) })}
         </div>
       )}
-      {props.night && <NightStrip night={props.night} color={props.nightColor} dayId={day.id} {...props} />}
+      {props.night && <NightStrip night={props.night} color={props.nightColor} dayId={day.id} dated={!!trip.startDate} {...props} />}
     </section>
   );
 }
@@ -434,7 +435,8 @@ function NightStrip({
   dayId,
   onHighlight,
   onAdd,
-}: BoardHandlers & { night: Night; color?: string; dayId: string }) {
+  dated,
+}: BoardHandlers & { night: Night; color?: string; dayId: string; dated: boolean }) {
   const t = useT();
   if (night.kind === "end") return null;
   if (night.kind === "transport") {
@@ -447,7 +449,8 @@ function NightStrip({
   }
   if (night.kind === "none") {
     return (
-      <div className="night-strip gap">
+      // An undated day of an early plan doesn't need a bed yet: no warning colour.
+      <div className={`night-strip ${dated ? "gap" : "muted"}`}>
         <span>🌙</span>
         <span className="grow">{t("board.noStay")}</span>
         <button className="btn small" onClick={() => onAdd(dayId, "stay")}>
