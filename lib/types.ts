@@ -238,6 +238,20 @@ export interface Day {
   itemIds: string[];
   /** When the day starts, "HH:MM". */
   startTime: string;
+  /** Where the day is, e.g. "Hanoi" – set from the trip's outline, or by hand. */
+  label?: string;
+}
+
+/**
+ * One stop of a trip's rough outline: a region or town and how many days to spend there, e.g.
+ * "Hanoi, 3 days". Sketched before the days are planned; `applyOutline` lays it over the days.
+ */
+export interface OutlineStop {
+  id: string;
+  name: string;
+  days: number;
+  /** Found from the name, for the map, the climate and the ideas nearby. */
+  location?: LatLng;
 }
 
 /** One ride on a public-transport route (the walks between rides are only counted in `walkMin`). */
@@ -388,6 +402,8 @@ export interface Trip {
   startDate?: string;
   /** While the dates are open: when, roughly, e.g. "spring 2027, about 10 days". */
   timing?: string;
+  /** The route in broad strokes – regions and days in each – for an early plan. */
+  outline?: OutlineStop[];
   /** Free text the AI uses to tailor suggestions, e.g. "snorkeling, viewpoints, local food". */
   interests: string;
   defaultMode: TravelMode;

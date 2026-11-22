@@ -19,11 +19,10 @@ export function tripDayLabel(trip: Pick<Trip, "startDate">, index: number, lang:
   return date && formatDayLabel(date, lang);
 }
 
-/** "Day 3 · Sat 23 Jan", or just "Day 3" while the dates are open. */
-export function tripDayTitle(trip: Pick<Trip, "startDate">, index: number, lang: Lang = "en"): string {
+/** "Day 3 · Sat 23 Jan", or just "Day 3" while the dates are open – and where the day is, when it says. */
+export function tripDayTitle(trip: Pick<Trip, "startDate"> & { days?: Trip["days"] }, index: number, lang: Lang = "en"): string {
   const day = translator(lang)("common.day", { day: index + 1 });
-  const date = tripDayLabel(trip, index, lang);
-  return date ? `${day} · ${date}` : day;
+  return [day, tripDayLabel(trip, index, lang), trip.days?.[index]?.label].filter(Boolean).join(" · ");
 }
 
 /**

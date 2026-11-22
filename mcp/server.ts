@@ -60,6 +60,7 @@ import {
 import { saveIfUnchanged } from "../lib/server/tripLock";
 import { summaryOf, tripStore } from "../lib/server/tripStore";
 import { mergeTrips } from "../lib/merge";
+import { ideasByStop, outlineFit, outlineLine, outlineStop, setOutline } from "../lib/outline";
 import { nightsOf } from "../lib/stays";
 import { dayDate, daysBetween, formatDayLabel, formatDuration, formatHm, isoDate, parseHm } from "../lib/time";
 import { computeTripTimeline, durationOf, findBase, freshRoute, getLeg, manualLegMinutes } from "../lib/timeline";
@@ -100,7 +101,7 @@ The user sees every change live on a drag-and-drop board with a map, so make cha
 
 How to work:
 - Start with list_trips / get_trip. Refer to cards by their item_id. Days are numbered from 1; day 0 means Ideas.
-- Early plans: a trip can start with its dates open – no start_date, perhaps no days, only Ideas and a rough timing ("spring 2027, about 10 days"). When the user is only starting to think about a trip, create it that way (create_trip without start_date), collect places as Ideas, and fill in timing, days and finally the dates with update_trip as the plan firms up. Without dates there are no weekdays, so opening days and entry deadlines cannot be checked yet – say so. The climate tool shows the typical weather month by month in each region, to help choose when to go.
+- Early plans: a trip can start with its dates open – no start_date, perhaps no days, only Ideas and a rough timing ("spring 2027, about 10 days"). When the user is only starting to think about a trip, create it that way (create_trip without start_date), sketch the route in broad strokes with set_outline (regions and days in each, e.g. Hanoi 3 → Ha Long Bay 2 → Hoi An 4), collect places as Ideas, and fill in timing, days and finally the dates with update_trip as the plan firms up. Without dates there are no weekdays, so opening days and entry deadlines cannot be checked yet – say so. The climate tool shows the typical weather month by month in each region, to help choose when to go.
 - To find places use search_places (by name) or nearby_places (what is around a card). Prefer adding cards with place_query so they get coordinates and a map pin.
 - Days with time to spare: get_trip lists the ideas near them ("Time to spare – ideas nearby"). Offer them to the user, and move the ones they want with move_item.
 - Before reordering a day, call optimize_day for real travel times, then decide (meals, sunset, heat, opening hours) and apply with reorder_day. Explain your reasoning briefly.
@@ -311,6 +312,23 @@ function entryLines(trip: Trip): string[] {
   return [...lines, ""];
 }
 
+/** The route outline, how it fits the days, and the ideas near each stop. */
+function outlineLines(trip: Trip): string[] {
+  if (!trip.outline?.length) return [];
+  const fit = outlineFit(trip);
+  const ideas = ideasByStop(trip);
+  const lines = ["## Route outline", `${outlineLine(trip.outline)} (days) · ${fit.outline} days`];
+  if (fit.kind === "long") lines.push(`⚠️ The outline needs ${fit.outline} days, the trip has ${fit.days} – set_outline make_days adds them.`);
+  if (fit.kind === "short") lines.push(`ℹ️ The outline fills ${fit.outline} of the ${fit.days} days.`);
+  for (const stop of trip.outline) {
+    const near = ideas.get(stop.id) ?? [];
+    lines.push(
+      `- ${stop.name}: ${stop.days} day(s)${stop.location ? ` (${stop.location.lat.toFixed(3)}, ${stop.location.lng.toFixed(3)})` : " · not located"}${near.length ? ` · ideas nearby: ${near.map((i) => `${i.title} [${i.id}]`).join(", ")}` : ""}`,
+    );
+  }
+  return [...lines, ""];
+}
+
 /** "2027-05-01 → 2027-05-10 (10 days)", or for an early plan its open dates and rough timing. */
 function datesLine(trip: Trip): string {
   const days = `${trip.days.length} ${trip.days.length === 1 ? "day" : "days"}`;
@@ -338,10 +356,11 @@ function renderTrip(trip: Trip, budget?: Budget, spending?: Spending): string {
   if (!trip.startDate) {
     lines.push(
       "## Early plan – dates open",
-      "Help narrow it down: save the rough timing (update_trip timing) and collect places as Ideas (add_item day 0). Days can be added before there are dates (update_trip add_days); once the dates are known, set start_date and end_date.",
+      "Help narrow it down: save the rough timing (update_trip timing), sketch the route with set_outline (regions × days; make_days lays it over the days) and collect places as Ideas (add_item day 0). Once the dates are known, set start_date and end_date.",
       "",
     );
   }
+  lines.push(...outlineLines(trip));
   const todos = tripTodos(trip);
   if (todos.length) lines.push("## To sort out", ...todos.map((t) => `- ${todoLabel(t)}`), "");
   if (budget) lines.push(...budgetLines(budget));
@@ -352,7 +371,7 @@ function renderTrip(trip: Trip, budget?: Budget, spending?: Spending): string {
 
   timelines.forEach((tl, d) => {
     const day = trip.days[d];
-    lines.push(`## Day ${d + 1}${tl.date ? ` · ${formatDayLabel(tl.date)}` : ""} (starts ${day.startTime})`);
+    lines.push(`## Day ${d + 1}${tl.date ? ` · ${formatDayLabel(tl.date)}` : ""}${day.label ? ` · ${day.label}` : ""} (starts ${day.startTime})`);
     if (tl.base) lines.push(`Wakes up at: ${tl.base.title} [${tl.base.id}]`);
     for (const r of rentals[d]) {
       if (r.phase === "during") lines.push(`Has rental: ${r.rental.title} [${r.rental.id}] until ${r.returnLabel}`);
@@ -775,6 +794,10 @@ server.registerTool(
         .object({ day: z.number().int().min(1), time: hhmm })
         .optional()
         .describe("When a given day starts"),
+      day_label: z
+        .object({ day: z.number().int().min(1), label: z.string().max(60) })
+        .optional()
+        .describe("Where a given day is, e.g. 'Hanoi' (shown in its header); '' clears it"),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
   },
@@ -813,9 +836,77 @@ server.registerTool(
         const id = containerFor(next, a.day_start.day);
         next = { ...next, days: next.days.map((d) => (d.id === id ? { ...d, startTime: a.day_start!.time } : d)) };
       }
+      if (a.day_label) {
+        const id = containerFor(next, a.day_label.day);
+        const label = a.day_label.label.trim();
+        next = {
+          ...next,
+          days: next.days.map((d) => {
+            if (d.id !== id) return d;
+            const { label: _old, ...rest } = d;
+            return label ? { ...rest, label } : rest;
+          }),
+        };
+      }
       return next;
     });
     return `Updated. "${trip.name}": ${datesLine(trip)}.`;
+  }),
+);
+
+server.registerTool(
+  "set_outline",
+  {
+    title: "Sketch the route",
+    description:
+      "Saves the trip's route in broad strokes: the regions or towns in order and how many days in each, e.g. Hanoi 3 → Ha Long Bay 2 → Hoi An 4. Good for an early plan, before the days are planned; each stop is located on the map (and for the climate and the ideas nearby). Replaces the outline; [] removes it. make_days lays it over the days: adds days up to the outline's total (never removes any) and labels each day with its stop.",
+    inputSchema: {
+      trip_id: tripId,
+      stops: z
+        .array(
+          z.object({
+            name: z.string().min(1).max(60),
+            days: z.number().int().min(1).max(60),
+            place_query: z
+              .string()
+              .max(200)
+              .optional()
+              .describe("Where it is, when the name alone is ambiguous, e.g. 'Hoi An, Vietnam'. Default: the name and the destination"),
+            lat: z.number().min(-90).max(90).optional(),
+            lng: z.number().min(-180).max(180).optional(),
+          }),
+        )
+        .max(20),
+      make_days: z.boolean().optional().describe("Also add the days and label them with the stops"),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+  },
+  tool(async (a) => {
+    const unlocated: string[] = [];
+    const trip = await updateTrip(a.trip_id, async (t) => {
+      const center = tripCenter(t);
+      const stops = await Promise.all(
+        a.stops.map(async (s) => {
+          if (s.lat != null && s.lng != null) return outlineStop(s.name, s.days, { lat: s.lat, lng: s.lng });
+          const old = t.outline?.find((o) => o.name === s.name.trim() && o.location);
+          if (old && !s.place_query) return { ...outlineStop(s.name, s.days, old.location), id: old.id };
+          const [place] = await searchPlaces(s.place_query ?? `${s.name}, ${t.destination}`, { bias: center, maxResults: 1 }).catch(
+            () => [],
+          );
+          if (!place) unlocated.push(s.name);
+          return outlineStop(s.name, s.days, place ? { lat: place.lat, lng: place.lng } : undefined);
+        }),
+      );
+      return setOutline(t, stops, { days: a.make_days });
+    });
+    if (!trip.outline) return "Removed the outline.";
+    const fit = outlineFit(trip);
+    return [
+      `Outline: ${outlineLine(trip.outline)} – ${fit.outline} days${a.make_days ? `; the trip now has ${fit.days} days, labelled` : fit.kind === "long" ? ` (the trip has ${fit.days} – make_days adds them)` : ""}.`,
+      unlocated.length ? `Not found on the map: ${unlocated.join(", ")} – give a place_query.` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
   }),
 );
 

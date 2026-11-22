@@ -12,6 +12,7 @@ import { formatMoney } from "@/lib/money";
 import { useTrip } from "@/lib/store";
 import { tripDates } from "@/lib/itinerary";
 import { computeTripTimeline } from "@/lib/timeline";
+import { outlineLine } from "@/lib/outline";
 import { tripTodos } from "@/lib/todo";
 import type { ContainerId, Item } from "@/lib/types";
 import { useLang, useT } from "@/lib/useLang";
@@ -34,6 +35,7 @@ const dialogs = {
   entry: () => import("./EntryDialog").then((m) => m.EntryDialog),
   climate: () => import("./ClimateDialog").then((m) => m.ClimateDialog),
   summary: () => import("./SummaryDialog").then((m) => m.SummaryDialog),
+  outline: () => import("./OutlineDialog").then((m) => m.OutlineDialog),
 };
 const ItemEditor = dynamic(dialogs.editor, { ssr: false });
 const SuggestDialog = dynamic(dialogs.suggest, { ssr: false });
@@ -45,6 +47,7 @@ const BudgetDialog = dynamic(dialogs.budget, { ssr: false });
 const EntryDialog = dynamic(dialogs.entry, { ssr: false });
 const ClimateDialog = dynamic(dialogs.climate, { ssr: false });
 const SummaryDialog = dynamic(dialogs.summary, { ssr: false });
+const OutlineDialog = dynamic(dialogs.outline, { ssr: false });
 
 /**
  * With the offline service worker running, fetch the dialogs once the board is idle: it keeps what
@@ -73,7 +76,8 @@ type Dialog =
   | { kind: "budget" }
   | { kind: "entry" }
   | { kind: "climate" }
-  | { kind: "summary" };
+  | { kind: "summary" }
+  | { kind: "outline" };
 
 export function TripView({ tripId }: { tripId: string | null }) {
   const hydrated = useHydrated();
@@ -135,7 +139,8 @@ export function TripView({ tripId }: { tripId: string | null }) {
     URL.revokeObjectURL(a.href);
   };
 
-  const hasPlaces = Object.values(trip.items).some((i) => i.location && i.type !== "transport");
+  const hasPlaces =
+    Object.values(trip.items).some((i) => i.location && i.type !== "transport") || !!trip.outline?.some((s) => s.location);
   const warningCount = [...warnings.values()].flat().filter((i) => i.level === "warn").length;
   const close = () => setDialog(null);
 
@@ -155,6 +160,14 @@ export function TripView({ tripId }: { tripId: string | null }) {
               <button className="linklike" title={t("tripSettings.title")} onClick={() => setDialog({ kind: "settings" })}>
                 📅 {tripDates(trip, lang)}
               </button>
+            )}
+            {(trip.outline?.length || !trip.startDate) && (
+              <>
+                {" · "}
+                <button className="linklike" title={t("trip.outlineTitle")} onClick={() => setDialog({ kind: "outline" })}>
+                  {trip.outline?.length ? t("trip.outline", { line: outlineLine(trip.outline) }) : t("trip.outlineSketch")}
+                </button>
+              </>
             )}
             {warningCount > 0 && <span style={{ color: "var(--warn)" }}> · {t("trip.warnings", { n: warningCount })}</span>}
             {todos.length > 0 && (
@@ -295,6 +308,7 @@ export function TripView({ tripId }: { tripId: string | null }) {
         />
       )}
       {dialog?.kind === "entry" && <EntryDialog trip={trip} onClose={close} />}
+      {dialog?.kind === "outline" && <OutlineDialog trip={trip} onClose={close} />}
       {dialog?.kind === "climate" && <ClimateDialog trip={trip} onClose={close} />}
       {dialog?.kind === "summary" && <SummaryDialog trip={trip} timelines={timelines} budget={budget} onClose={close} />}
       {dialog?.kind === "todo" && (

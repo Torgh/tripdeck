@@ -14,6 +14,7 @@ export function mergeTrips(base: Trip, local: Trip, remote: Trip): Trip {
     destination: pick(base.destination, local.destination, remote.destination),
     startDate: pick(base.startDate, local.startDate, remote.startDate),
     timing: pick(base.timing, local.timing, remote.timing),
+    outline: pick(base.outline, local.outline, remote.outline),
     interests: pick(base.interests, local.interests, remote.interests),
     defaultMode: pick(base.defaultMode, local.defaultMode, remote.defaultMode),
     budget: pick(base.budget, local.budget, remote.budget),
@@ -75,7 +76,9 @@ function mergeDays(base: Day[], local: Day[], remote: Day[]): Day[] {
   return kept.map((id) => {
     const day = r.get(id) ?? l.get(id)!;
     const startTime = pick(b.get(id)?.startTime, l.get(id)?.startTime, r.get(id)?.startTime) ?? day.startTime;
-    return { ...day, startTime };
+    const label = pick(b.get(id)?.label, l.get(id)?.label, r.get(id)?.label);
+    const { label: _label, ...rest } = day;
+    return label ? { ...rest, startTime, label } : { ...rest, startTime };
   });
 }
 

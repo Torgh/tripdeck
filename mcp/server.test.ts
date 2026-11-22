@@ -80,6 +80,7 @@ describe.skipIf(!bun)("MCP server", () => {
         "search_places",
         "set_entry_done",
         "set_leg",
+        "set_outline",
         "trip_summary",
         "update_item",
         "update_trip",
@@ -165,6 +166,25 @@ describe.skipIf(!bun)("MCP server", () => {
     expect(await ok("trip_summary", { trip_id: tripId })).toMatch(/10 days, 0 nights in 0 stays · 0 places/);
     await ok("remove_expense", { trip_id: tripId, expense_id: idIn(withExpense, /\[expense ([\w-]+)\]/) });
     expect(await ok("get_trip", { trip_id: tripId })).not.toMatch(/Spent during the trip/);
+
+    // The route in broad strokes, laid over the days.
+    expect(
+      await ok("set_outline", {
+        trip_id: tripId,
+        stops: [
+          { name: "Kyoto", days: 4, lat: 35.01, lng: 135.77 },
+          { name: "Tokyo", days: 8, lat: 35.68, lng: 139.76 },
+        ],
+        make_days: true,
+      }),
+    ).toMatch(/Outline: Kyoto 4 → Tokyo 8 – 12 days; the trip now has 12 days, labelled/);
+    const outlined = await ok("get_trip", { trip_id: tripId });
+    expect(outlined).toContain("## Route outline");
+    expect(outlined).toMatch(/## Day 5 · .* · Tokyo/);
+    await ok("update_trip", { trip_id: tripId, day_label: { day: 5, label: "Hakone" } });
+    expect(await ok("get_trip", { trip_id: tripId })).toMatch(/## Day 5 · .* · Hakone/);
+    expect(await ok("set_outline", { trip_id: tripId, stops: [] })).toBe("Removed the outline.");
+    await ok("update_trip", { trip_id: tripId, end_date: "2027-04-10" });
 
     // And open again.
     expect(await ok("update_trip", { trip_id: tripId, dates_open: true })).toMatch(/dates open .*10 days, undated/);

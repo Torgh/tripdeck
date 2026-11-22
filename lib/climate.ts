@@ -36,12 +36,19 @@ export interface DailyWeather {
   precipitation_sum: (number | null)[];
 }
 
-/** Cards that say where the trip is: not flights, ferries and trains, which are mostly airports and ports. */
+/**
+ * What says where the trip is: the stops of its outline (an early plan may have nothing else), then the
+ * cards – not flights, ferries and trains, which are mostly airports and ports.
+ */
 function placesOf(trip: Trip): Item[] {
+  const stops: Item[] = (trip.outline ?? []).flatMap((s) =>
+    s.location ? [{ id: s.id, type: "place" as const, title: s.name, location: s.location }] : [],
+  );
   const ids = [...trip.days.flatMap((d) => d.itemIds), ...trip.ideas];
-  return ids
+  const cards = ids
     .map((id) => trip.items[id])
     .filter((i): i is Item => !!i?.location && Number.isFinite(i.location.lat) && i.type !== "transport");
+  return [...stops, ...cards];
 }
 
 const round = (n: number) => Math.round(n * 4) / 4;
