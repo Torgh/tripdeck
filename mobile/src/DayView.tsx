@@ -9,6 +9,7 @@ import { vehicleIcon } from "@/lib/transit";
 import { BOOKING_STATUS_ICON, DIVE_PREP_ICON, diveGas, divePrepUrl, itemIcon, type Item, type Trip } from "@/lib/types";
 import { useLang, useT } from "@/lib/useLang";
 import type { Lang, T } from "@/lib/i18n";
+import { useAttach } from "./attachments";
 
 interface DayProps {
   trip: Trip;
@@ -250,6 +251,8 @@ interface CardProps {
 
 function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect, lang }: CardProps) {
   const t = useT();
+  const attach = useAttach();
+  const attached = attach?.count(item.id) ?? 0;
   const [open, setOpen] = useState(false);
   const sub = subtitle(trip, item, dayIndex, t, lang);
   // Head for the card the way the plan travels there.
@@ -312,6 +315,15 @@ function ItemCard({ trip, item, dayIndex, entry, issues, highlighted, onSelect, 
           </div>
           {details && <span className="chevron" aria-hidden>{open ? "▴" : "▾"}</span>}
         </button>
+        {attach && (
+          <button
+            className={`nav-btn attach-btn${attached ? " has" : ""}`}
+            aria-label={t("attachments.button", { title: item.title, n: attached })}
+            onClick={() => attach.open(item.id)}
+          >
+            📎{attached > 0 && <span className="appbar-count">{attached}</span>}
+          </button>
+        )}
         {nav && (
           <a className="nav-btn" href={nav} target="_blank" rel="noreferrer" aria-label={t("phoneDay.navigate", { title: item.title })}>
             🧭

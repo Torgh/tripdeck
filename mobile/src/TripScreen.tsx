@@ -14,6 +14,8 @@ import { LOCALE, translate } from "@/lib/i18n";
 import { readLang, useLang, useT } from "@/lib/useLang";
 import { useTripBudgetFrom } from "@/lib/useRates";
 import { BudgetView } from "./BudgetView";
+import { AttachContext, useAttachments } from "./attachments";
+import { AttachmentSheet } from "./AttachmentSheet";
 import { EntryView } from "./EntryView";
 import { remindersOf } from "./notify";
 import { RemindersView } from "./RemindersView";
@@ -118,6 +120,12 @@ export function TripScreen({ trip, now, day, onBack }: Props) {
   const hasMap = selected >= IDEAS_TAB && layers.markers.length > 0;
   const entryTodo = useMemo(() => entryActions(trip).length, [trip]);
   const reminders = useMemo(() => remindersOf(trip, lang, now), [trip, lang, now]);
+  const { byItem: attachments, reload: reloadAttachments } = useAttachments(trip.id);
+  const [attachFor, setAttachFor] = useState<string>();
+  const attach = useMemo(
+    () => ({ count: (itemId: string) => attachments.get(itemId)?.length ?? 0, open: setAttachFor }),
+    [attachments],
+  );
 
   // Android back closes the full-screen map before leaving the trip (App listens for "app-back").
   useEffect(() => {
@@ -161,157 +169,168 @@ export function TripScreen({ trip, now, day, onBack }: Props) {
 
   return (
     // The map's state is on the screen: held sideways, an open map moves beside the plan (app.css).
-    <div className={`screen${hasMap ? ` map-${mapMode}` : ""}`}>
-      <header className="appbar">
-        <button className="icon-btn" aria-label={t("common.allTrips")} onClick={onBack}>
-          ←
-        </button>
-        <div className="appbar-title">
-          <h1>{trip.name}</h1>
-          <div className="muted small">{trip.destination}</div>
-        </div>
-        {today != null && selected !== today && (
-          <button className="btn small today-btn" onClick={() => select(today)}>
-            {t("phone.today")}
+    <AttachContext.Provider value={attach}>
+      <div className={`screen${hasMap ? ` map-${mapMode}` : ""}`}>
+        <header className="appbar">
+          <button className="icon-btn" aria-label={t("common.allTrips")} onClick={onBack}>
+            ←
           </button>
-        )}
-        {/* In the bar, not at the end of the day strip, so they show whichever day is open. */}
-        {hasBudget && (
-          <button
-            className="appbar-tab"
-            aria-label={t("phone.budget")}
-            aria-current={selected === BUDGET_TAB}
-            onClick={() => select(BUDGET_TAB)}
-          >
-            💰
-          </button>
-        )}
-        <button
-          className="appbar-tab"
-          aria-label={entryTodo ? t("phone.entryTodo", { n: entryTodo }) : t("phone.entry")}
-          aria-current={selected === ENTRY_TAB}
-          onClick={() => select(ENTRY_TAB)}
-        >
-          🛂
-          {entryTodo > 0 && <span className="appbar-count">{entryTodo}</span>}
-        </button>
-        {trip.startDate && (
-          <button
-            className="appbar-tab"
-            aria-label={reminders.length ? t("reminders.tabCount", { n: reminders.length }) : t("reminders.tab")}
-            aria-current={selected === REMINDERS_TAB}
-            onClick={() => select(REMINDERS_TAB)}
-          >
-            🔔
-          </button>
-        )}
-      </header>
-
-      <div className="day-strip" ref={strip} role="tablist">
-        {trip.days.map((day, i) => {
-          const date = tripDayDate(trip, i);
-          return (
-            <button
-              key={day.id}
-              role="tab"
-              aria-current={i === selected}
-              className={`day-chip${i === today ? " today" : ""}`}
-              onClick={() => select(i)}
-            >
-              {/* Without dates: "Day" over the day's number. */}
-              <span className="chip-weekday">
-                {i === today
-                  ? t("phone.today")
-                  : date
-                    ? date.toLocaleDateString(LOCALE[lang], { weekday: "short", timeZone: "UTC" })
-                    : t("phone.dayChip")}
-              </span>
-              <span className="chip-date">{date ? date.getUTCDate() : i + 1}</span>
-            </button>
-          );
-        })}
-        {trip.ideas.length > 0 && (
-          <button
-            role="tab"
-            aria-current={selected === IDEAS_TAB}
-            className="day-chip ideas"
-            onClick={() => select(IDEAS_TAB)}
-          >
-            <span className="chip-weekday">{t("common.ideas")}</span>
-            <span className="chip-date">{trip.ideas.length}</span>
-          </button>
-        )}
-      </div>
-
-      {hasMap && (
-        <section className={`map-pane ${mapMode}`} aria-label={t("phone.mapOfDay")}>
-          <div className="map-frame">
-            <Suspense fallback={<div className="map" />}>
-              <MapView layers={layers} fitKey={`${selected}|${mapMode}|${landscape}`} highlightId={highlightId} onPinTap={onPinTap} />
-            </Suspense>
+          <div className="appbar-title">
+            <h1>{trip.name}</h1>
+            <div className="muted small">{trip.destination}</div>
           </div>
-          {mapMode === "full" && pinned && (
-            <button
-              className="map-pick"
-              onClick={() => {
-                setMapMode("open");
-                // Let the list come back before scrolling to the card.
-                requestAnimationFrame(() => showInPlan(pinned.id));
-              }}
-            >
-              <span aria-hidden>{pinnedStop ? "🗺️" : itemIcon(pinned)}</span>
-              <span className="map-pick-title">
-                {pinnedStop ?? pinned.title}
-                {pinnedStop && <span className="muted small">{pinned.title}</span>}
-              </span>
-              {pinnedEntry && <span className="muted small">{formatHm(pinnedEntry.start)}</span>}
-              <span className="muted small">{t("phone.showInPlan")}</span>
+          {today != null && selected !== today && (
+            <button className="btn small today-btn" onClick={() => select(today)}>
+              {t("phone.today")}
             </button>
           )}
-          <div className="map-bar">
-            {mapMode !== "full" && (
-              <button className="map-btn" onClick={() => setMapMode(mapMode === "collapsed" ? "open" : "collapsed")}>
-                {t(mapMode === "collapsed" ? "phone.showMap" : "phone.hideMap")}
+          {/* In the bar, not at the end of the day strip, so they show whichever day is open. */}
+          {hasBudget && (
+            <button
+              className="appbar-tab"
+              aria-label={t("phone.budget")}
+              aria-current={selected === BUDGET_TAB}
+              onClick={() => select(BUDGET_TAB)}
+            >
+              💰
+            </button>
+          )}
+          <button
+            className="appbar-tab"
+            aria-label={entryTodo ? t("phone.entryTodo", { n: entryTodo }) : t("phone.entry")}
+            aria-current={selected === ENTRY_TAB}
+            onClick={() => select(ENTRY_TAB)}
+          >
+            🛂
+            {entryTodo > 0 && <span className="appbar-count">{entryTodo}</span>}
+          </button>
+          {trip.startDate && (
+            <button
+              className="appbar-tab"
+              aria-label={reminders.length ? t("reminders.tabCount", { n: reminders.length }) : t("reminders.tab")}
+              aria-current={selected === REMINDERS_TAB}
+              onClick={() => select(REMINDERS_TAB)}
+            >
+              🔔
+            </button>
+          )}
+        </header>
+
+        <div className="day-strip" ref={strip} role="tablist">
+          {trip.days.map((day, i) => {
+            const date = tripDayDate(trip, i);
+            return (
+              <button
+                key={day.id}
+                role="tab"
+                aria-current={i === selected}
+                className={`day-chip${i === today ? " today" : ""}`}
+                onClick={() => select(i)}
+              >
+                {/* Without dates: "Day" over the day's number. */}
+                <span className="chip-weekday">
+                  {i === today
+                    ? t("phone.today")
+                    : date
+                      ? date.toLocaleDateString(LOCALE[lang], { weekday: "short", timeZone: "UTC" })
+                      : t("phone.dayChip")}
+                </span>
+                <span className="chip-date">{date ? date.getUTCDate() : i + 1}</span>
+              </button>
+            );
+          })}
+          {trip.ideas.length > 0 && (
+            <button
+              role="tab"
+              aria-current={selected === IDEAS_TAB}
+              className="day-chip ideas"
+              onClick={() => select(IDEAS_TAB)}
+            >
+              <span className="chip-weekday">{t("common.ideas")}</span>
+              <span className="chip-date">{trip.ideas.length}</span>
+            </button>
+          )}
+        </div>
+
+        {hasMap && (
+          <section className={`map-pane ${mapMode}`} aria-label={t("phone.mapOfDay")}>
+            <div className="map-frame">
+              <Suspense fallback={<div className="map" />}>
+                <MapView layers={layers} fitKey={`${selected}|${mapMode}|${landscape}`} highlightId={highlightId} onPinTap={onPinTap} />
+              </Suspense>
+            </div>
+            {mapMode === "full" && pinned && (
+              <button
+                className="map-pick"
+                onClick={() => {
+                  setMapMode("open");
+                  // Let the list come back before scrolling to the card.
+                  requestAnimationFrame(() => showInPlan(pinned.id));
+                }}
+              >
+                <span aria-hidden>{pinnedStop ? "🗺️" : itemIcon(pinned)}</span>
+                <span className="map-pick-title">
+                  {pinnedStop ?? pinned.title}
+                  {pinnedStop && <span className="muted small">{pinned.title}</span>}
+                </span>
+                {pinnedEntry && <span className="muted small">{formatHm(pinnedEntry.start)}</span>}
+                <span className="muted small">{t("phone.showInPlan")}</span>
               </button>
             )}
-            <button className="map-btn" onClick={() => setMapMode(mapMode === "full" ? "open" : "full")}>
-              {t(mapMode === "full" ? "phone.closeMap" : "phone.fullScreen")}
-            </button>
-          </div>
-        </section>
-      )}
+            <div className="map-bar">
+              {mapMode !== "full" && (
+                <button className="map-btn" onClick={() => setMapMode(mapMode === "collapsed" ? "open" : "collapsed")}>
+                  {t(mapMode === "collapsed" ? "phone.showMap" : "phone.hideMap")}
+                </button>
+              )}
+              <button className="map-btn" onClick={() => setMapMode(mapMode === "full" ? "open" : "full")}>
+                {t(mapMode === "full" ? "phone.closeMap" : "phone.fullScreen")}
+              </button>
+            </div>
+          </section>
+        )}
 
-      <main
-        className="content"
-        ref={content}
-        onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
-        onTouchEnd={onTouchEnd}
-      >
-        {selected === REMINDERS_TAB ? (
-          <RemindersView reminders={reminders} onDay={select} />
-        ) : selected === ENTRY_TAB ? (
-          <EntryView trip={trip} entry={trip.entry} />
-        ) : selected === BUDGET_TAB && budget ? (
-          <BudgetView trip={trip} budget={budget} onDay={select} />
-        ) : selected === IDEAS_TAB ? (
-          <IdeasView trip={trip} highlightId={highlightId} onSelect={setHighlightId} />
-        ) : (
-          <DayView
-            key={selected}
-            trip={trip}
-            timeline={timelines[selected]}
-            warnings={warnings}
-            night={nights[selected]}
-            rentals={rentals[selected]}
-            isToday={selected === today}
-            highlightId={highlightId}
-            onSelect={setHighlightId}
-            spent={budget?.byDay[selected] ? formatMoney(budget.byDay[selected], budget.currency) : undefined}
-            cash={cashOn(budget, selected)}
+        <main
+          className="content"
+          ref={content}
+          onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
+          onTouchEnd={onTouchEnd}
+        >
+          {selected === REMINDERS_TAB ? (
+            <RemindersView reminders={reminders} onDay={select} />
+          ) : selected === ENTRY_TAB ? (
+            <EntryView trip={trip} entry={trip.entry} />
+          ) : selected === BUDGET_TAB && budget ? (
+            <BudgetView trip={trip} budget={budget} onDay={select} />
+          ) : selected === IDEAS_TAB ? (
+            <IdeasView trip={trip} highlightId={highlightId} onSelect={setHighlightId} />
+          ) : (
+            <DayView
+              key={selected}
+              trip={trip}
+              timeline={timelines[selected]}
+              warnings={warnings}
+              night={nights[selected]}
+              rentals={rentals[selected]}
+              isToday={selected === today}
+              highlightId={highlightId}
+              onSelect={setHighlightId}
+              spent={budget?.byDay[selected] ? formatMoney(budget.byDay[selected], budget.currency) : undefined}
+              cash={cashOn(budget, selected)}
+            />
+          )}
+        </main>
+        {attachFor && trip.items[attachFor] && (
+          <AttachmentSheet
+            tripId={trip.id}
+            item={trip.items[attachFor]}
+            attachments={attachments.get(attachFor) ?? []}
+            onChanged={reloadAttachments}
+            onClose={() => setAttachFor(undefined)}
           />
         )}
-      </main>
-    </div>
+      </div>
+    </AttachContext.Provider>
   );
 }
 
