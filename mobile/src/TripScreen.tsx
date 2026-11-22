@@ -15,6 +15,8 @@ import { readLang, useLang, useT } from "@/lib/useLang";
 import { useTripBudgetFrom } from "@/lib/useRates";
 import { BudgetView } from "./BudgetView";
 import { EntryView } from "./EntryView";
+import { remindersOf } from "./notify";
+import { RemindersView } from "./RemindersView";
 import { DayView, IdeasView } from "./DayView";
 
 // The map library is big; load it only once a trip is open so the trip list starts instantly.
@@ -23,6 +25,7 @@ const MapView = lazy(() => import("./MapView").then((m) => ({ default: m.MapView
 const IDEAS_TAB = -1;
 const BUDGET_TAB = -2;
 const ENTRY_TAB = -3;
+const REMINDERS_TAB = -4;
 
 /** The phone has no TripDeck server: it asks frankfurter.dev directly. */
 async function fetchRates(base: string): Promise<Rates> {
@@ -57,13 +60,15 @@ const isLandscape = () => matchMedia(LANDSCAPE).matches;
 interface Props {
   trip: Trip;
   now: Date;
+  /** The day to open on (a tapped reminder's); otherwise today or the first day. */
+  day?: number;
   onBack: () => void;
 }
 
-export function TripScreen({ trip, now, onBack }: Props) {
+export function TripScreen({ trip, now, day, onBack }: Props) {
   const t = useT();
   const lang = useLang();
-  const [picked, setSelected] = useState(() => defaultDayIndex(trip, now));
+  const [picked, setSelected] = useState(() => day ?? defaultDayIndex(trip, now));
   // A re-imported trip can be shorter than the day that was open.
   const selected = picked < 0 ? picked : Math.min(picked, trip.days.length - 1);
   const today = todayIndex(trip, now);
@@ -110,8 +115,9 @@ export function TripScreen({ trip, now, onBack }: Props) {
     () => (dayId ? buildLayers(trip, dayId) : buildLayers(trip, null, new Set(trip.ideas))),
     [trip, dayId],
   );
-  const hasMap = selected !== BUDGET_TAB && selected !== ENTRY_TAB && layers.markers.length > 0;
+  const hasMap = selected >= IDEAS_TAB && layers.markers.length > 0;
   const entryTodo = useMemo(() => entryActions(trip).length, [trip]);
+  const reminders = useMemo(() => remindersOf(trip, lang, now), [trip, lang, now]);
 
   // Android back closes the full-screen map before leaving the trip (App listens for "app-back").
   useEffect(() => {
@@ -189,6 +195,16 @@ export function TripScreen({ trip, now, onBack }: Props) {
           🛂
           {entryTodo > 0 && <span className="appbar-count">{entryTodo}</span>}
         </button>
+        {trip.startDate && (
+          <button
+            className="appbar-tab"
+            aria-label={reminders.length ? t("reminders.tabCount", { n: reminders.length }) : t("reminders.tab")}
+            aria-current={selected === REMINDERS_TAB}
+            onClick={() => select(REMINDERS_TAB)}
+          >
+            🔔
+          </button>
+        )}
       </header>
 
       <div className="day-strip" ref={strip} role="tablist">
@@ -271,7 +287,9 @@ export function TripScreen({ trip, now, onBack }: Props) {
         onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
         onTouchEnd={onTouchEnd}
       >
-        {selected === ENTRY_TAB ? (
+        {selected === REMINDERS_TAB ? (
+          <RemindersView reminders={reminders} onDay={select} />
+        ) : selected === ENTRY_TAB ? (
           <EntryView trip={trip} entry={trip.entry} />
         ) : selected === BUDGET_TAB && budget ? (
           <BudgetView trip={trip} budget={budget} onDay={select} />

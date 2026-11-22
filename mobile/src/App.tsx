@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { demoTrip } from "@/lib/demo";
 import { parseTripFile } from "@/lib/tripOps";
 import type { Trip } from "@/lib/types";
-import { useT } from "@/lib/useLang";
+import { useLang, useT } from "@/lib/useLang";
+import { onReminderTap, syncReminders, useRemindersEnabled } from "./notify";
 import { loadTrips, saveTrips } from "./storage";
 import { TripList } from "./TripList";
 import { TripScreen } from "./TripScreen";
@@ -12,6 +13,10 @@ export function App() {
   const t = useT();
   const [trips, setTrips] = useState<Record<string, Trip> | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  /** The day a tapped reminder opens on. */
+  const [openDay, setOpenDay] = useState<number>();
+  const lang = useLang();
+  const reminders = useRemindersEnabled();
   const [notice, setNotice] = useState<string | null>(null);
   // Re-read on resume so "today" moves on when the app was left open overnight.
   const [now, setNow] = useState(() => new Date());
@@ -20,6 +25,19 @@ export function App() {
   useEffect(() => {
     loadTrips().then(setTrips);
   }, []);
+
+  // The phone's notifications follow the trips: a newer import moves them, a removed trip takes its own.
+  useEffect(() => {
+    if (trips) void syncReminders(Object.values(trips), lang, reminders);
+  }, [trips, lang, reminders, now]);
+  useEffect(
+    () =>
+      onReminderTap((tripId, dayIndex) => {
+        setOpenDay(dayIndex);
+        setOpenId(tripId);
+      }),
+    [],
+  );
 
   const update = useCallback((next: Record<string, Trip>) => {
     setTrips(next);
@@ -78,7 +96,16 @@ export function App() {
   return (
     <>
       {open ? (
-        <TripScreen trip={open} now={now} onBack={() => setOpenId(null)} />
+        <TripScreen
+          key={`${open.id}|${openDay ?? ""}`}
+          trip={open}
+          now={now}
+          day={openDay}
+          onBack={() => {
+            setOpenId(null);
+            setOpenDay(undefined);
+          }}
+        />
       ) : (
         <TripList
           trips={Object.values(trips)}
