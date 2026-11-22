@@ -64,6 +64,7 @@ describe.skipIf(!bun)("MCP server", () => {
       [
         "add_expense",
         "add_item",
+        "audit_trip",
         "climate",
         "create_trip",
         "get_trip",
@@ -215,8 +216,9 @@ describe.skipIf(!bun)("MCP server", () => {
     await ok("update_item", { trip_id: tripId, item_id: dive, dive: { dives: 2, max_depth_m: 28 } });
     const saved = JSON.parse(fs.readFileSync(path.join(home, "trips", `${tripId}.json`), "utf8")).items[dive].dive;
     expect(saved).toMatchObject({ dives: 2, maxDepthM: 28, gas: "nitrox", mix: "EAN32", prep: { status: "check", url, details: "- Max 25 m\n- 50 bar reserve" } });
+    // What is left out stays (the depth); "" clears the mix.
     await ok("update_item", { trip_id: tripId, item_id: dive, dive: { dives: 2, mix: "" } });
-    expect(await ok("get_trip", { trip_id: tripId })).toContain("2 dive(s), nitrox");
+    expect(await ok("get_trip", { trip_id: tripId })).toContain("2 dive(s), max 28 m, nitrox");
 
     expect((await call("save_dive_prep", { trip_id: tripId, item_id: dive, status: "ready" })).text).toContain("short summary");
     expect((await call("save_dive_prep", { trip_id: tripId, item_id: dive, status: "ready", summary: "x", url: "javascript:alert(1)" })).isError).toBe(true);
@@ -378,6 +380,11 @@ describe.skipIf(!bun)("MCP server", () => {
     expect(plan).toContain("status: ⏳ Waiting for confirmation");
 
     await ok("update_item", { trip_id: tripId, item_id: dives, booking: { status: "confirmed" } });
+    const confirmed = await ok("get_trip", { trip_id: tripId });
+    expect(confirmed).not.toContain("Big Blue Best-Of (day 2): waiting");
+    // Confirmed with Big Blue, but its booking number is still to be filled in.
+    expect(confirmed).toContain("- Big Blue Best-Of (day 2): no booking number yet");
+    await ok("update_item", { trip_id: tripId, item_id: dives, booking: { reference: "BBD-001595" } });
     expect(await ok("get_trip", { trip_id: tripId })).not.toContain("Big Blue Best-Of (day 2)");
   });
 
@@ -492,6 +499,49 @@ describe.skipIf(!bun)("MCP server", () => {
       transport: { kind: "flight", arrival_time: "20:00" },
     });
     expect(backwards).toMatchObject({ isError: true, text: expect.stringMatching(/arrival_next_day/) });
+  });
+
+  it("changes a ferry's status without losing its route, and checks the plan in one call", async () => {
+    const tripId = idIn(await ok("create_trip", { name: "Cozumel", destination: "Mexico", start_date: "2027-02-27", days: 2 }), /trip_id ([\w-]+)/);
+    const ferry = idIn(
+      await ok("add_item", {
+        trip_id: tripId,
+        day: 1,
+        type: "transport",
+        title: "Ferry to Cozumel",
+        lat: 20.62,
+        lng: -87.07,
+        transport: { kind: "ferry", from: "Playa del Carmen", to: "Cozumel", number: "UL 1" },
+        notes: "Not booked yet.",
+      }),
+      /\[([\w-]+)\]/,
+    );
+    await ok("add_item", {
+      trip_id: tripId,
+      day: 1,
+      type: "stay",
+      title: "Casa Mel",
+      lat: 20.51,
+      lng: -86.94,
+      stay_nights: 1,
+      booking: { provider: "Booking.com", price: "1669 PLN", status: "confirmed" },
+    });
+
+    const audit = await ok("audit_trip", { trip_id: tripId });
+    expect(audit).toMatch(/# Check of Cozumel: \d+ to fix/);
+    expect(audit).toMatch(/Ferry to Cozumel.*the notes say it is not booked yet, but its status is not set/);
+    expect(audit).toMatch(/Ferry to Cozumel.*has no arrival place/);
+    expect(audit).toMatch(/Casa Mel.*booked with Booking.com but has no booking number/);
+    expect(await ok("get_trip", { trip_id: tripId })).toMatch(/Casa Mel \(day 1\): no booking number yet/);
+
+    // Only the arrival is given: the rest of the ferry's details stay.
+    await ok("update_item", { trip_id: tripId, item_id: ferry, booking: { status: "todo" }, transport: { kind: "ferry", to_lat: 20.51, to_lng: -86.95 } });
+    const plan = await ok("get_trip", { trip_id: tripId });
+    expect(plan).toMatch(/ferry UL 1 Playa del Carmen → Cozumel · arrives at/);
+    expect(await ok("audit_trip", { trip_id: tripId })).not.toMatch(/Ferry to Cozumel.*(notes say|no arrival)/);
+    // "" clears a detail.
+    await ok("update_item", { trip_id: tripId, item_id: ferry, transport: { kind: "ferry", number: "" } });
+    expect(await ok("get_trip", { trip_id: tripId })).toMatch(/ferry Playa del Carmen → Cozumel/);
   });
 
   it("reports invalid requests as tool errors instead of crashing", async () => {

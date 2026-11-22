@@ -352,6 +352,7 @@ export const en = {
     interests: "Interests (AI suggestions use these)",
   },
   todoDialog: {
+    noReference: "No booking number yet",
     title: "📝 To sort out",
     empty: "Nothing left: every booking is confirmed, every night has a bed and no entry formality is open.",
     by: "📝 by {date}",
@@ -699,6 +700,7 @@ export const en = {
     ideas: "Ideas",
     day: "day {day}",
     toBook: "{title} ({where}): to book",
+    noReference: "{title} ({where}): no booking number yet",
     pending: "{title} ({where}): waiting for confirmation",
   },
   status: {

@@ -385,6 +385,7 @@ export const pl: Messages = {
     interests: "Zainteresowania (używane przez podpowiedzi AI)",
   },
   todoDialog: {
+    noReference: "Brak numeru rezerwacji",
     title: "📝 Do załatwienia",
     empty: "Wszystko gotowe: każda rezerwacja potwierdzona, na każdą noc jest nocleg i żadna formalność wjazdowa nie czeka.",
     by: "📝 do {date}",
@@ -749,6 +750,7 @@ export const pl: Messages = {
     ideas: "Pomysły",
     day: "dzień {day}",
     toBook: "{title} ({where}): do zarezerwowania",
+    noReference: "{title} ({where}): brak numeru rezerwacji",
     pending: "{title} ({where}): czeka na potwierdzenie",
   },
   status: {
