@@ -8,9 +8,12 @@
  *
  *   claude mcp add --scope user tripdeck -- <path-to-bun> <path-to-tripdeck>/mcp/server.ts
  */
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { auditTrip, type AuditLevel } from "../lib/audit";
 import { computeClockNotes, mergeIssues } from "../lib/clock";
 import { computeDiveWarnings } from "../lib/diveSafety";
 import {
@@ -29,6 +32,7 @@ import { centroid } from "../lib/geo";
 import { bestOrder, evaluate, travelMatrix, type OptInput } from "../lib/optimize";
 import { guessType, itemFieldsFromPlace } from "../lib/places";
 import { defaultModeTo, rentalsOf, VEHICLE_MODE } from "../lib/rentals";
+import { codeWatcher, STALE_NOTE } from "../lib/server/codeVersion";
 import { HttpError } from "../lib/server/errors";
 import { exchangeRates } from "../lib/server/rates";
 import { climateLine, regionLabel, regionsOf, tripMonths } from "../lib/climate";
@@ -106,7 +110,8 @@ How to work:
 - Days with time to spare: get_trip lists the ideas near them ("Time to spare – ideas nearby"). Offer them to the user, and move the ones they want with move_item.
 - Before reordering a day, call optimize_day for real travel times, then decide (meals, sunset, heat, opening hours) and apply with reorder_day. Explain your reasoning briefly.
 - Booking confirmations: if you have Gmail (or another mail) tools, search for confirmations (Booking.com, GetYourGuide, Viator, Airbnb, airlines, ferries, car / scooter rentals, dive centres), then add one card per booking on the right day with provider, reference, times and price. Never invent booking numbers.
-- Booking status: booking.status "confirmed", "pending" (paid or requested, not confirmed yet) or "todo" (still to book). get_trip lists the pending and to-book ones, and nights with nowhere to sleep, under "To sort out" – mention them.
+- Booking status: booking.status "confirmed", "pending" (paid or requested, not confirmed yet) or "todo" (still to book). get_trip lists the pending and to-book ones, bookings without their booking number, and nights with nowhere to sleep, under "To sort out" – mention them.
+- Checking a plan: audit_trip goes through the whole trip in one call – notes that contradict the booking status, missing booking numbers, arrival places and locations, travel times that are only estimates, prices without a currency, timing, dive and clock warnings, nights without a bed, entry rules. Run it when the user asks to check or tidy a trip, or before the trip; go through the findings with them and fix what they agree to.
 - Entry & paperwork (visas, passport rules, arrival forms, driving permits): research them on the web yourself for the trip's passports (update_trip passports – ask which passports when get_trip says they are not set) and save them with save_entry_check, whose description says what to look for. The board shows them under 🛂, the open ones with deadlines under "To sort out". When get_trip says they are missing or out of date, offer to check; mark one done with set_entry_done when the user says it is sorted. Never present entry rules from memory as certain.
 - Expenses during the trip (meals, taxis, tickets bought on the spot): add_expense with the amount and its currency, from receipts, bank notifications or what the user says; get_trip shows what was spent against the plan, and trip_summary recaps the trip.
 - Prices: booking.price as written on the confirmation, always with its currency ("€189", "1 500 THB"); booking.paid when it is already paid. What is still paid at the place (entrance fees, park fees, a balance due on arrival) goes in booking.on_site, with cash: true when only cash is taken – get_trip then lists the cash to bring per day. get_trip adds them up under "Budget" in the trip's currency (update_trip budget_currency / budget_limit) – mention prices without a currency and a budget that is over its limit.
@@ -118,7 +123,10 @@ How to work:
 - Dive preparation: when the diver uses DiveDeck (its MCP server), its coach prepares each dive card from the diver's log; save the verdict on the card with save_dive_prep (ready, or check when something is still to sort out) with a one-line summary, the link to the full preparation and its text (details), so the board shows it and the phone can show it offline.
 - Answer in the user's language. Keep card titles short; the app UI is in English.`;
 
-const server = new McpServer({ name: "tripdeck", title: "TripDeck", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+const server = new McpServer({ name: "tripdeck", title: "TripDeck", version: "0.3.0" }, { instructions: INSTRUCTIONS });
+
+/** Tells Claude when this server runs older code than is on disk (a `git pull` while it kept running). */
+const code = codeWatcher(path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."));
 
 const store = () => tripStore();
 
@@ -430,13 +438,17 @@ function renderTrip(trip: Trip, budget?: Budget, spending?: Spending): string {
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 
-/** Turns thrown errors into readable tool errors instead of protocol failures. */
+/**
+ * Turns thrown errors into readable tool errors instead of protocol failures, and adds a note when the
+ * code on disk is newer than this server's – the likely cause of an error, and worth a restart anyway.
+ */
 function tool<A>(fn: (args: A) => Promise<string>) {
+  const stale = (t: string) => (code.changed() ? `${t}\n\n${STALE_NOTE}` : t);
   return async (args: A) => {
     try {
-      return text(await fn(args));
+      return text(stale(await fn(args)));
     } catch (err) {
-      return { ...text(`Error: ${(err as Error).message}`), isError: true };
+      return { ...text(stale(`Error: ${(err as Error).message}`)), isError: true };
     }
   };
 }
@@ -563,14 +575,17 @@ async function applyCard(trip: Trip, base: Item, a: CardArgs): Promise<{ item: I
   if (a.start_time !== undefined) item.startTime = a.start_time || undefined;
   if (a.duration_min !== undefined) item.durationMin = a.duration_min;
   if (a.notes !== undefined) item.notes = a.notes || undefined;
+  // Nested details change field by field: what is left out stays, "" clears a text.
+  const keep = <T>(given: T | undefined, old: T | undefined) => (given === undefined ? old : given);
+  const keepText = (given: string | undefined, old: string | undefined) => (given === undefined ? old : given.trim() || undefined);
   if (a.dive) {
     item.dive = {
       dives: a.dive.dives,
-      maxDepthM: a.dive.max_depth_m,
+      maxDepthM: keep(a.dive.max_depth_m, item.dive?.maxDepthM),
       gas: a.dive.gas ?? item.dive?.gas ?? "air",
-      mix: a.dive.mix === undefined ? item.dive?.mix : a.dive.mix.trim() || undefined,
-      site: a.dive.site,
-      center: a.dive.center,
+      mix: keepText(a.dive.mix, item.dive?.mix),
+      site: keepText(a.dive.site, item.dive?.site),
+      center: keepText(a.dive.center, item.dive?.center),
       // The preparation belongs to the coach (save_dive_prep), not to the card's details.
       prep: item.dive?.prep,
     };
@@ -583,7 +598,13 @@ async function applyCard(trip: Trip, base: Item, a: CardArgs): Promise<{ item: I
       if (!place) throw new HttpError(404, `No place found for arrival "${to_place_query}".`);
       toLocation = { lat: place.lat, lng: place.lng, address: place.address, placeId: place.placeId };
     } else if (to_lat != null && to_lng != null) toLocation = { lat: to_lat, lng: to_lng };
-    item.transport = { ...details, toLocation };
+    item.transport = {
+      kind: details.kind,
+      from: keepText(details.from, item.transport?.from),
+      to: keepText(details.to, item.transport?.to),
+      number: keepText(details.number, item.transport?.number),
+      toLocation,
+    };
     if (arrival_time) {
       const leaves = parseHm(item.startTime);
       if (leaves === undefined) throw new HttpError(400, "arrival_time needs the departure as start_time.");
@@ -601,10 +622,11 @@ async function applyCard(trip: Trip, base: Item, a: CardArgs): Promise<{ item: I
   } else if (item.type === "stay" && !item.stay) item.stay = { nights: 1 };
   if (a.rental) {
     item.rental = {
+      ...item.rental,
       vehicle: a.rental.vehicle,
       days: a.rental.days,
-      returnTime: a.rental.return_time,
-      returnPlace: a.rental.return_place,
+      returnTime: keep(a.rental.return_time, item.rental?.returnTime),
+      returnPlace: keepText(a.rental.return_place, item.rental?.returnPlace),
     };
   } else if (item.type === "rental" && !item.rental) item.rental = { vehicle: "car", days: 1 };
   if (a.tour_stops) {
@@ -1197,6 +1219,28 @@ server.registerTool(
 
 const entryKind = z.enum(["visa", "passport", "arrival_form", "health", "insurance", "driving", "customs", "other"]);
 const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
+
+server.registerTool(
+  "audit_trip",
+  {
+    title: "Check the whole plan",
+    description:
+      "Goes through the whole trip in one call and lists what to fix or check, most important first: notes that contradict the booking status (\"not booked yet\" on a confirmed card), bookings without their booking number, cards without a location, flights / ferries without an arrival place, travel times that are only straight-line estimates, prices without a currency, late arrivals and closed days, dive-safety and clock warnings, nights without a bed, entry rules missing or out of date. Each finding names its card and the tool call that fixes it. Changes nothing: go through it with the user.",
+    inputSchema: { trip_id: tripId },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  tool(async ({ trip_id }) => {
+    const trip = await loadTrip(trip_id);
+    const findings = auditTrip(trip, computeTripTimeline(trip));
+    if (!findings.length) return `${trip.name}: nothing to fix or check – the plan holds together.`;
+    const icon: Record<AuditLevel, string> = { fix: "🔧", check: "🔎", info: "ℹ️" };
+    const count = (l: AuditLevel) => findings.filter((f) => f.level === l).length;
+    return [
+      `# Check of ${trip.name}: ${count("fix")} to fix, ${count("check")} to check, ${count("info")} to know`,
+      ...findings.map((f) => `- ${icon[f.level]} ${f.message}${f.fix ? `\n  → ${f.fix}` : ""}`),
+    ].join("\n");
+  }),
+);
 
 server.registerTool(
   "save_entry_check",

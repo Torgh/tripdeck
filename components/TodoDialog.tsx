@@ -52,6 +52,19 @@ export function TodoDialog({
                   {t("todoDialog.details")}
                 </button>
               </li>
+            ) : todo.kind === "reference" ? (
+              <li key={`ref-${todo.item.id}`}>
+                <span className="grow">
+                  {itemIcon(todo.item)} <strong>{todo.item.title}</strong>
+                  <span className="muted"> · {day(todo.dayIndex)}</span>
+                  <br />
+                  <span className="badge">🔢 {t("todoDialog.noReference")}</span>
+                  {todo.item.booking?.provider && <span className="muted"> · {todo.item.booking.provider}</span>}
+                </span>
+                <button className="btn small" onClick={() => onEdit(todo.item.id)}>
+                  {t("common.edit")}
+                </button>
+              </li>
             ) : todo.kind === "night" ? (
               <li key={`night-${todo.dayIndex}`}>
                 <span className="grow">

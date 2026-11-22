@@ -355,6 +355,7 @@ export const es: Messages = {
     interests: "Intereses (los usan las sugerencias de IA)",
   },
   todoDialog: {
+    noReference: "Falta el número de reserva",
     title: "📝 Pendientes",
     empty: "No queda nada: todas las reservas están confirmadas, cada noche tiene cama y no hay trámites de entrada abiertos.",
     by: "📝 antes del {date}",
@@ -709,6 +710,7 @@ export const es: Messages = {
     ideas: "Ideas",
     day: "día {day}",
     toBook: "{title} ({where}): por reservar",
+    noReference: "{title} ({where}): falta el número de reserva",
     pending: "{title} ({where}): pendiente de confirmación",
   },
   status: {
