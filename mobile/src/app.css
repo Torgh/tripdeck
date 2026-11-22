@@ -1005,3 +1005,44 @@ p {
     font-size: 16px;
   }
 }
+
+/* Reminders (🔔) */
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+.switch-row input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+.reminder-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.reminder {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.reminder-body {
+  white-space: pre-line;
+}
